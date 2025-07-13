@@ -23,7 +23,7 @@ const Selector: FunctionComponent<{}> = () => {
     } = useZakeke();
 
     // console.log("selectOption", selectOption)
-    // console.log("groups", groups)
+    console.log("groups", groups)
 
     const [selectedGroupId, selectGroup] = useState<number | null>(null);
     const [selectedStepId, selectStep] = useState<number | null>(null);
