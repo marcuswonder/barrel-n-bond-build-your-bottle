@@ -2,6 +2,7 @@
   "name": "basic-theme",
   "version": "0.1.0",
   "private": true,
+  "homepage": "https://marcuswonder.github.io/barrel-n-bond-build-your-bottle",
   "dependencies": {
     "lodash": "^4.17.21",
     "react": "^18",
@@ -15,6 +16,8 @@
     "copy": "cpy node_modules/zakeke-configurator-react/dist/globals*.js public/",
     "start": "npm run copy && react-scripts start",
     "build": "npm run copy && react-scripts build",
+    "predeploy": "npm run build",
+    "deploy": "gh-pages -d build",
     "eject": "npm run copy && react-scripts eject"
   },
   "eslintConfig": {
@@ -45,6 +48,7 @@
     "@types/react-dom": "^18",
     "@types/react-loader-spinner": "^4.0.0",
     "@types/styled-components": "^5.1.34",
-    "cpy-cli": "^5.0.0"
+    "cpy-cli": "^5.0.0",
+    "gh-pages": "^6.3.0"
   }
 }
