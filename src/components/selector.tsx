@@ -22,94 +22,110 @@ const Selector: FunctionComponent<{}> = () => {
         setCamera,
     } = useZakeke();
 
-    // Keep saved the ID and not the refereces, they will change on each update
+    // console.log("selectOption", selectOption)
+    // console.log("groups", groups)
+
     const [selectedGroupId, selectGroup] = useState<number | null>(null);
     const [selectedStepId, selectStep] = useState<number | null>(null);
     const [selectedAttributeId, selectAttribute] = useState<number | null>(null);
-
+    
     const selectedGroup = groups.find(group => group.id === selectedGroupId);
-    const selectedStep = selectedGroup ? selectedGroup.steps.find(step => step.id === selectedStepId) : null;
+    // console.log("selectedGroup", selectedGroup)
 
-    // Attributes can be in both groups and steps, so show the attributes of step or in a group based on selection
+    const selectedStep = selectedGroup ? selectedGroup.steps.find(step => step.id === selectedStepId) : null;
+    // console.log("selectedStep", selectedStep)
+
     const attributes = useMemo(() => (selectedStep || selectedGroup)?.attributes ?? [], [selectedGroup, selectedStep]);
     const selectedAttribute = attributes.find(attribute => attribute.id === selectedAttributeId);
+    // console.log("selectedAttribute", selectedAttribute)
 
-    // Open the first group and the first step when loaded
     useEffect(() => {
         if (!selectedGroup && groups.length > 0) {
-            selectGroup(groups[0].id);
+            const bottleGroup = groups.find(g => g.name === 'Build Your Bottle');
+            const groupToSelect = bottleGroup || groups[0];
 
-            if (groups[0].steps.length > 0)
-                selectStep(groups[0].steps[0].id);
+            selectGroup(groupToSelect.id);
+
+            if (groupToSelect.steps.length > 0)
+                selectStep(groupToSelect.steps[0].id);
 
             if (templates.length > 0)
-                setTemplate(templates[0].id)
+                setTemplate(templates[0].id);
+
         }
+    }, [selectedGroup, groups, templates, setTemplate]);
 
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [selectedGroup, groups]);
-
-    // Select attribute first time
-    useEffect(() => {
-        if (!selectedAttribute && attributes.length > 0)
-            selectAttribute(attributes[0].id);
-
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [selectedAttribute, attributes])
+useEffect(() => {
+    if (!selectedAttribute && attributes.length > 0) {
+        const firstEnabledAttribute = attributes.find(attr => attr.enabled);
+        if (firstEnabledAttribute) {
+            selectAttribute(firstEnabledAttribute.id);
+        }
+    }
+}, [selectedAttribute, attributes]);
 
     useEffect(() => {
         if (selectedGroup) {
             const camera = selectedGroup.cameraLocationId;
-            if (camera)
-                setCamera(camera);
+            if (camera) setCamera(camera);
         }
-
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [selectedGroupId]);
+    }, [selectedGroupId, selectedGroup, setCamera]);
 
     if (isSceneLoading || !groups || groups.length === 0)
         return <span>Loading scene...</span>;
 
-    // groups
-    // -- attributes
-    // -- -- options
-    // -- steps
-    // -- -- attributes
-    // -- -- -- options
-
     return <Container>
-        <List>
-            {groups.map(group => {
-                return <ListItem key={group.id} onClick={() => {
-                    selectGroup(group.id)
-                }} selected={selectedGroup === group}>Group: {group.id === -1 ? 'Other' : group.name}</ListItem>;
-            })}
-        </List>
 
+
+        {/* Steps */}
         {selectedGroup && selectedGroup.steps.length > 0 && <List>
-            {selectedGroup.steps.map(step => {
-                return <ListItem key={step.id} onClick={() => selectStep(step.id)} selected={selectedStep === step}>Step: {step.name}</ListItem>;
-            })}
+            {selectedGroup.steps.map(step => (
+                <ListItem key={step.id} onClick={() => selectStep(step.id)} selected={selectedStep === step}>
+                    {step.name}
+                </ListItem>
+            ))}
         </List>}
 
+        {/* Attributes */}
+        {/* <List>
+            
+            {attributes
+                .filter(attribute => attribute.enabled)
+                .map(attribute => (
+                    <ListItem
+                        key={attribute.id}
+                        onClick={() => selectAttribute(attribute.id)}
+                        selected={selectedAttribute === attribute}
+                    >
+                        Attribute: {attribute.name}
+                    </ListItem>
+                ))}
+        </List> */}
+        
+        {/* Options */}
         <List>
-            {attributes && attributes.map(attribute => {
-                return <ListItem key={attribute.id} onClick={() => selectAttribute(attribute.id)} selected={selectedAttribute === attribute}>Attribute: {attribute.name}</ListItem>;
-            })}
-        </List>
-
-        <List>
-            {selectedAttribute && selectedAttribute.options.map(option => {
-                return <ListItem key={option.id} onClick={() => selectOption(option.id)} selected={option.selected}>
-                    {option.imageUrl && <ListItemImage src={option.imageUrl} />}
-                    Option: {option.name}
-                </ListItem>;
-            })}
+            {selectedAttribute && selectedAttribute.options
+                .filter(() => true)
+                .map(option => (
+                    option.name !== "No Selection" && (
+                    <ListItem key={option.id} onClick={() => {
+                        console.log('User selected option:', {
+                            name: option.name,
+                            attribute: selectedAttribute.name,
+                            enabled: option.enabled,
+                            selected: option.selected
+                        });
+                        selectOption(option.id);
+                    }} selected={option.selected}>
+                        {option.imageUrl && <ListItemImage src={option.imageUrl} />}
+                        {option.name}
+                    </ListItem>
+                    )
+                ))}
         </List>
 
         <h3>Price: {price}</h3>
-        {isAddToCartLoading ? 'Adding to cart...' : <button onClick={addToCart}>Add to cart</button>}
-
+        {isAddToCartLoading ? 'Saving...next step: create your label' : <button onClick={addToCart}>Save and Create Label</button>}
     </Container>
 }
 
