@@ -23,6 +23,8 @@ const App: FunctionComponent<{}> = () => {
             console.log("compositionId:", compositionId);
             console.log("previewUrl:", previewUrl);
             console.log("quantity:", quantity);
+
+            
         }
 
         function messageListener(event: MessageEvent) {
