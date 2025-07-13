@@ -1,0 +1,13 @@
+{
+  "files": {
+    "main.css": "/barrel-n-bond-build-your-bottle/static/css/main.b530ae54.css",
+    "main.js": "/barrel-n-bond-build-your-bottle/static/js/main.eba31e63.js",
+    "index.html": "/barrel-n-bond-build-your-bottle/index.html",
+    "main.b530ae54.css.map": "/barrel-n-bond-build-your-bottle/static/css/main.b530ae54.css.map",
+    "main.eba31e63.js.map": "/barrel-n-bond-build-your-bottle/static/js/main.eba31e63.js.map"
+  },
+  "entrypoints": [
+    "static/css/main.b530ae54.css",
+    "static/js/main.eba31e63.js"
+  ]
+}
