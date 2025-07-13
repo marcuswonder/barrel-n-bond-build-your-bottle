@@ -49,10 +49,10 @@ const Selector: FunctionComponent<{}> = () => {
             if (bottleGroup.steps.length > 0)
                 selectStep(bottleGroup.steps[0].id);
 
-            // if (templates.length > 0)
-            //     setTemplate(templates[0].id);
+            if (templates.length > 0)
+                setTemplate(templates[0].id);
 
-            setTemplate(1111111);
+            // setTemplate(1111111);
         }
     }, [selectedGroup, groups, templates, setTemplate]);
 
