@@ -5,7 +5,7 @@
   "homepage": "https://build.barrelnbond.com",
   "dependencies": {
     "lodash": "^4.17.21",
-    "react": "^18",
+    "react": "^19",
     "react-dom": "^18",
     "react-loader-spinner": "^6.1.6",
     "react-scripts": "5.0.1",
@@ -44,7 +44,7 @@
     "@types/jest": "^29.5.11",
     "@types/lodash": "^4.14.202",
     "@types/node": "^20.10.4",
-    "@types/react": "^18",
+    "@types/react": "^19",
     "@types/react-color": "^3.0.10",
     "@types/react-dom": "^18",
     "@types/react-loader-spinner": "^4.0.0",
