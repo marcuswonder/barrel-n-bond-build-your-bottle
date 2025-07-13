@@ -17,31 +17,60 @@ const zakekeEnvironment = new ZakekeEnvironment();
 
 const App: FunctionComponent<{}> = () => {
 
+    // useEffect(() => {
+    //     function handleAddToCartRequest(compositionId: string, previewUrl: string, quantity: number) {
+    //         // Replace with your own logic to POST this info to your backend
+    //         console.log("compositionId:", compositionId);
+    //         console.log("previewUrl:", previewUrl);
+    //         console.log("quantity:", quantity);
+
+
+    //     }
+
+    //     function messageListener(event: MessageEvent) {
+    //         console.log("Message Received", event, MessageEvent)
+    //         if (event.data?.zakekeMessageType === "AddToCart") {
+    //             const { composition, preview, quantity } = event.data.message;
+    //             handleAddToCartRequest(composition, preview, quantity);
+    //         }
+    //     }
+
+    //     window.addEventListener("message", messageListener);
+
+    //     // Cleanup
+    //     return () => {
+    //         window.removeEventListener("message", messageListener);
+    //     };
+    // }, []);
+
     useEffect(() => {
-        function handleAddToCartRequest(compositionId: string, previewUrl: string, quantity: number) {
-            // Replace with your own logic to POST this info to your backend
-            console.log("compositionId:", compositionId);
-            console.log("previewUrl:", previewUrl);
-            console.log("quantity:", quantity);
-
-            
-        }
-
-        function messageListener(event: MessageEvent) {
-            console.log("Message Received", event, MessageEvent)
+        function handleMessage(event: MessageEvent) {
+            console.log("event", event)
+            console.log("event.data", event.data)
             if (event.data?.zakekeMessageType === "AddToCart") {
                 const { composition, preview, quantity } = event.data.message;
-                handleAddToCartRequest(composition, preview, quantity);
+
+                // Trigger Shopify add
+                // fetch("/cart/add.js", {
+                //     method: "POST",
+                //     headers: {
+                //     "Content-Type": "application/json",
+                //     },
+                //     body: JSON.stringify({
+                //     id: YOUR_SHOPIFY_VARIANT_ID,
+                //     quantity,
+                //     properties: {
+                //         "Zakeke Composition ID": composition,
+                //         "Preview Image": preview
+                //     }
+                //     })
+                // });
             }
         }
 
-        window.addEventListener("message", messageListener);
-
-        // Cleanup
-        return () => {
-            window.removeEventListener("message", messageListener);
-        };
-    }, []);
+        window.addEventListener("message", handleMessage);
+        return () => window.removeEventListener("message", handleMessage);
+        }, []);
 
     return (
         <ZakekeProvider environment={zakekeEnvironment}>

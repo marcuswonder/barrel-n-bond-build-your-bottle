@@ -26,14 +26,16 @@ const Selector: FunctionComponent<{}> = () => {
         groups,
         selectOption,
         addToCart,
-        templates,
-        setTemplate,
         setCamera
     } = useZakeke();
+
+    console.log("isAddToCartLoading", isAddToCartLoading)
 
     const [selectedGroupId, selectGroup] = useState<number | null>(null);
     const [selectedStepId, selectStep] = useState<number | null>(null);
     const [selectedAttributeId, selectAttribute] = useState<number | null>(null);
+    // State to store the response data from addToCart
+    const [cartResponse, setCartResponse] = useState<any>(null); // Use 'any' if the exact type is not known, or define an interface
 
     const selectedGroup = groups.find(group => group.id === selectedGroupId);
     const selectedStep = selectedGroup?.steps.find(step => step.id === selectedStepId) ?? null;
@@ -49,12 +51,8 @@ const Selector: FunctionComponent<{}> = () => {
             if (bottleGroup.steps.length > 0)
                 selectStep(bottleGroup.steps[0].id);
 
-            if (templates.length > 0)
-                setTemplate(templates[0].id);
-
-            // setTemplate(1111111);
         }
-    }, [selectedGroup, groups, templates, setTemplate]);
+    }, [selectedGroup, groups]);
 
     useEffect(() => {
         if (!selectedAttribute && attributes.length > 0) {
@@ -76,29 +74,34 @@ const Selector: FunctionComponent<{}> = () => {
         return <span>Loading scene...</span>;
 
     const handleAddToCart = async () => {
-    try {
-        await addToCart(
-            {},
-            async (data) => {
-                console.log("🧩 Composition data before sending:", data);
+        try {
+            await addToCart(
+                {},
+                async (data) => {
+                    console.log("🧩 Composition data before sending:", data);
+                    // Store the response data in state
+                    setCartResponse(data);
+                    // Log the full response data
+                    console.log("✅ addToCart Response Data:", data);
 
-                window.postMessage({
-                    zakekeMessageType: "AddToCart",
-                    message: {
-                        composition: data.composition,
-                        preview: data.preview,
-                        quantity: data.quantity
-                    }
-                }, "*");
+                    // window.postMessage({
+                    //     zakekeMessageType: "AddToCart",
+                    //     message: {
+                    //         composition: data.composition,
+                    //         preview: data.preview,
+                    //         quantity: data.quantity
+                    //     }
+                    // }, "*");
 
-                return data;
-            },
-            false 
-        );
-    } catch (error) {
-        console.error('Error during addToCart:', error);
-    }
-};
+                    return data;
+                },
+                false
+            );
+        } catch (error) {
+            console.error('Error during addToCart:', error);
+            setCartResponse(null); // Clear response on error or handle error state separately
+        }
+    };
 
     return (
         <Container>
@@ -150,6 +153,20 @@ const Selector: FunctionComponent<{}> = () => {
                     ? <TailSpin color="#FFFFFF" height="25px" />
                     : <span>Save and Create Label</span>}
             </CartButton>
+
+            {/* Display the cart response data (for demonstration) */}
+            {cartResponse && (
+                <div>
+                    <h4>Last Add To Cart Response:</h4>
+                    <p>Composition ID: **{cartResponse.compositionID}**</p>
+                    {cartResponse.previewImageUrl && (
+                        <img src={cartResponse.previewImageUrl} alt="Product Preview" style={{ maxWidth: '150px', border: '1px solid #eee', marginTop: '10px' }} />
+                    )}
+                    <pre style={{ fontSize: '0.8em', backgroundColor: '#f5f5f5', padding: '10px', borderRadius: '5px', overflowX: 'auto' }}>
+                        {JSON.stringify(cartResponse, null, 2)}
+                    </pre>
+                </div>
+            )}
         </Container>
     );
 };
