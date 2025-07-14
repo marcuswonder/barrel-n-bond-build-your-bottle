@@ -28,8 +28,57 @@ const Selector: FunctionComponent<{}> = () => {
         addToCart,
         templates,
         setTemplate,
-        setCamera
+        setCamera,
+        product
     } = useZakeke();
+
+    
+    console.log("groups", groups)
+    console.log("product", product)
+    
+    const group = groups.find(group => group.name === "Build Your Bottle")
+
+    const groupSteps = group ? group.steps : null
+
+    const bottleStepOptions = groupSteps ? groupSteps[0]?.attributes[0]?.options : null
+    // console.log("bottleStepOptions", bottleStepOptions)
+
+    const bottleSelectionIndex = bottleStepOptions
+    ? bottleStepOptions.findIndex(option => option.selected)
+    : -1;
+    const bottleSelection = bottleStepOptions ? bottleStepOptions.find(option => option.selected) : null
+    // console.log("bottleSelection", bottleSelection)
+    
+    const liquidStepOptions = groupSteps ? groupSteps[1]?.attributes[bottleSelectionIndex]?.options : null
+    const closureStepOptions = groupSteps ? groupSteps[2]?.attributes[bottleSelectionIndex]?.options : null
+    // console.log("liquidStepOptions", liquidStepOptions)
+    // console.log("closureStepOptions", closureStepOptions)
+    
+    const liquidSelection = liquidStepOptions ? liquidStepOptions.find(option => option.selected) : null
+    const closureSelection = closureStepOptions ? closureStepOptions.find(option => option.selected) : null
+    // console.log("liquidSelection", liquidSelection)
+    // console.log("closureSelection", closureSelection)
+
+    const bottle = bottleSelection ? {
+        "id": bottleSelection.id,
+        "guid": bottleSelection.guid,
+        "name": bottleSelection.name,
+        "code": bottleSelection.code,
+    } : null
+
+    const liquid = liquidSelection ? {
+        "id": liquidSelection.id,
+        "guid": liquidSelection.guid,
+        "name": liquidSelection.name,
+        "code": liquidSelection.code,
+    } : null
+
+    const closure = closureSelection ? {
+        "id": closureSelection.id,
+        "guid": closureSelection.guid,
+        "name": closureSelection.name,
+        "code": closureSelection.code,
+    } : null
 
     const [selectedGroupId, selectGroup] = useState<number | null>(null);
     const [selectedStepId, selectStep] = useState<number | null>(null);
@@ -77,28 +126,41 @@ const Selector: FunctionComponent<{}> = () => {
 
     // const handleAddToCart = async () => {
     //     try {
-    //         await addToCart(
-    //             {},
-    //             async (data) => {
-    //                 const onBeforeSendDataToParentData = data
-    //                 console.log("onBeforeSendDataToParentData", onBeforeSendDataToParentData);
-
-    //                 return data;
-    //             },
-    //             false 
-    //         );
+    //         await addToCart({});
     //     } catch (error) {
     //         console.error('Error during addToCart:', error);
     //     }
     // };
-
+    
     const handleAddToCart = async () => {
-        try {
-            await addToCart({});
-        } catch (error) {
-            console.error('Error during addToCart:', error);
-        }
-    };
+    try {
+        await addToCart(
+            {},
+            async (data) => {
+                // console.log("", data);
+
+                window.parent.postMessage({
+                    customMessageType: "AddToCart",
+                    message: {
+                        preview: data.preview,
+                        quantity: data.quantity,
+                        compositionId: data.composition,
+                        zakekeAttributes: data.attributes,
+                        product_id: product?.sku || null,
+                        bottle: bottle ? bottle : null,
+                        liquid: liquid ? liquid : null,
+                        closure: closure ? closure : null,
+                    }
+                }, "*");
+
+                return data;
+            },
+            false 
+        );
+    } catch (error) {
+        console.error('Error during addToCart:', error);
+    }
+};
 
     return (
         <Container>
