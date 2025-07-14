@@ -47,7 +47,7 @@ const Selector: FunctionComponent<{}> = () => {
     ? bottleStepOptions.findIndex(option => option.selected)
     : -1;
     const bottleSelection = bottleStepOptions ? bottleStepOptions.find(option => option.selected) : null
-    // console.log("bottleSelection", bottleSelection)
+    console.log("bottleSelection", bottleSelection)
     
     const liquidStepOptions = groupSteps ? groupSteps[1]?.attributes[bottleSelectionIndex]?.options : null
     const closureStepOptions = groupSteps ? groupSteps[2]?.attributes[bottleSelectionIndex]?.options : null
@@ -56,28 +56,28 @@ const Selector: FunctionComponent<{}> = () => {
     
     const liquidSelection = liquidStepOptions ? liquidStepOptions.find(option => option.selected) : null
     const closureSelection = closureStepOptions ? closureStepOptions.find(option => option.selected) : null
-    // console.log("liquidSelection", liquidSelection)
-    // console.log("closureSelection", closureSelection)
+    console.log("liquidSelection", liquidSelection)
+    console.log("closureSelection", closureSelection)
 
     const bottle = bottleSelection ? {
         "id": bottleSelection.id,
         "guid": bottleSelection.guid,
         "name": bottleSelection.name,
-        "code": bottleSelection.code,
+        "selected": bottleSelection.selected
     } : null
 
     const liquid = liquidSelection ? {
         "id": liquidSelection.id,
         "guid": liquidSelection.guid,
         "name": liquidSelection.name,
-        "code": liquidSelection.code,
+        "selected": liquidSelection.selected
     } : null
 
     const closure = closureSelection ? {
         "id": closureSelection.id,
         "guid": closureSelection.guid,
         "name": closureSelection.name,
-        "code": closureSelection.code,
+        "selected": closureSelection.selected
     } : null
 
     const [selectedGroupId, selectGroup] = useState<number | null>(null);
@@ -101,7 +101,7 @@ const Selector: FunctionComponent<{}> = () => {
             if (templates.length > 0)
                 setTemplate(templates[0].id);
 
-            // setTemplate(1111111);
+            setTemplate(1111111);
         }
     }, [selectedGroup, groups, templates, setTemplate]);
 
@@ -123,14 +123,6 @@ const Selector: FunctionComponent<{}> = () => {
 
     if (isSceneLoading || !groups || groups.length === 0)
         return <span>Loading scene...</span>;
-
-    // const handleAddToCart = async () => {
-    //     try {
-    //         await addToCart({});
-    //     } catch (error) {
-    //         console.error('Error during addToCart:', error);
-    //     }
-    // };
     
     const handleAddToCart = async () => {
     try {
