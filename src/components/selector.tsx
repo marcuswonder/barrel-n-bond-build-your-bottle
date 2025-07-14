@@ -80,16 +80,8 @@ const Selector: FunctionComponent<{}> = () => {
             await addToCart(
                 {},
                 async (data) => {
-                    console.log("🧩 Composition data before sending:", data);
-
-                    window.parent.postMessage({
-                        zakekeMessageType: "AddToCart",
-                        message: {
-                            composition: data.composition,
-                            preview: data.preview,
-                            quantity: data.quantity
-                        }
-                    }, "*");
+                    const onBeforeSendDataToParentData = data
+                    console.log("onBeforeSendDataToParentData", onBeforeSendDataToParentData);
 
                     return data;
                 },
