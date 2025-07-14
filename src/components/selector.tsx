@@ -75,18 +75,26 @@ const Selector: FunctionComponent<{}> = () => {
     if (isSceneLoading || !groups || groups.length === 0)
         return <span>Loading scene...</span>;
 
+    // const handleAddToCart = async () => {
+    //     try {
+    //         await addToCart(
+    //             {},
+    //             async (data) => {
+    //                 const onBeforeSendDataToParentData = data
+    //                 console.log("onBeforeSendDataToParentData", onBeforeSendDataToParentData);
+
+    //                 return data;
+    //             },
+    //             false 
+    //         );
+    //     } catch (error) {
+    //         console.error('Error during addToCart:', error);
+    //     }
+    // };
+
     const handleAddToCart = async () => {
         try {
-            await addToCart(
-                {},
-                async (data) => {
-                    const onBeforeSendDataToParentData = data
-                    console.log("onBeforeSendDataToParentData", onBeforeSendDataToParentData);
-
-                    return data;
-                },
-                false 
-            );
+            await addToCart({});
         } catch (error) {
             console.error('Error during addToCart:', error);
         }
