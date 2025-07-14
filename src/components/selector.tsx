@@ -76,29 +76,29 @@ const Selector: FunctionComponent<{}> = () => {
         return <span>Loading scene...</span>;
 
     const handleAddToCart = async () => {
-    try {
-        await addToCart(
-            {},
-            async (data) => {
-                console.log("🧩 Composition data before sending:", data);
+        try {
+            await addToCart(
+                {},
+                async (data) => {
+                    console.log("🧩 Composition data before sending:", data);
 
-                window.postMessage({
-                    zakekeMessageType: "AddToCart",
-                    message: {
-                        composition: data.composition,
-                        preview: data.preview,
-                        quantity: data.quantity
-                    }
-                }, "*");
+                    window.parent.postMessage({
+                        zakekeMessageType: "AddToCart",
+                        message: {
+                            composition: data.composition,
+                            preview: data.preview,
+                            quantity: data.quantity
+                        }
+                    }, "*");
 
-                return data;
-            },
-            false 
-        );
-    } catch (error) {
-        console.error('Error during addToCart:', error);
-    }
-};
+                    return data;
+                },
+                false 
+            );
+        } catch (error) {
+            console.error('Error during addToCart:', error);
+        }
+    };
 
     return (
         <Container>
