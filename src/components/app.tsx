@@ -1,7 +1,38 @@
-import React, { FunctionComponent, useEffect } from 'react';
+import React, { FunctionComponent, useMemo } from 'react';
 import styled from 'styled-components';
-import { ZakekeEnvironment, ZakekeViewer, ZakekeProvider } from 'zakeke-configurator-react';
 import Selector from './selector';
+
+import {
+    ZakekeEnvironment, 
+    ZakekeViewer, 
+    ZakekeProvider, 
+    loadProduct,
+    Product
+} from "zakeke-configurator-react";
+
+const MyConfigurator = () => {
+  const [environment, setEnvironment] = useState<any>(null);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get("token");
+    const modelCode = params.get("modelCode");
+
+    if (!token || !modelCode) return;
+
+    const init = async () => {
+      const env = await loadProduct({
+        tokenOauth: token,
+        productId: Number(modelCode)
+      });
+      setEnvironment(env);
+    };
+
+    init();
+  }, []);
+
+  if (!environment) return <div>Loading...</div>;
+
 
 const Layout = styled.div`
     display: grid;
@@ -10,10 +41,10 @@ const Layout = styled.div`
     height: 100%;
     padding: 40px;
 `
+console.log("Product", Product)
 
 
-const zakekeEnvironment = new ZakekeEnvironment();
-
+// const zakekeEnvironment = new ZakekeEnvironment();
 
 const App: FunctionComponent<{}> = () => {
 
@@ -43,34 +74,11 @@ const App: FunctionComponent<{}> = () => {
     //     };
     // }, []);
 
-    useEffect(() => {
-        function handleMessage(event: MessageEvent) {
-            console.log("event", event)
-            console.log("event.data", event.data)
-            if (event.data?.zakekeMessageType === "AddToCart") {
-                const { composition, preview, quantity } = event.data.message;
-
-                // Trigger Shopify add
-                // fetch("/cart/add.js", {
-                //     method: "POST",
-                //     headers: {
-                //     "Content-Type": "application/json",
-                //     },
-                //     body: JSON.stringify({
-                //     id: YOUR_SHOPIFY_VARIANT_ID,
-                //     quantity,
-                //     properties: {
-                //         "Zakeke Composition ID": composition,
-                //         "Preview Image": preview
-                //     }
-                //     })
-                // });
-            }
-        }
-
-        window.addEventListener("message", handleMessage);
-        return () => window.removeEventListener("message", handleMessage);
-        }, []);
+    // function handleAddToCartRequest(compositionId, previewUrl, quantity) {
+    //     console.log("compositionId", compositionId)
+    //     console.log("previewUrl", previewUrl)
+    //     console.log("quantity", quantity)
+    // }
 
     return (
         <ZakekeProvider environment={zakekeEnvironment}>

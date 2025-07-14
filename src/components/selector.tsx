@@ -29,7 +29,9 @@ const Selector: FunctionComponent<{}> = () => {
         setCamera
     } = useZakeke();
 
-    console.log("isAddToCartLoading", isAddToCartLoading)
+    
+
+    // console.log("isAddToCartLoading", isAddToCartLoading)
 
     const [selectedGroupId, selectGroup] = useState<number | null>(null);
     const [selectedStepId, selectStep] = useState<number | null>(null);
@@ -74,34 +76,37 @@ const Selector: FunctionComponent<{}> = () => {
         return <span>Loading scene...</span>;
 
     const handleAddToCart = async () => {
-        try {
-            await addToCart(
-                {},
-                async (data) => {
-                    console.log("🧩 Composition data before sending:", data);
-                    // Store the response data in state
-                    setCartResponse(data);
-                    // Log the full response data
-                    console.log("✅ addToCart Response Data:", data);
-
-                    // window.postMessage({
-                    //     zakekeMessageType: "AddToCart",
-                    //     message: {
-                    //         composition: data.composition,
-                    //         preview: data.preview,
-                    //         quantity: data.quantity
-                    //     }
-                    // }, "*");
-
-                    return data;
-                },
-                false
-            );
-        } catch (error) {
-            console.error('Error during addToCart:', error);
-            setCartResponse(null); // Clear response on error or handle error state separately
-        }
-    };
+            // Step 1: Listen for the message
+            function handleMessage(event: MessageEvent) {
+                console.log("event", event)
+                if (event.origin !== "https://portal.zakeke.com") return;
+                    if (event.data?.zakekeMessageType === "AddToCart") {
+                        const { composition, preview, quantity } = event.data.message;
+                        console.log("✅ Received Zakeke composition:", composition);
+    
+                        // // Step 3: Add to Shopify cart manually
+                        // fetch("/cart/add.js", {
+                        //     method: "POST",
+                        //     headers: {
+                        //     "Content-Type": "application/json",
+                        //     },
+                        //     body: JSON.stringify({
+                        //     id: YOUR_SHOPIFY_VARIANT_ID,
+                        //     quantity,
+                        //     properties: {
+                        //         "Zakeke Composition ID": composition,
+                        //         "Preview Image": preview,
+                        //     },
+                        //     }),
+                        // });
+                    }
+                }
+    
+                window.addEventListener("message", handleMessage, { once: true });
+    
+                // Step 2: Trigger Zakeke
+                await addToCart({});
+        };
 
     return (
         <Container>
@@ -148,14 +153,14 @@ const Selector: FunctionComponent<{}> = () => {
 
             <h3>Price: {price}</h3>
 
-            <CartButton onClick={handleAddToCart}>
-                {isAddToCartLoading
-                    ? <TailSpin color="#FFFFFF" height="25px" />
-                    : <span>Save and Create Label</span>}
+            <CartButton key={'cart'}
+                onClick={() => handleAddToCart()}>
+                {isAddToCartLoading && <TailSpin color='#FFFFFF' height='25px' />}
+                {!isAddToCartLoading && <span>Add to Cart</span>}
             </CartButton>
 
             {/* Display the cart response data (for demonstration) */}
-            {cartResponse && (
+            {/* {cartResponse && (
                 <div>
                     <h4>Last Add To Cart Response:</h4>
                     <p>Composition ID: **{cartResponse.compositionID}**</p>
@@ -166,7 +171,7 @@ const Selector: FunctionComponent<{}> = () => {
                         {JSON.stringify(cartResponse, null, 2)}
                     </pre>
                 </div>
-            )}
+            )} */}
         </Container>
     );
 };

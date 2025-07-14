@@ -8,10 +8,11 @@
     "react": "^18",
     "react-dom": "^18",
     "react-loader-spinner": "^6.1.6",
+    "react-router-dom": "^7.6.3",
     "react-scripts": "5.0.1",
     "styled-components": "^6.1.1",
     "typescript": "^4",
-    "zakeke-configurator-react": "0.1.280-prod"
+    "zakeke-configurator-react": "^0.1.333"
   },
   "scripts": {
     "copy": "cpy node_modules/zakeke-configurator-react/dist/globals*.js public/",
@@ -48,6 +49,7 @@
     "@types/react-color": "^3.0.10",
     "@types/react-dom": "^18",
     "@types/react-loader-spinner": "^4.0.0",
+    "@types/react-router-dom": "^5.3.3",
     "@types/styled-components": "^5.1.34",
     "cpy-cli": "^5.0.0",
     "gh-pages": "^6.3.0"
