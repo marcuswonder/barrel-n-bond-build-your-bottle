@@ -11,12 +11,26 @@ const Container = styled.div`
 `;
 
 const CartButton = styled.button`
-    background-color: #000;
-    color: #fff;
-    padding: 12px 24px;
-    border: none;
-    cursor: pointer;
-    font-size: 16px;
+  background-color: #000;
+  color: #fff;
+  padding: 12px 24px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 16px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+  transition: all 0.2s ease;
+  transform-style: preserve-3d;
+
+  &:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+  }
+
+  &:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  }
 `;
 
 const Selector: FunctionComponent<{}> = () => {
@@ -170,6 +184,13 @@ const Selector: FunctionComponent<{}> = () => {
     }
 };
 
+    const showAddToCartButton =
+        bottleSelection &&
+        liquidSelection &&
+        closureSelection &&
+        liquidSelection.name !== "No Selection" &&
+        closureSelection.name !== "No Selection";
+
     return (
         <Container>
             {/* Step Navigation */}
@@ -200,40 +221,41 @@ const Selector: FunctionComponent<{}> = () => {
             )}
 
             {/* Options */}
-            <List>
-                {selectedAttribute?.options
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', justifyContent: 'center' }}>
+              {selectedAttribute?.options
                 .filter(() => true)
                 .map(option => (
-                    option.name !== "No Selection" && (
-                    <OptionListItem
-                        key={option.id}
-                        onClick={() => {
-                            console.log('User selected option:', {
-                            name: option.name,
-                            attribute: selectedAttribute.name,
-                            enabled: option.enabled,
-                            selected: option.selected
-                            });
-                            selectOption(option.id);
-                        }}
-                        selected={option.selected}
-                        >
-                        <div style={{ display: 'flex', flexDirection: 'column' }}>
-                            <span style={{ fontWeight: 600 }}>{option.name}</span>
-                            {selectedStep?.name === "Select your Gin" && option.description && (
-                            <span style={{ fontSize: '13px', color: '#666', marginTop: '4px' }}>
-                                {option.description}
-                            </span>
-                            )}
-                        </div>
-                    </OptionListItem>
-                    )
-                ))}
-            </List>
+                  option.name !== "No Selection" && (
+                  <OptionListItem
+                      key={option.id}
+                      onClick={() => {
+                          console.log('User selected option:', {
+                          name: option.name,
+                          attribute: selectedAttribute.name,
+                          enabled: option.enabled,
+                          selected: option.selected
+                          });
+                          selectOption(option.id);
+                      }}
+                      selected={option.selected}
+                      style={{ width: '200px' }}
+                      >
+                      <div style={{ display: 'flex', flexDirection: 'column' }}>
+                          <span style={{ fontWeight: 600 }}>{option.name}</span>
+                          {selectedStep?.name === "Select your Gin" && option.description && (
+                          <span style={{ fontSize: '13px', color: '#666', marginTop: '4px' }}>
+                              {option.description}
+                          </span>
+                          )}
+                      </div>
+                  </OptionListItem>
+                  )
+              ))}
+            </div>
 
-            {selectedStep?.name && selectedAttribute && (
-              <div style={{ marginTop: '16px', padding: '12px', background: '#f5f5f5', borderRadius: '6px' }}>
-                <strong>Notes:</strong>
+            {selectedStep?.name && selectedAttribute && selectedAttribute.options.find(opt => opt.selected && opt.name !== "No Selection") && (
+              <div style={{ marginTop: '16px', padding: '12px', background: '#ffffff', border: '1px solid black', borderRadius: '6px' }}>
+                <strong>Notes</strong>
                 <p style={{ margin: '8px 0 0', color: '#555' }}>
                   {(() => {
                     const selectedOption = selectedAttribute.options.find(opt => opt.selected);
@@ -248,7 +270,7 @@ const Selector: FunctionComponent<{}> = () => {
 
                     if (!category || !optionNotes[category]) return null;
 
-                    return optionNotes[category][selectedOption.name] || 'No notes available for this option.';
+                    return optionNotes[category][selectedOption.name] || '';
                   })()}
                 </p>
               </div>
@@ -256,11 +278,13 @@ const Selector: FunctionComponent<{}> = () => {
 
             <h3>Price: {price}</h3>
 
-            <CartButton onClick={handleAddToCart}>
-                {isAddToCartLoading
-                ? <TailSpin color="#FFFFFF" height="25px" />
-                : <span>Save and Create Label</span>}
-            </CartButton>
+            {showAddToCartButton && (
+              <CartButton onClick={handleAddToCart}>
+                  {isAddToCartLoading
+                  ? <TailSpin color="#FFFFFF" height="25px" />
+                  : <span>Save and Create Label</span>}
+              </CartButton>
+            )}
         </Container>
     );
 };

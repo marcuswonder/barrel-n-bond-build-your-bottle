@@ -29,17 +29,26 @@ export const OptionListItem = styled.li<{ selected?: boolean }>`
   align-items: center;
   padding: 16px;
   margin-bottom: 12px;
-  border-radius: 8px;
+  border-radius: 12px;
   border: 1px solid ${({ selected }) => (selected ? '#000' : '#d1d5db')};
   background-color: ${({ selected }) => (selected ? '#000' : '#fff')};
   color: ${({ selected }) => (selected ? '#fff' : '#000')};
   cursor: pointer;
   gap: 16px;
+  box-shadow: ${({ selected }) =>
+    selected ? '0 6px 12px rgba(0, 0, 0, 0.2)' : '0 2px 6px rgba(0, 0, 0, 0.1)'};
   transition: all 0.2s ease;
+  transform-style: preserve-3d;
 
   &:hover {
-    background-color: ${({ selected }) => (selected ? '#111' : '#f9fafb')};
-    transform: translateY(-1px);
+    background-color: ${({ selected }) => (selected ? '#111' : '#f0f0f0')};
+    transform: translateY(-4px);
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15);
+  }
+
+  &:active {
+    transform: translateY(0px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
   }
 `;
 
