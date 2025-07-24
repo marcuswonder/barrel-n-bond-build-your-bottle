@@ -129,7 +129,22 @@ const Selector: FunctionComponent<{}> = () => {
         await addToCart(
             {},
             async (data) => {
-                // console.log("", data);
+                console.log("data", data);
+
+                console.log("postMessage Content:", {
+                    customMessageType: "AddToCart",
+                    message: {
+                        preview: data.preview,
+                        quantity: data.quantity,
+                        compositionId: data.composition,
+                        zakekeAttributes: data.attributes,
+                        product_id: product?.sku || null,
+                        bottle: bottle ? bottle : null,
+                        liquid: liquid ? liquid : null,
+                        closure: closure ? closure : null,
+                    }
+                }
+                )
 
                 window.parent.postMessage({
                     customMessageType: "AddToCart",
