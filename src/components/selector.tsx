@@ -2,6 +2,7 @@ import React, { FunctionComponent, useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
 import { useZakeke } from 'zakeke-configurator-react';
 import { List, StepListItem, StepTitle, OptionListItem, ListItemImage, NavButton } from './list';
+import { optionNotes } from '../data/option-notes';
 import { TailSpin } from 'react-loader-spinner';
 
 const Container = styled.div`
@@ -207,22 +208,51 @@ const Selector: FunctionComponent<{}> = () => {
                     <OptionListItem
                         key={option.id}
                         onClick={() => {
-                        console.log('User selected option:', {
+                            console.log('User selected option:', {
                             name: option.name,
                             attribute: selectedAttribute.name,
                             enabled: option.enabled,
                             selected: option.selected
-                        });
-                        selectOption(option.id);
+                            });
+                            selectOption(option.id);
                         }}
                         selected={option.selected}
-                    >
-                        {option.imageUrl && <ListItemImage src={option.imageUrl} />}
-                        {option.name}
+                        >
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                            <span style={{ fontWeight: 600 }}>{option.name}</span>
+                            {selectedStep?.name === "Select your Gin" && option.description && (
+                            <span style={{ fontSize: '13px', color: '#666', marginTop: '4px' }}>
+                                {option.description}
+                            </span>
+                            )}
+                        </div>
                     </OptionListItem>
                     )
                 ))}
             </List>
+
+            {selectedStep?.name && selectedAttribute && (
+              <div style={{ marginTop: '16px', padding: '12px', background: '#f5f5f5', borderRadius: '6px' }}>
+                <strong>Notes:</strong>
+                <p style={{ margin: '8px 0 0', color: '#555' }}>
+                  {(() => {
+                    const selectedOption = selectedAttribute.options.find(opt => opt.selected);
+                    if (!selectedOption) return 'Select an option to see notes.';
+
+                    const stepName = selectedStep.name.toLowerCase();
+                    const category =
+                      stepName.includes('bottle') ? 'bottles' :
+                      stepName.includes('gin') || stepName.includes('liquid') ? 'liquids' :
+                      stepName.includes('closure') ? 'closures' :
+                      null;
+
+                    if (!category || !optionNotes[category]) return null;
+
+                    return optionNotes[category][selectedOption.name] || 'No notes available for this option.';
+                  })()}
+                </p>
+              </div>
+            )}
 
             <h3>Price: {price}</h3>
 
