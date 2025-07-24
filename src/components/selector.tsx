@@ -5,6 +5,30 @@ import { List, StepListItem, StepTitle, OptionListItem, ListItemImage, NavButton
 import { optionNotes } from '../data/option-notes';
 import { TailSpin } from 'react-loader-spinner';
 
+const LayoutWrapper = styled.div`
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+`;
+
+const ContentWrapper = styled.div`
+  flex: 1;
+  overflow-y: auto;
+`;
+
+const PriceWrapper = styled.div`
+  position: sticky;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  padding: 16px 32px;
+  border-top: 1px solid #ddd;
+  background: #fff;
+  text-align: left;
+  box-shadow: 0 -2px 6px rgba(0,0,0,0.05);
+`;
+
 const Container = styled.div`
     height: 100%;
     overflow: auto;
@@ -192,32 +216,34 @@ const Selector: FunctionComponent<{}> = () => {
         closureSelection.name !== "No Selection";
 
     return (
-        <Container>
+      <LayoutWrapper>
+        <ContentWrapper>
+          <Container>
             {/* Step Navigation */}
             {selectedGroup && selectedGroup.steps.length > 0 && selectedStep && (
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '16px 0' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '16px 0' }}>
                 <NavButton
-                    onClick={() => {
+                  onClick={() => {
                     const currentIndex = selectedGroup.steps.findIndex(s => s.id === selectedStep.id);
                     if (currentIndex > 0) selectStep(selectedGroup.steps[currentIndex - 1].id);
-                    }}
-                    disabled={selectedGroup.steps.findIndex(s => s.id === selectedStep.id) === 0}
+                  }}
+                  disabled={selectedGroup.steps.findIndex(s => s.id === selectedStep.id) === 0}
                 >
-                    ←
+                  ←
                 </NavButton>
 
                 <StepTitle>{selectedStep.name}</StepTitle>
 
                 <NavButton
-                    onClick={() => {
+                  onClick={() => {
                     const currentIndex = selectedGroup.steps.findIndex(s => s.id === selectedStep.id);
                     if (currentIndex < selectedGroup.steps.length - 1) selectStep(selectedGroup.steps[currentIndex + 1].id);
-                    }}
-                    disabled={selectedGroup.steps.findIndex(s => s.id === selectedStep.id) === selectedGroup.steps.length - 1}
+                  }}
+                  disabled={selectedGroup.steps.findIndex(s => s.id === selectedStep.id) === selectedGroup.steps.length - 1}
                 >
-                    →
+                  →
                 </NavButton>
-                </div>
+              </div>
             )}
 
             {/* Options */}
@@ -226,31 +252,31 @@ const Selector: FunctionComponent<{}> = () => {
                 .filter(() => true)
                 .map(option => (
                   option.name !== "No Selection" && (
-                  <OptionListItem
+                    <OptionListItem
                       key={option.id}
                       onClick={() => {
-                          console.log('User selected option:', {
+                        console.log('User selected option:', {
                           name: option.name,
                           attribute: selectedAttribute.name,
                           enabled: option.enabled,
                           selected: option.selected
-                          });
-                          selectOption(option.id);
+                        });
+                        selectOption(option.id);
                       }}
                       selected={option.selected}
                       style={{ width: '200px' }}
-                      >
+                    >
                       <div style={{ display: 'flex', flexDirection: 'column' }}>
-                          <span style={{ fontWeight: 600 }}>{option.name}</span>
-                          {selectedStep?.name === "Select your Gin" && option.description && (
+                        <span style={{ fontWeight: 600 }}>{option.name}</span>
+                        {selectedStep?.name === "Select your Gin" && option.description && (
                           <span style={{ fontSize: '13px', color: '#666', marginTop: '4px' }}>
-                              {option.description}
+                            {option.description}
                           </span>
-                          )}
+                        )}
                       </div>
-                  </OptionListItem>
+                    </OptionListItem>
                   )
-              ))}
+                ))}
             </div>
 
             {selectedStep?.name && selectedAttribute && selectedAttribute.options.find(opt => opt.selected && opt.name !== "No Selection") && (
@@ -264,9 +290,9 @@ const Selector: FunctionComponent<{}> = () => {
                     const stepName = selectedStep.name.toLowerCase();
                     const category =
                       stepName.includes('bottle') ? 'bottles' :
-                      stepName.includes('gin') || stepName.includes('liquid') ? 'liquids' :
-                      stepName.includes('closure') ? 'closures' :
-                      null;
+                        stepName.includes('gin') || stepName.includes('liquid') ? 'liquids' :
+                          stepName.includes('closure') ? 'closures' :
+                            null;
 
                     if (!category || !optionNotes[category]) return null;
 
@@ -275,17 +301,19 @@ const Selector: FunctionComponent<{}> = () => {
                 </p>
               </div>
             )}
-
-            <h3>Price: {price}</h3>
-
-            {showAddToCartButton && (
-              <CartButton onClick={handleAddToCart}>
-                  {isAddToCartLoading
-                  ? <TailSpin color="#FFFFFF" height="25px" />
-                  : <span>Save and Create Label</span>}
-              </CartButton>
-            )}
-        </Container>
+          </Container>
+        </ContentWrapper>
+        <PriceWrapper>
+          <h3>Price: {price}</h3>
+          {showAddToCartButton && (
+            <CartButton onClick={handleAddToCart}>
+              {isAddToCartLoading
+                ? <TailSpin color="#FFFFFF" height="25px" />
+                : <span>Save and Create Label</span>}
+            </CartButton>
+          )}
+        </PriceWrapper>
+      </LayoutWrapper>
     );
 };
 
