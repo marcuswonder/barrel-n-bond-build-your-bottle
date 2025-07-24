@@ -5,6 +5,28 @@ import { List, StepListItem, StepTitle, OptionListItem, ListItemImage, NavButton
 import { optionNotes } from '../data/option-notes';
 import { TailSpin } from 'react-loader-spinner';
 
+const RotateNotice = styled.div`
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 9999;
+  width: 100%;
+  height: 100%;
+  background: rgba(255, 255, 255, 0.95);
+  color: #000;
+  font-size: 18px;
+  font-weight: 600;
+  text-align: center;
+  justify-content: center;
+  align-items: center;
+  padding: 20px;
+
+  @media (max-width: 768px) and (orientation: portrait) {
+    display: flex;
+  }
+`;
+
 const LayoutWrapper = styled.div`
   height: 100vh;
   display: flex;
@@ -216,7 +238,9 @@ const Selector: FunctionComponent<{}> = () => {
         closureSelection.name !== "No Selection";
 
     return (
-      <LayoutWrapper>
+      <>
+        <RotateNotice>Please rotate your device to landscape for the best experience.</RotateNotice>
+        <LayoutWrapper>
         <ContentWrapper>
           <Container>
             {/* Step Navigation */}
@@ -313,7 +337,8 @@ const Selector: FunctionComponent<{}> = () => {
             </CartButton>
           )}
         </PriceWrapper>
-      </LayoutWrapper>
+        </LayoutWrapper>
+      </>
     );
 };
 
