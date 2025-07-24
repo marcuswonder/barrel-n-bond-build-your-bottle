@@ -1,7 +1,7 @@
 import React, { FunctionComponent, useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
 import { useZakeke } from 'zakeke-configurator-react';
-import { List, ListItem, ListItemImage } from './list';
+import { List, StepListItem, StepTitle, OptionListItem, ListItemImage, NavButton } from './list';
 import { TailSpin } from 'react-loader-spinner';
 
 const Container = styled.div`
@@ -171,53 +171,65 @@ const Selector: FunctionComponent<{}> = () => {
 
     return (
         <Container>
-            {/* Steps */}
-            {selectedGroup && selectedGroup.steps.length > 0 && (
-                <List>
-                    {selectedGroup.steps.map(step => (
-                        <ListItem
-                            key={step.id}
-                            onClick={() => selectStep(step.id)}
-                            selected={selectedStep === step}
-                        >
-                            {step.name}
-                        </ListItem>
-                    ))}
-                </List>
+            {/* Step Navigation */}
+            {selectedGroup && selectedGroup.steps.length > 0 && selectedStep && (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '16px 0' }}>
+                <NavButton
+                    onClick={() => {
+                    const currentIndex = selectedGroup.steps.findIndex(s => s.id === selectedStep.id);
+                    if (currentIndex > 0) selectStep(selectedGroup.steps[currentIndex - 1].id);
+                    }}
+                    disabled={selectedGroup.steps.findIndex(s => s.id === selectedStep.id) === 0}
+                >
+                    ←
+                </NavButton>
+
+                <StepTitle>{selectedStep.name}</StepTitle>
+
+                <NavButton
+                    onClick={() => {
+                    const currentIndex = selectedGroup.steps.findIndex(s => s.id === selectedStep.id);
+                    if (currentIndex < selectedGroup.steps.length - 1) selectStep(selectedGroup.steps[currentIndex + 1].id);
+                    }}
+                    disabled={selectedGroup.steps.findIndex(s => s.id === selectedStep.id) === selectedGroup.steps.length - 1}
+                >
+                    →
+                </NavButton>
+                </div>
             )}
 
             {/* Options */}
             <List>
                 {selectedAttribute?.options
-                    .filter(() => true)
-                    .map(option => (
-                        option.name !== "No Selection" && (
-                            <ListItem
-                                key={option.id}
-                                onClick={() => {
-                                    console.log('User selected option:', {
-                                        name: option.name,
-                                        attribute: selectedAttribute.name,
-                                        enabled: option.enabled,
-                                        selected: option.selected
-                                    });
-                                    selectOption(option.id);
-                                }}
-                                selected={option.selected}
-                            >
-                                {option.imageUrl && <ListItemImage src={option.imageUrl} />}
-                                {option.name}
-                            </ListItem>
-                        )
-                    ))}
+                .filter(() => true)
+                .map(option => (
+                    option.name !== "No Selection" && (
+                    <OptionListItem
+                        key={option.id}
+                        onClick={() => {
+                        console.log('User selected option:', {
+                            name: option.name,
+                            attribute: selectedAttribute.name,
+                            enabled: option.enabled,
+                            selected: option.selected
+                        });
+                        selectOption(option.id);
+                        }}
+                        selected={option.selected}
+                    >
+                        {option.imageUrl && <ListItemImage src={option.imageUrl} />}
+                        {option.name}
+                    </OptionListItem>
+                    )
+                ))}
             </List>
 
             <h3>Price: {price}</h3>
 
             <CartButton onClick={handleAddToCart}>
                 {isAddToCartLoading
-                    ? <TailSpin color="#FFFFFF" height="25px" />
-                    : <span>Save and Create Label</span>}
+                ? <TailSpin color="#FFFFFF" height="25px" />
+                : <span>Save and Create Label</span>}
             </CartButton>
         </Container>
     );
