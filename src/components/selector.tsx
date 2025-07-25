@@ -1,83 +1,10 @@
 import React, { FunctionComponent, useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
 import { useZakeke } from 'zakeke-configurator-react';
-import { List, StepListItem, StepTitle, OptionListItem, ListItemImage, NavButton } from './list';
+import { LayoutWrapper, ContentWrapper, Container,  StepTitle, OptionListItem, RotateNotice, NavButton, PriceWrapper, CartButton, LoadingSpinner } from './list';
+// import { List, StepListItem, , ListItemImage } from './list';
 import { optionNotes } from '../data/option-notes';
 import { TailSpin } from 'react-loader-spinner';
-
-const RotateNotice = styled.div`
-  display: none;
-  position: fixed;
-  top: 0;
-  left: 0;
-  z-index: 9999;
-  width: 100%;
-  height: 100%;
-  background: rgba(255, 255, 255, 0.95);
-  color: #000;
-  font-size: 18px;
-  font-weight: 600;
-  text-align: center;
-  justify-content: center;
-  align-items: center;
-  padding: 20px;
-
-  @media (max-width: 768px) and (orientation: portrait) {
-    display: flex;
-  }
-`;
-
-const LayoutWrapper = styled.div`
-  height: 100vh;
-  display: flex;
-  flex-direction: column;
-`;
-
-const ContentWrapper = styled.div`
-  flex: 1;
-  overflow-y: auto;
-`;
-
-const PriceWrapper = styled.div`
-  position: sticky;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  z-index: 10;
-  padding: 16px 32px;
-  border-top: 1px solid #ddd;
-  background: #fff;
-  text-align: left;
-  box-shadow: 0 -2px 6px rgba(0,0,0,0.05);
-`;
-
-const Container = styled.div`
-    height: 100%;
-    overflow: auto;
-`;
-
-const CartButton = styled.button`
-  background-color: #000;
-  color: #fff;
-  padding: 12px 24px;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 16px;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
-  transition: all 0.2s ease;
-  transform-style: preserve-3d;
-
-  &:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
-  }
-
-  &:active {
-    transform: translateY(0);
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  }
-`;
 
 const Selector: FunctionComponent<{}> = () => {
     const {
@@ -183,7 +110,7 @@ const Selector: FunctionComponent<{}> = () => {
     }, [selectedGroupId, selectedGroup, setCamera]);
 
     if (isSceneLoading || !groups || groups.length === 0)
-        return <span>Loading scene...</span>;
+        return <LoadingSpinner />;
     
     const handleAddToCart = async () => {
     try {
