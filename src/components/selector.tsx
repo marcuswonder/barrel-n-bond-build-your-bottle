@@ -179,11 +179,17 @@ const Selector: FunctionComponent<{}> = () => {
                     if (currentIndex > 0) selectStep(selectedGroup.steps[currentIndex - 1].id);
                   }}
                   disabled={selectedGroup.steps.findIndex(s => s.id === selectedStep.id) === 0}
+                  title="Back"
                 >
                   ←
                 </NavButton>
 
-                <StepTitle>{selectedStep.name}</StepTitle>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                  <StepTitle>{selectedStep.name}</StepTitle>
+                  <span style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
+                    Step {selectedGroup.steps.findIndex(s => s.id === selectedStep.id) + 1} of {selectedGroup.steps.length}
+                  </span>
+                </div>
 
                 <NavButton
                   onClick={() => {
@@ -191,6 +197,7 @@ const Selector: FunctionComponent<{}> = () => {
                     if (currentIndex < selectedGroup.steps.length - 1) selectStep(selectedGroup.steps[currentIndex + 1].id);
                   }}
                   disabled={selectedGroup.steps.findIndex(s => s.id === selectedStep.id) === selectedGroup.steps.length - 1}
+                  title="Next"
                 >
                   →
                 </NavButton>
@@ -215,10 +222,38 @@ const Selector: FunctionComponent<{}> = () => {
                         selectOption(option.id);
                       }}
                       selected={option.selected}
-                      style={{ width: '200px' }}
+                      style={{
+                        width: '200px',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease-in-out',
+                        boxShadow: option.selected ? '0 0 0 2px black' : 'none',
+                        border: option.selected ? '2px solid #222' : '1px solid #ddd',
+                        borderRadius: '8px',
+                        background: option.selected ? '#f3f3fa' : '#fff',
+                        outline: 'none'
+                      }}
+                      tabIndex={0}
+                      onMouseOver={e => {
+                        (e.currentTarget as HTMLElement).style.boxShadow = option.selected
+                          ? '0 0 0 2.5px #333'
+                          : '0 2px 8px rgba(0,0,0,0.07)';
+                      }}
+                      onMouseOut={e => {
+                        (e.currentTarget as HTMLElement).style.boxShadow = option.selected
+                          ? '0 0 0 2px black'
+                          : 'none';
+                      }}
+                      onFocus={e => {
+                        (e.currentTarget as HTMLElement).style.boxShadow = '0 0 0 2.5px #0074d9';
+                      }}
+                      onBlur={e => {
+                        (e.currentTarget as HTMLElement).style.boxShadow = option.selected
+                          ? '0 0 0 2px black'
+                          : 'none';
+                      }}
                     >
                       <div style={{ display: 'flex', flexDirection: 'column' }}>
-                        <span style={{ fontWeight: 600 }}>{option.name}</span>
+                        <span style={{ fontWeight: 600, color: option.selected ? '#000' : undefined }}>{option.name}</span>
                         {selectedStep?.name === "Select your Gin" && option.description && (
                           <span style={{ fontSize: '13px', color: '#666', marginTop: '4px' }}>
                             {option.description}
@@ -231,7 +266,7 @@ const Selector: FunctionComponent<{}> = () => {
             </div>
 
             {selectedStep?.name && selectedAttribute && selectedAttribute.options.find(opt => opt.selected && opt.name !== "No Selection") && (
-              <div style={{ marginTop: '16px', padding: '12px', background: '#ffffff', border: '1px solid black', borderRadius: '6px' }}>
+              <div style={{ marginTop: '24px', padding: '16px', background: '#f9f9f9', border: '1px solid #ddd', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
                 <strong>Notes</strong>
                 <p style={{ margin: '8px 0 0', color: '#555' }}>
                   {(() => {
@@ -254,16 +289,18 @@ const Selector: FunctionComponent<{}> = () => {
             )}
           </Container>
         </ContentWrapper>
-        <PriceWrapper>
-          <h3>Price: {price}</h3>
-          {showAddToCartButton && (
-            <CartButton onClick={handleAddToCart}>
-              {isAddToCartLoading
-                ? <TailSpin color="#FFFFFF" height="25px" />
-                : <span>Save and Create Label</span>}
-            </CartButton>
-          )}
-        </PriceWrapper>
+        <div style={{ position: 'sticky', bottom: 0, background: '#fff', padding: '16px 16px 24px', borderTop: '1px solid #ccc', zIndex: 10 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <h3 style={{ margin: 0 }}>Price: {price}</h3>
+            {showAddToCartButton && (
+              <CartButton onClick={handleAddToCart}>
+                {isAddToCartLoading
+                  ? <TailSpin color="#FFFFFF" height="25px" />
+                  : <span>Save and Create Label</span>}
+              </CartButton>
+            )}
+          </div>
+        </div>
         </LayoutWrapper>
       </>
     );
