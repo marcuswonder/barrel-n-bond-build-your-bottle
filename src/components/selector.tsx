@@ -22,7 +22,8 @@ const Selector: FunctionComponent<{}> = () => {
         addItemImage,
         items,
         getMeshIDbyName,
-        setMeshDesignVisibility
+        setMeshDesignVisibility,
+        restoreMeshVisibility
     } = useZakeke();
 
     
@@ -114,11 +115,11 @@ const Selector: FunctionComponent<{}> = () => {
         }
     }, [selectedGroupId, selectedGroup, setCamera]);
 
-    useEffect(() => {
-      console.log("Current Zakeke templates:", templates);
-      console.log("Current Zakeke items:", items);
-      setMeshDesignVisibility("origin_label_front", true);
-    }, [templates, items, setMeshDesignVisibility]);
+    // useEffect(() => {
+    //   console.log("Current Zakeke templates:", templates);
+    //   console.log("Current Zakeke items:", items);
+    //   setMeshDesignVisibility("origin_label_front", true);
+    // }, [templates, items, setMeshDesignVisibility]);
     
     // useEffect(() => {
     //   console.log("Current Zakeke templates:", items);
@@ -162,56 +163,71 @@ const Selector: FunctionComponent<{}> = () => {
     // }, [createImageFromUrl, addItemImage, getMeshIDbyName, setMeshDesignVisibility, items, templates]);
 
     useEffect(() => {
-  const handleMessage = async (event: MessageEvent) => {
-    if (event.data.customMessageType === "ConfirmOrder") {
-      const order = event.data.message.order;
-      console.log("Received order", order);
+      const handleMessage = async (event: MessageEvent) => {
+        if (event.data.customMessageType === "ConfirmOrder") {
+          const order = event.data.message.order;
+          console.log("Received order", order);
 
-      const frontMeshId = getMeshIDbyName(`${order.product.bottle.toLowerCase()}_label_front`);
-      const backMeshId = getMeshIDbyName(`${order.product.bottle.toLowerCase()}_label_back`);
-      if (frontMeshId) setMeshDesignVisibility(frontMeshId, true);
-      if (backMeshId) setMeshDesignVisibility(backMeshId, true);
+          const frontMeshId = getMeshIDbyName(`${order.product.bottle.toLowerCase()}_label_front`);
+          const backMeshId = getMeshIDbyName(`${order.product.bottle.toLowerCase()}_label_back`);
 
-      // Wait until items have loaded
-      let retries = 10;
-      while (items.length < 2 && retries > 0) {
-        console.log("Waiting for items...");
-        await new Promise((r) => setTimeout(r, 300));
-        retries--;
-      }
+          console.log(`${order.product.bottle.toLowerCase()}_label_front`);
+          console.log("frontMeshId", frontMeshId);
+          console.log("backMeshId", backMeshId);
+          
+          
+          let retries = 100;
+          while (items.length < 2 && retries > 0) {
+          if (frontMeshId) setMeshDesignVisibility(frontMeshId, true);
+          if (backMeshId) setMeshDesignVisibility(backMeshId, true);
 
-      if (items.length === 0) {
-        console.error("❌ No items available for customization.");
-        return;
-      }
+          if (frontMeshId) restoreMeshVisibility(frontMeshId);
+          if (backMeshId) restoreMeshVisibility(backMeshId);
 
-      const frontAreaId = items[0]?.areaId;
-      const backAreaId = items[1]?.areaId;
+          console.log("frontMeshId", frontMeshId);
+          console.log("backMeshId", backMeshId);
+            console.log("Waiting for items...");
+            console.log("items", items);
+            console.log("templates", templates);
+            await new Promise((r) => setTimeout(r, 300));
+            retries--;
+          }
 
-      console.log("frontAreaId", frontAreaId);
-      console.log("backAreaId", backAreaId);
+          if (items.length === 0) {
+            console.error("❌ No items available for customization.");
+            return;
+          }
 
-      try {
-        const frontImage = await createImageFromUrl(order.front.previews[0].url);
-        const backImage = await createImageFromUrl(order.back.previews[0].url);
-        console.log("Uploaded images:", frontImage, backImage);
+          const frontAreaId = items[0]?.areaId;
+          const backAreaId = items[1]?.areaId;
 
-        if (frontImage?.imageID && frontAreaId) {
-          await addItemImage(frontImage.imageID, frontAreaId);
+          console.log("frontAreaId", frontAreaId);
+          console.log("backAreaId", backAreaId);
+
+          try {
+            // const frontImage = await createImageFromUrl(order.front.previews[0].url);
+            // const backImage = await createImageFromUrl(order.back.previews[0].url);
+            const frontImage = await createImageFromUrl("https://barrel-n-bond.s3.eu-west-2.amazonaws.com/public/Front+Label+for+the+Polo+Bottle+inc+Bleed.jpg");
+            const backImage = await createImageFromUrl("https://barrel-n-bond.s3.eu-west-2.amazonaws.com/public/Back+Label+for+the+Polo+Bottle+inc+Bleed.jpg");
+            console.log("Uploaded images:", frontImage, backImage);
+
+            if (frontImage?.imageID && frontAreaId) {
+              await addItemImage(frontImage.imageID, frontAreaId);
+            }
+            if (backImage?.imageID && backAreaId) {
+              await addItemImage(backImage.imageID, backAreaId);
+            }
+            console.log("✅ Label images applied.");
+          } catch (err) {
+            console.error("❌ Failed to apply label images:", err);
+          }
         }
-        if (backImage?.imageID && backAreaId) {
-          await addItemImage(backImage.imageID, backAreaId);
-        }
-        console.log("✅ Label images applied.");
-      } catch (err) {
-        console.error("❌ Failed to apply label images:", err);
-      }
-    }
-  };
+      };
 
-  window.addEventListener("message", handleMessage);
-  return () => window.removeEventListener("message", handleMessage);
-}, [items, createImageFromUrl, addItemImage, getMeshIDbyName, setMeshDesignVisibility]);
+      window.addEventListener("message", handleMessage);
+      return () => window.removeEventListener("message", handleMessage);
+
+    }, [items, createImageFromUrl, addItemImage, getMeshIDbyName, setMeshDesignVisibility]);
 
 
     // useEffect(() => {
