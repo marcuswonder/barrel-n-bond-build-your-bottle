@@ -17,7 +17,12 @@ const Selector: FunctionComponent<{}> = () => {
         templates,
         setTemplate,
         setCamera,
-        product
+        product,
+        createImageFromUrl, 
+        addItemImage,
+        items,
+        getMeshIDbyName,
+        setMeshDesignVisibility
     } = useZakeke();
 
     
@@ -108,6 +113,145 @@ const Selector: FunctionComponent<{}> = () => {
             if (camera) setCamera(camera);
         }
     }, [selectedGroupId, selectedGroup, setCamera]);
+
+    useEffect(() => {
+      console.log("Current Zakeke templates:", templates);
+      console.log("Current Zakeke items:", items);
+      setMeshDesignVisibility("origin_label_front", true);
+    }, [templates, items, setMeshDesignVisibility]);
+    
+    // useEffect(() => {
+    //   console.log("Current Zakeke templates:", items);
+
+    //   const poloLabelFrontMeshId = getMeshIDbyName("polo_label_front");
+    //   const poloLabelBackMeshId = getMeshIDbyName("polo_label_back");
+      
+    //   console.log("poloLabelFrontMeshId", poloLabelFrontMeshId);
+    //   console.log("poloLabelBackMeshId", poloLabelBackMeshId);
+    //   if (poloLabelFrontMeshId) setMeshDesignVisibility(poloLabelFrontMeshId, true);
+    //   if (poloLabelBackMeshId) setMeshDesignVisibility(poloLabelBackMeshId, true);
+    // }, [items, getMeshIDbyName, setMeshDesignVisibility]);
+
+
+    // useEffect(() => {
+    //   window.addEventListener("message", async (event) => {
+    //     if (event.data.customMessageType === "VistaLabelSaved") {
+    //       const imageUrl = event.data.message.previewUrl;
+    //       console.log("imageUrl", imageUrl);
+          
+    //       try {
+    //         const uploadedImage = await createImageFromUrl(imageUrl);
+    //         console.log("uploadedImage", uploadedImage);
+    //         console.log("Current Zakeke items:", items);
+    //         console.log("Current Zakeke templates:", templates);
+
+    //         const poloLabelFrontMeshId = getMeshIDbyName("polo_label_front");
+    //         const poloLabelBackMeshId = getMeshIDbyName("polo_label_back");
+    //         console.log("poloLabelFrontMeshId", poloLabelFrontMeshId);
+    //         console.log("poloLabelBackMeshId", poloLabelBackMeshId);  
+
+    //         const poloLabelFrontAreaId = items[0]?.areaId
+
+    //         await addItemImage(uploadedImage.imageID, poloLabelFrontAreaId);
+    //         // console.log("Design image applied to 3D product.");
+    //       } catch (e) {
+    //         console.error("Error uploading image to Zakeke:", e);
+    //       }
+    //     }
+    //   });
+    // }, [createImageFromUrl, addItemImage, getMeshIDbyName, setMeshDesignVisibility, items, templates]);
+
+    useEffect(() => {
+  const handleMessage = async (event: MessageEvent) => {
+    if (event.data.customMessageType === "ConfirmOrder") {
+      const order = event.data.message.order;
+      console.log("Received order", order);
+
+      const frontMeshId = getMeshIDbyName(`${order.product.bottle.toLowerCase()}_label_front`);
+      const backMeshId = getMeshIDbyName(`${order.product.bottle.toLowerCase()}_label_back`);
+      if (frontMeshId) setMeshDesignVisibility(frontMeshId, true);
+      if (backMeshId) setMeshDesignVisibility(backMeshId, true);
+
+      // Wait until items have loaded
+      let retries = 10;
+      while (items.length < 2 && retries > 0) {
+        console.log("Waiting for items...");
+        await new Promise((r) => setTimeout(r, 300));
+        retries--;
+      }
+
+      if (items.length === 0) {
+        console.error("❌ No items available for customization.");
+        return;
+      }
+
+      const frontAreaId = items[0]?.areaId;
+      const backAreaId = items[1]?.areaId;
+
+      console.log("frontAreaId", frontAreaId);
+      console.log("backAreaId", backAreaId);
+
+      try {
+        const frontImage = await createImageFromUrl(order.front.previews[0].url);
+        const backImage = await createImageFromUrl(order.back.previews[0].url);
+        console.log("Uploaded images:", frontImage, backImage);
+
+        if (frontImage?.imageID && frontAreaId) {
+          await addItemImage(frontImage.imageID, frontAreaId);
+        }
+        if (backImage?.imageID && backAreaId) {
+          await addItemImage(backImage.imageID, backAreaId);
+        }
+        console.log("✅ Label images applied.");
+      } catch (err) {
+        console.error("❌ Failed to apply label images:", err);
+      }
+    }
+  };
+
+  window.addEventListener("message", handleMessage);
+  return () => window.removeEventListener("message", handleMessage);
+}, [items, createImageFromUrl, addItemImage, getMeshIDbyName, setMeshDesignVisibility]);
+
+
+    // useEffect(() => {
+    //   window.addEventListener("message", async (event) => {
+    //     if (event.data.customMessageType === "ConfirmOrder") {
+    //       const order = event.data.message.order;
+    //       console.log("order", order);
+
+    //       const frontMeshId = getMeshIDbyName(`${order.product.bottle.toLowerCase()}_label_front`);
+    //       const backMeshId = getMeshIDbyName(`${order.product.bottle.toLowerCase()}_label_back`);
+    //       console.log("frontMeshId", frontMeshId);
+    //       console.log("backMeshId", backMeshId);
+
+    //       if (frontMeshId) setMeshDesignVisibility(frontMeshId, true);
+    //       if (backMeshId) setMeshDesignVisibility(backMeshId, true);
+
+    //       console.log("items", items);
+    //       console.log("templates", templates);
+
+    //       const frontAreaId = items[0]?.areaId 
+    //       const backAreaId = items[1]?.areaId 
+
+    //       console.log("frontAreaId", frontAreaId);
+    //       console.log("backAreaId", backAreaId);
+          
+    //       // try {
+    //       //   const frontLabelDesign = await createImageFromUrl(order.front.previews[0].url);
+    //       //   const backLabelDesign = await createImageFromUrl(order.back.previews[0].url);
+            
+    //       //   console.log("frontLabelDesign", frontLabelDesign);
+    //       //   console.log("backLabelDesign", backLabelDesign);
+
+    //       //   // await addItemImage(uploadedImage.imageID, poloLabelFrontAreaId);
+    //       //   // // console.log("Design image applied to 3D product.");
+    //       // } catch (e) {
+    //       //   console.error("Error uploading image to Zakeke:", e);
+    //       // }
+    //     }
+    //   });
+    // }, [createImageFromUrl, addItemImage, getMeshIDbyName, setMeshDesignVisibility, items, templates]);
 
     if (isSceneLoading || !groups || groups.length === 0)
         return <LoadingSpinner />;
