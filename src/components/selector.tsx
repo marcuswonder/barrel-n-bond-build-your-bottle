@@ -209,7 +209,7 @@ const Selector: FunctionComponent<{}> = () => {
     }, []);
 
 
-
+    
 
 
 
@@ -233,6 +233,20 @@ const Selector: FunctionComponent<{}> = () => {
     const onLabelStep =
       (selectedStep?.name || '').toLowerCase().includes('design') ||
       (selectedStep?.name || '').toLowerCase().includes('label');
+
+    useEffect(() => {
+      if (!onLabelStep || !selectedAttribute) return;
+
+      const opts = selectedAttribute.options || [];
+      const designOpt = opts.find(
+        o => (o.name || '').toLowerCase().includes('design your label')
+      );
+
+      // Only trigger if it's not already selected
+      if (designOpt && !designOpt.selected) {
+        selectOption(designOpt.id);
+      }
+    }, [onLabelStep, selectedAttribute, selectOption]);
 
     const frontVisible = !!labelAreas.front;
     const backVisible  = !!labelAreas.back;
@@ -417,65 +431,68 @@ const Selector: FunctionComponent<{}> = () => {
             )}
 
             {/* Options */}
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', justifyContent: 'center' }}>
-              {selectedAttribute?.options
-                .filter(() => true)
-                .map(option => (
-                  option.name !== "No Selection" && (
-                    <OptionListItem
-                      key={option.id}
-                      onClick={() => {
-                        console.log('User selected option:', {
-                          name: option.name,
-                          attribute: selectedAttribute.name,
-                          enabled: option.enabled,
-                          selected: option.selected
-                        });
-                        selectOption(option.id);
-                      }}
-                      selected={option.selected}
-                      style={{
-                        width: '200px',
-                        cursor: 'pointer',
-                        transition: 'all 0.2s ease-in-out',
-                        boxShadow: option.selected ? '0 0 0 2px black' : 'none',
-                        border: option.selected ? '2px solid #222' : '1px solid #ddd',
-                        borderRadius: '8px',
-                        background: option.selected ? '#f3f3fa' : '#fff',
-                        outline: 'none'
-                      }}
-                      tabIndex={0}
-                      onMouseOver={e => {
-                        (e.currentTarget as HTMLElement).style.boxShadow = option.selected
-                          ? '0 0 0 2.5px #333'
-                          : '0 2px 8px rgba(0,0,0,0.07)';
-                      }}
-                      onMouseOut={e => {
-                        (e.currentTarget as HTMLElement).style.boxShadow = option.selected
-                          ? '0 0 0 2px black'
-                          : 'none';
-                      }}
-                      onFocus={e => {
-                        (e.currentTarget as HTMLElement).style.boxShadow = '0 0 0 2.5px #0074d9';
-                      }}
-                      onBlur={e => {
-                        (e.currentTarget as HTMLElement).style.boxShadow = option.selected
-                          ? '0 0 0 2px black'
-                          : 'none';
-                      }}
-                    >
-                      <div style={{ display: 'flex', flexDirection: 'column' }}>
-                        <span style={{ fontWeight: 600, color: option.selected ? '#000' : undefined }}>{option.name}</span>
-                        {selectedStep?.name === "Select your Gin" && option.description && (
-                          <span style={{ fontSize: '13px', color: '#666', marginTop: '4px' }}>
-                            {option.description}
-                          </span>
-                        )}
-                      </div>
-                    </OptionListItem>
-                  )
-                ))}
-            </div>
+            {/* Options (hidden on label step) */}
+            {!onLabelStep && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', justifyContent: 'center' }}>
+                {selectedAttribute?.options
+                  .filter(() => true)
+                  .map(option => (
+                    option.name !== "No Selection" && (
+                      <OptionListItem
+                        key={option.id}
+                        onClick={() => {
+                          console.log('User selected option:', {
+                            name: option.name,
+                            attribute: selectedAttribute.name,
+                            enabled: option.enabled,
+                            selected: option.selected
+                          });
+                          selectOption(option.id);
+                        }}
+                        selected={option.selected}
+                        style={{
+                          width: '200px',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s ease-in-out',
+                          boxShadow: option.selected ? '0 0 0 2px black' : 'none',
+                          border: option.selected ? '2px solid #222' : '1px solid #ddd',
+                          borderRadius: '8px',
+                          background: option.selected ? '#f3f3fa' : '#fff',
+                          outline: 'none'
+                        }}
+                        tabIndex={0}
+                        onMouseOver={e => {
+                          (e.currentTarget as HTMLElement).style.boxShadow = option.selected
+                            ? '0 0 0 2.5px #333'
+                            : '0 2px 8px rgba(0,0,0,0.07)';
+                        }}
+                        onMouseOut={e => {
+                          (e.currentTarget as HTMLElement).style.boxShadow = option.selected
+                            ? '0 0 0 2px black'
+                            : 'none';
+                        }}
+                        onFocus={e => {
+                          (e.currentTarget as HTMLElement).style.boxShadow = '0 0 0 2.5px #0074d9';
+                        }}
+                        onBlur={e => {
+                          (e.currentTarget as HTMLElement).style.boxShadow = option.selected
+                            ? '0 0 0 2px black'
+                            : 'none';
+                        }}
+                      >
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                          <span style={{ fontWeight: 600, color: option.selected ? '#000' : undefined }}>{option.name}</span>
+                          {selectedStep?.name === "Select your Gin" && option.description && (
+                            <span style={{ fontSize: '13px', color: '#666', marginTop: '4px' }}>
+                              {option.description}
+                            </span>
+                          )}
+                        </div>
+                      </OptionListItem>
+                    )
+                  ))}
+              </div>
+            )}
 
             {onLabelStep && (frontVisible || backVisible) && (
               <div style={{ display: 'grid', gap: 16, gridTemplateColumns: '1fr 1fr', marginTop: 16 }}>
