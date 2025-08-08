@@ -17,3 +17,26 @@ html,body {
 #root {
   height: 100%;
 }
+
+.configurator-button {
+  display: inline-block;
+  padding: 10px 16px;
+  font-size: 14px;
+  font-weight: 400;
+  color: #fff;
+  background-color: black;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+  text-align: center;
+}
+
+.configurator-button:hover {
+  transform: scale(1.1);
+}
+
+.configurator-button:disabled {
+  background-color: #ccc;
+  cursor: not-allowed;
+}

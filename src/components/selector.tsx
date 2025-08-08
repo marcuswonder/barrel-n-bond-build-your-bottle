@@ -253,16 +253,37 @@ const Selector: FunctionComponent<{}> = () => {
 
     const handleLabelClick = (side: 'front' | 'back') => {
       const hasDesign = side === 'front' ? !!labelDesigns.front : !!labelDesigns.back;
-      const type =
-        side === 'front'
-          ? (hasDesign ? 'EditFrontLabel' : 'DesignFrontLabel')
-          : (hasDesign ? 'EditBackLabel'  : 'DesignBackLabel');
+      const designType = hasDesign ? 'edit' : 'design';
+      const designId = side === 'front' ? labelDesigns.front : labelDesigns.back;
 
       window.parent.postMessage({
-        customMessageType: type,
+        customMessageType: 'callDesigner',
         message: {
-          side,
-          designId: side === 'front' ? labelDesigns.front : labelDesigns.back,
+          'designSide': side,
+          'designType': designType,
+          'designId': designId,
+          'bottle': productObject.selections.bottle,
+          'productSku': product?.sku ?? null,
+        }
+      }, '*');
+
+      console.log("postMessage Content:", {
+        customMessageType: 'callDesigner',
+        message: {
+          'designSide': side,
+          'designType': designType,
+          'designId': designId,
+          'bottle': productObject.selections.bottle,
+          'productSku': product?.sku ?? null,
+        }
+      });
+    };    
+
+    const handleLearnClick = (side?: 'front' | 'back') => {
+      window.parent.postMessage({
+        customMessageType: 'OpenDesignerHelp',
+        message: {
+          ...(side ? { side } : {}),
           productSku: product?.sku ?? null,
         }
       }, '*');
@@ -495,24 +516,31 @@ const Selector: FunctionComponent<{}> = () => {
             )}
 
             {onLabelStep && (frontVisible || backVisible) && (
-              <div style={{ display: 'grid', gap: 16, gridTemplateColumns: '1fr 1fr', marginTop: 16 }}>
-                {frontVisible && (
-                  <div style={{ border: '1px solid #ddd', borderRadius: 8, padding: 16 }}>
-                    <h4 style={{ marginTop: 0 }}>Front Label</h4>
-                    <button onClick={() => handleLabelClick('front')}>
-                      {labelDesigns.front ? 'Edit Front Label' : 'Design Front Label'}
-                    </button>
-                  </div>
-                )}
-                {backVisible && (
-                  <div style={{ border: '1px solid #ddd', borderRadius: 8, padding: 16 }}>
-                    <h4 style={{ marginTop: 0 }}>Back Label</h4>
-                    <button onClick={() => handleLabelClick('back')}>
-                      {labelDesigns.back ? 'Edit Back Label' : 'Design Back Label'}
-                    </button>
-                  </div>
-                )}
-              </div>
+              <>
+                <div style={{ display: 'grid', gap: 16, gridTemplateColumns: '1fr 1fr', marginTop: 16 }}>
+                  {frontVisible && (
+                    <div style={{ border: '1px solid #ddd', borderRadius: 8, padding: 16 }}>
+                      <h4 style={{ marginTop: 0 }}>Front Label</h4>
+                      <button className="configurator-button" onClick={() => handleLabelClick('front')}>
+                        {labelDesigns.front ? 'Edit Front Label' : 'Design Front Label'}
+                      </button>
+                    </div>
+                  )}
+                  {backVisible && (
+                    <div style={{ border: '1px solid #ddd', borderRadius: 8, padding: 16 }}>
+                      <h4 style={{ marginTop: 0 }}>Back Label</h4>
+                      <button className="configurator-button" onClick={() => handleLabelClick('back')}>
+                        {labelDesigns.back ? 'Edit Back Label' : 'Design Back Label'}
+                      </button>
+                    </div>
+                  )}
+                </div>
+                <div style={{ marginTop: 12, display: 'flex', justifyContent: 'center' }}>
+                  <button className="configurator-button" onClick={() => handleLearnClick()}>
+                    Learn How to Use Our Designer
+                  </button>
+                </div>
+              </>
             )}
 
             {selectedStep?.name && selectedAttribute && selectedAttribute.options.find(opt => opt.selected && opt.name !== "No Selection") && (
