@@ -19,10 +19,10 @@ const Selector: FunctionComponent<{}> = () => {
         items,
         getMeshIDbyName,
         isAreaVisible,
+        createImageFromUrl, 
+        addItemImage,
         // templates,
         // setTemplate,
-        // createImageFromUrl, 
-        // addItemImage,
         // setMeshDesignVisibility,
         // restoreMeshVisibility,
     } = useZakeke();
@@ -289,18 +289,33 @@ const Selector: FunctionComponent<{}> = () => {
       }, '*');
     };
 
-    // useEffect(() => {
-    //   const handleMessage = async (event: MessageEvent) => {
-    //     if (event.data.customMessageType === "ConfirmOrder") {
-    //       const order = event.data.message.order;
-    //       console.log("Received order", order);
+    useEffect(() => {
+      const handleMessage = async (event: MessageEvent) => {
+        if (event.data.customMessageType === "uploadDesign") {
+          const order = event.data.message.order;
+          console.log("Received order", order);
 
-    //       const frontMeshId = getMeshIDbyName(`${order.product.bottle.toLowerCase()}_label_front`);
-    //       const backMeshId = getMeshIDbyName(`${order.product.bottle.toLowerCase()}_label_back`);
+          const frontImage = await createImageFromUrl("https://barrel-n-bond.s3.eu-west-2.amazonaws.com/public/Front+Label+for+the+Polo+Bottle+inc+Bleed.jpg");
+          const backImage = await createImageFromUrl("https://barrel-n-bond.s3.eu-west-2.amazonaws.com/public/Back+Label+for+the+Polo+Bottle+inc+Bleed.jpg");
 
-    //       console.log(`${order.product.bottle.toLowerCase()}_label_front`);
-    //       console.log("frontMeshId", frontMeshId);
-    //       console.log("backMeshId", backMeshId);
+          const frontMeshId = getMeshIDbyName(`${order.product.bottle.toLowerCase()}_label_front`);
+          const backMeshId = getMeshIDbyName(`${order.product.bottle.toLowerCase()}_label_back`);
+          console.log("frontMeshId", frontMeshId);
+          console.log("backMeshId", backMeshId);
+
+          const frontAreaId = product?.areas.find(a => a.name === order.product.bottle.toLowerCase() + '_label_front')?.id;
+          const backAreaId = product?.areas.find(a => a.name === order.product.bottle.toLowerCase() + '_label_back')?.id;
+
+          console.log("frontAreaId", frontAreaId);
+          console.log("backAreaId", backAreaId);
+
+          if (frontImage?.imageID && frontAreaId) {
+            await addItemImage(frontImage.imageID, frontAreaId);
+          }
+          if (backImage?.imageID && backAreaId) {
+            await addItemImage(backImage.imageID, backAreaId);
+          }
+
           
           
     //       let retries = 100;
@@ -348,12 +363,12 @@ const Selector: FunctionComponent<{}> = () => {
     //       } catch (err) {
     //         console.error("❌ Failed to apply label images:", err);
     //       }
-    //     }
-    //   };
+        }
+      };
 
-    //   window.addEventListener("message", handleMessage);
-    //   return () => window.removeEventListener("message", handleMessage);
-
+      window.addEventListener("message", handleMessage);
+      return () => window.removeEventListener("message", handleMessage);
+    }, [getMeshIDbyName]);
     // }, [items, createImageFromUrl, addItemImage, getMeshIDbyName, setMeshDesignVisibility]);
 
 
