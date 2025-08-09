@@ -34,19 +34,18 @@ const Selector: FunctionComponent<{}> = () => {
     console.log("product", product)
     console.log("items", items)
     
-    // --- Selections (recomputed every render) ---
     const buildGroup = groups.find(g => g.name === "Build Your Bottle") ?? null;
 
     const steps = buildGroup?.steps ?? [];
 
-    // Step lookup by name fallback (avoids magic indices if ordering changes)
+  
     const findStepIndex = (needle: string, fallbackIndex: number) => {
       const i = steps.findIndex(s => s.name?.toLowerCase().includes(needle));
       return i >= 0 ? i : fallbackIndex;
     };
 
     const bottleStepIdx = findStepIndex('bottle', 0);
-    const liquidStepIdx = findStepIndex('gin', 1); // your step is named "Select your Gin"
+    const liquidStepIdx = findStepIndex('gin', 1);
     const closureStepIdx = findStepIndex('closure', 2);
     const labelStepIdx  = findStepIndex('label', 3);
 
@@ -157,7 +156,7 @@ const Selector: FunctionComponent<{}> = () => {
         mesh: { frontMeshId, backMeshId },
         valid,
       } as const;
-    }, [price, product?.sku, selections, getMeshIDbyName, labelDesigns.front, labelDesigns.back]);
+    }, [price, product?.sku, selections, getMeshIDbyName, labelDesigns.front, labelDesigns.back, miniBottle, miniClosure, miniLiquid]);
 
     const visibleAreas = useMemo(() => {
       const areas = product?.areas ?? [];
@@ -246,10 +245,10 @@ const Selector: FunctionComponent<{}> = () => {
           const bottleName = selections.bottle?.name ? selections.bottle.name.toLowerCase() : '';
           const areaName = bottleName ? `${bottleName}_label_${designSide}` : '';
           const areaId = product?.areas?.find(a => a.name === areaName)?.id;
+          const guid = items.find(i => i.areaId === areaId)?.guid || null;
 
-          if (base64Preview?.dataUrl && areaId) {
-            // TODO: resolve actual itemId (guid) if needed via items/getItems
-            // previewOnly__setItemImageFromBase64(itemId, areaId, base64Preview.dataUrl);
+          if (base64Preview?.dataUrl && guid) {
+            previewOnly__setItemImageFromBase64(guid, base64Preview.dataUrl);
           }
 
           // setLabelDesigns(prev => ({ ...prev, [designSide]: designId }));
