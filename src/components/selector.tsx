@@ -23,6 +23,7 @@ const Selector: FunctionComponent<{}> = () => {
         createImageFromUrl, 
         addItemImage,
         previewOnly__setItemImageFromBase64,
+        setCameraByName
         // templates,
         // setTemplate,
         // setMeshDesignVisibility,
@@ -238,25 +239,30 @@ const Selector: FunctionComponent<{}> = () => {
           console.log("Received uploadDesign message:", e.data.message);
 
           const { designSide, order } = e.data.message || {};
+          console.log("designSide", designSide)
+          console.log("order", order)
+
           if (!designSide || !order) return;
 
-          const base64Preview = order.designSide || null;
+          const dataUrl = order?.[designSide]?.base64Preview?.dataUrl || null;
+          console.log('base64Preview dataUrl', dataUrl);
 
           const bottleName = selections.bottle?.name ? selections.bottle.name.toLowerCase() : '';
           const areaName = bottleName ? `${bottleName}_label_${designSide}` : '';
           const areaId = product?.areas?.find(a => a.name === areaName)?.id;
           const guid = items.find(i => i.areaId === areaId)?.guid || null;
+          console.log("guid", guid)
 
-          if (base64Preview?.dataUrl && guid) {
-            previewOnly__setItemImageFromBase64(guid, base64Preview.dataUrl);
+          if (dataUrl && guid) {
+            console.log("Setting camera to :", areaName);
+            setCameraByName(areaName, false, false)
+            previewOnly__setItemImageFromBase64(guid, dataUrl);
           }
-
-          // setLabelDesigns(prev => ({ ...prev, [designSide]: designId }));
         }
       };
       window.addEventListener('message', onMsg);
       return () => window.removeEventListener('message', onMsg);
-    }, [previewOnly__setItemImageFromBase64, product?.areas, selections.bottle?.name]);
+    }, [previewOnly__setItemImageFromBase64, items, product?.areas, selections.bottle?.name, setCameraByName]);
 
 
     
@@ -339,45 +345,45 @@ const Selector: FunctionComponent<{}> = () => {
       }, '*');
     };
 
-    useEffect(() => {
-      const handleMessage = async (event: MessageEvent) => {
-        if (event.data.customMessageType === "uploadDesign") {
-          const side = event.data.message.side;
-          const order = event.data.message.order;
-          console.log("Received order", order);
+    // useEffect(() => {
+    //   const handleMessage = async (event: MessageEvent) => {
+    //     if (event.data.customMessageType === "uploadDesign") {
+    //       const side = event.data.message.side;
+    //       const order = event.data.message.order;
+    //       console.log("Received order", order);
 
-          if(side === "front") {
-            const frontImage = await createImageFromUrl("https://barrel-n-bond.s3.eu-west-2.amazonaws.com/public/Front+Label+for+the+Polo+Bottle+inc+Bleed.jpg");
-            const frontMeshId = getMeshIDbyName(`${order.product.bottle.toLowerCase()}_label_front`);
-            console.log("frontMeshId", frontMeshId);
+    //       if(side === "front") {
+    //         const frontImage = await createImageFromUrl("https://barrel-n-bond.s3.eu-west-2.amazonaws.com/public/Front+Label+for+the+Polo+Bottle+inc+Bleed.jpg");
+    //         const frontMeshId = getMeshIDbyName(`${order.product.bottle.toLowerCase()}_label_front`);
+    //         console.log("frontMeshId", frontMeshId);
 
-            const frontAreaId = product?.areas.find(a => a.name === order.product.bottle.toLowerCase() + '_label_front')?.id;
-            console.log("frontAreaId", frontAreaId);
+    //         const frontAreaId = product?.areas.find(a => a.name === order.product.bottle.toLowerCase() + '_label_front')?.id;
+    //         console.log("frontAreaId", frontAreaId);
             
-            if (frontImage?.imageID && frontAreaId) {
-              await addItemImage(frontImage.imageID, frontAreaId);
-            }
+    //         if (frontImage?.imageID && frontAreaId) {
+    //           await addItemImage(frontImage.imageID, frontAreaId);
+    //         }
           
-          } else if( side === "back") {
-            const backImage = await createImageFromUrl("https://barrel-n-bond.s3.eu-west-2.amazonaws.com/public/Back+Label+for+the+Polo+Bottle+inc+Bleed.jpg");
+    //       } else if( side === "back") {
+    //         const backImage = await createImageFromUrl("https://barrel-n-bond.s3.eu-west-2.amazonaws.com/public/Back+Label+for+the+Polo+Bottle+inc+Bleed.jpg");
   
-            const backMeshId = getMeshIDbyName(`${order.product.bottle.toLowerCase()}_label_back`);
-            console.log("backMeshId", backMeshId);
+    //         const backMeshId = getMeshIDbyName(`${order.product.bottle.toLowerCase()}_label_back`);
+    //         console.log("backMeshId", backMeshId);
   
-            const backAreaId = product?.areas.find(a => a.name === order.product.bottle.toLowerCase() + '_label_back')?.id;
+    //         const backAreaId = product?.areas.find(a => a.name === order.product.bottle.toLowerCase() + '_label_back')?.id;
   
-            console.log("backAreaId", backAreaId);
+    //         console.log("backAreaId", backAreaId);
   
-            if (backImage?.imageID && backAreaId) {
-              await addItemImage(backImage.imageID, backAreaId);
-            }
-          }
-        }
-      };
+    //         if (backImage?.imageID && backAreaId) {
+    //           await addItemImage(backImage.imageID, backAreaId);
+    //         }
+    //       }
+    //     }
+    //   };
 
-      window.addEventListener("message", handleMessage);
-      return () => window.removeEventListener("message", handleMessage);
-    }, [items, createImageFromUrl, addItemImage, getMeshIDbyName, product?.areas]);
+    //   window.addEventListener("message", handleMessage);
+    //   return () => window.removeEventListener("message", handleMessage);
+    // }, [items, createImageFromUrl, addItemImage, getMeshIDbyName, product?.areas]);
 
 
     
