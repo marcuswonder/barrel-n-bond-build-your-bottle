@@ -5,6 +5,7 @@ import { LayoutWrapper, ContentWrapper, Container,  StepTitle, OptionListItem, R
 // import { List, StepListItem, , ListItemImage } from './list';
 import { optionNotes } from '../data/option-notes';
 import { TailSpin } from 'react-loader-spinner';
+import { useOrderStore } from '../state/orderStore';
 
 const Selector: FunctionComponent<{}> = () => {
     const {
@@ -21,6 +22,7 @@ const Selector: FunctionComponent<{}> = () => {
         isAreaVisible,
         createImageFromUrl, 
         addItemImage,
+        previewOnly__setItemImageFromBase64,
         // templates,
         // setTemplate,
         // setMeshDesignVisibility,
@@ -92,6 +94,16 @@ const Selector: FunctionComponent<{}> = () => {
         label: miniLabel,
       } as const;
     }, [buildGroup]);
+
+    const { setFromSelections } = useOrderStore();
+
+    useEffect(() => {
+      setFromSelections({
+        selections,
+        sku: product?.sku ?? null,
+        price,
+      });
+    }, [selections, product?.sku, price, setFromSelections]);
 
     const [labelDesigns, setLabelDesigns] = useState<{ front: string | null; back: string | null }>({
       front: null,
@@ -198,15 +210,26 @@ const Selector: FunctionComponent<{}> = () => {
 
     useEffect(() => {
       const onMsg = (e: MessageEvent) => {
-        if (e.data?.customMessageType === 'VistaLabelSaved') {
-          const { side, designId } = e.data.message || {};
-          if (!side || !designId) return;
-          setLabelDesigns(prev => ({ ...prev, [side]: designId }));
+        if (e.data?.customMessageType === 'uploadDesign') {
+          console.log("Received uploadDesign message:", e.data.message);
+
+          const { designSide, order } = e.data.message || {};
+          if (!designSide || !order) return;
+
+          const base64Preview = order.designSide || null
+
+          // const itemId = product?.areas.find(a => a.name === miniBottle.name.toLowerCase() + '_label_' + designSide)?.id;
+
+          if(base64Preview) {
+            previewOnly__setItemImageFromBase64('guid', base64Preview.dataUrl);
+          }
+
+          // setLabelDesigns(prev => ({ ...prev, [designSide]: designId }));
         }
       };
       window.addEventListener('message', onMsg);
       return () => window.removeEventListener('message', onMsg);
-    }, []);
+    }, [previewOnly__setItemImageFromBase64]);
 
 
     
