@@ -254,10 +254,17 @@ const Selector: FunctionComponent<{}> = () => {
           console.log("guid", guid)
 
           if (dataUrl && guid) {
-            console.log("Setting camera to :", areaName);
+            console.log("Uploading preview to: ", areaName);
+            console.log("Preview Upload Details", {
+              guid,
+              hasData: !!dataUrl,
+              base64Length: dataUrl?.length
+            });
             const rawBase64 = dataUrl.replace(/^data:image\/\w+;base64,/, "");
-            setCameraByName(areaName, false, false)
             previewOnly__setItemImageFromBase64(guid, rawBase64);
+
+            console.log("Setting camera to :", areaName);
+            setCameraByName(areaName, false, false)
           }
         }
       };
