@@ -247,10 +247,10 @@ const Selector: FunctionComponent<{}> = () => {
           console.log("designSide", designSide)
           console.log("order", order)
 
-          items.forEach(item => {
-            const itemGuid = item.guid;
-            removeItem(itemGuid)
-          })
+          // items.forEach(item => {
+          //   const itemGuid = item.guid;
+          //   removeItem(itemGuid)
+          // })
 
           if (!designSide || !order) return;
 
@@ -264,11 +264,12 @@ const Selector: FunctionComponent<{}> = () => {
           }
 
           if(designSide === "front") {
-            const frontImage = await createImageFromUrl(designExport.url);
-            const frontMeshId = getMeshIDbyName(`${order.product.bottle.toLowerCase()}_label_front`);
+            const frontImage = await createImageFromUrl(designExport.s3url);
+            // const frontImage = await createImageFromUrl("https://barrel-n-bond.s3.eu-west-2.amazonaws.com/public/Front+Label+for+the+Polo+Bottle+inc+Bleed.jpg");
+            const frontMeshId = getMeshIDbyName(`${order.bottle.name.toLowerCase()}_label_front`);
             console.log("frontMeshId", frontMeshId);
 
-            const frontAreaId = product?.areas.find(a => a.name === order.product.bottle.toLowerCase() + '_label_front')?.id;
+            const frontAreaId = product?.areas.find(a => a.name === order.bottle.name.toLowerCase() + '_label_front')?.id;
             console.log("frontAreaId", frontAreaId);
             
             if (frontImage?.imageID && frontAreaId) {
@@ -276,12 +277,13 @@ const Selector: FunctionComponent<{}> = () => {
             }
           
           } else if(designSide === "back") {
-            const backImage = await createImageFromUrl(designExport.url);
+            const backImage = await createImageFromUrl(designExport.s3url);
+            // const backImage = await createImageFromUrl("https://barrel-n-bond.s3.eu-west-2.amazonaws.com/public/Front+Label+for+the+Polo+Bottle+inc+Bleed.jpg");
   
-            const backMeshId = getMeshIDbyName(`${order.product.bottle.toLowerCase()}_label_back`);
+            const backMeshId = getMeshIDbyName(`${order.bottle.name.toLowerCase()}_label_back`);
             console.log("backMeshId", backMeshId);
   
-            const backAreaId = product?.areas.find(a => a.name === order.product.bottle.toLowerCase() + '_label_back')?.id;
+            const backAreaId = product?.areas.find(a => a.name === order.bottle.name.toLowerCase() + '_label_back')?.id;
   
             console.log("backAreaId", backAreaId);
   
