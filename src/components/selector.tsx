@@ -246,10 +246,10 @@ const Selector: FunctionComponent<{}> = () => {
           console.log("designExport", designExport)
           console.log("designSide", designSide)
 
-          // items.forEach(item => {
-          //   const itemGuid = item.guid;
-          //   removeItem(itemGuid)
-          // })
+          items.forEach(item => {
+            const itemGuid = item.guid;
+            removeItem(itemGuid)
+          })
 
           if (!designSide ) return;
 
