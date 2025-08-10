@@ -340,6 +340,18 @@ const Selector: FunctionComponent<{}> = () => {
             console.error('Failed to set preview image', e);
           }
 
+          const item = items?.find(i => i.areaId === areaId);
+          setTimeout(() => {
+            const w = window as any; // bypass TS type check
+            console.log(
+              'Updated item in store:',
+              w.__REDUX_DEVTOOLS_EXTENSION__?.()
+                || (w.store?.getState
+                    ? w.store.getState().items.find((i: any) => i.guid === item?.guid)
+                    : '⚠️ Store object not found')
+            );
+          }, 200);
+
           // optional: focus camera
           setCameraByName(areaName, false, false);
 
@@ -434,15 +446,14 @@ const Selector: FunctionComponent<{}> = () => {
         customMessageType: 'callDesigner',
         message: {
           'order': {
-            'bottle': selections.bottle,
-            'liquid': selections.liquid,
-            'closure': selections.closure,
-            'label': selections.label,
+            'bottle': productObject.selections.bottle,
+            'liquid': productObject.selections.liquid,
+            'closure': productObject.selections.closure,
+            'label': productObject.selections.label,
           },
           'designSide': side,
           'designType': designType,
           'designId': designId,
-          'bottle': productObject.selections.bottle,
           'productSku': product?.sku ?? null,
         }
       }, '*');
@@ -451,15 +462,14 @@ const Selector: FunctionComponent<{}> = () => {
         customMessageType: 'callDesigner',
         message: {
           'order': {
-            'bottle': selections.bottle,
-            'liquid': selections.liquid,
-            'closure': selections.closure,
-            'label': selections.label,
+            'bottle': productObject.selections.bottle,
+            'liquid': productObject.selections.liquid,
+            'closure': productObject.selections.closure,
+            'label': productObject.selections.label,
           },
           'designSide': side,
           'designType': designType,
           'designId': designId,
-          'bottle': productObject.selections.bottle,
           'productSku': product?.sku ?? null,
         }
       });
