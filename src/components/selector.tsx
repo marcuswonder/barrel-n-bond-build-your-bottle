@@ -36,6 +36,7 @@ const Selector: FunctionComponent<{}> = () => {
     console.log("product", product)
     console.log("items", items)
     
+    
     const buildGroup = groups.find(g => g.name === "Build Your Bottle") ?? null;
 
     const steps = buildGroup?.steps ?? [];
@@ -93,6 +94,8 @@ const Selector: FunctionComponent<{}> = () => {
       closure: miniClosure,
       label: miniLabel,
     } as const;
+
+    console.log("selections", selections)
 
     // Key that only changes when meaningful order fields change
     const orderKey = [
@@ -430,6 +433,12 @@ const Selector: FunctionComponent<{}> = () => {
       window.parent.postMessage({
         customMessageType: 'callDesigner',
         message: {
+          'order': {
+            'bottle': selections.bottle,
+            'liquid': selections.liquid,
+            'closure': selections.closure,
+            'label': selections.label,
+          },
           'designSide': side,
           'designType': designType,
           'designId': designId,
@@ -441,6 +450,12 @@ const Selector: FunctionComponent<{}> = () => {
       console.log("postMessage Content:", {
         customMessageType: 'callDesigner',
         message: {
+          'order': {
+            'bottle': selections.bottle,
+            'liquid': selections.liquid,
+            'closure': selections.closure,
+            'label': selections.label,
+          },
           'designSide': side,
           'designType': designType,
           'designId': designId,
