@@ -242,19 +242,18 @@ const Selector: FunctionComponent<{}> = () => {
         if (e.data?.customMessageType === 'uploadDesign') {
           console.log("Received uploadDesign message:", e.data.message);
 
-          const { designExport, designSide, order } = e.data.message || {};
+          const { designExport, designSide } = e.data.message || {};
           console.log("designExport", designExport)
           console.log("designSide", designSide)
-          console.log("order", order)
 
           // items.forEach(item => {
           //   const itemGuid = item.guid;
           //   removeItem(itemGuid)
           // })
 
-          if (!designSide || !order) return;
+          if (!designSide ) return;
 
-          const bottleName = selections.bottle?.name?.toLowerCase() ?? '';
+          const bottleName = productObject?.selections?.bottle?.name?.toLowerCase() ?? '';
           const areaName = `${bottleName}_label_${designSide}`;
 
           const area = product?.areas?.find(a => a.name === areaName);
@@ -266,10 +265,10 @@ const Selector: FunctionComponent<{}> = () => {
           if(designSide === "front") {
             const frontImage = await createImageFromUrl(designExport.s3url);
             // const frontImage = await createImageFromUrl("https://barrel-n-bond.s3.eu-west-2.amazonaws.com/public/Front+Label+for+the+Polo+Bottle+inc+Bleed.jpg");
-            const frontMeshId = getMeshIDbyName(`${order.bottle.name.toLowerCase()}_label_front`);
+            const frontMeshId = getMeshIDbyName(`${productObject?.selections?.bottle?.name.toLowerCase()}_label_front`);
             console.log("frontMeshId", frontMeshId);
 
-            const frontAreaId = product?.areas.find(a => a.name === order.bottle.name.toLowerCase() + '_label_front')?.id;
+            const frontAreaId = product?.areas.find(a => a.name === productObject?.selections?.bottle?.name.toLowerCase() + '_label_front')?.id;
             console.log("frontAreaId", frontAreaId);
             
             if (frontImage?.imageID && frontAreaId) {
@@ -280,10 +279,10 @@ const Selector: FunctionComponent<{}> = () => {
             const backImage = await createImageFromUrl(designExport.s3url);
             // const backImage = await createImageFromUrl("https://barrel-n-bond.s3.eu-west-2.amazonaws.com/public/Front+Label+for+the+Polo+Bottle+inc+Bleed.jpg");
   
-            const backMeshId = getMeshIDbyName(`${order.bottle.name.toLowerCase()}_label_back`);
+            const backMeshId = getMeshIDbyName(`${productObject?.selections?.bottle?.name.toLowerCase()}_label_back`);
             console.log("backMeshId", backMeshId);
   
-            const backAreaId = product?.areas.find(a => a.name === order.bottle.name.toLowerCase() + '_label_back')?.id;
+            const backAreaId = product?.areas.find(a => a.name === productObject?.selections?.bottle?.name.toLowerCase() + '_label_back')?.id;
   
             console.log("backAreaId", backAreaId);
   
@@ -295,7 +294,7 @@ const Selector: FunctionComponent<{}> = () => {
       };
       window.addEventListener('message', onMsg);
       return () => window.removeEventListener('message', onMsg);
-    }, [createImageFromUrl, getMeshIDbyName, addItemImage, removeItem, items, product?.areas, selections.bottle?.name, setCameraByName]);
+    }, [createImageFromUrl, getMeshIDbyName, addItemImage, removeItem, items, productObject?.selections?.bottle?.name, product?.areas, setCameraByName]);
 
 
     
