@@ -174,9 +174,24 @@ const Selector: FunctionComponent<{}> = () => {
       const front = byName('front');
       const back  = byName('back');
 
-
       return { front, back } as const;
     }, [visibleAreas]);
+
+    // Invisible warning helper (logs and stores a message for later UX surfacing)
+    const setWarning = (msg: string) => {
+      const el = document.getElementById('config-warning');
+      if (el) {
+        el.textContent = msg;
+        el.setAttribute('data-warning', 'true');
+      }
+      console.warn('[Configurator warning]', msg);
+    };
+
+    // A user can "design" only when required selections are made and not "No Selection"
+    const canDesign = !!(miniBottle && miniLiquid && miniClosure) &&
+      miniBottle.name !== 'No Selection' &&
+      miniLiquid.name !== 'No Selection' &&
+      miniClosure.name !== 'No Selection';
 
     const [selectedGroupId, selectGroup] = useState<number | null>(null);
     const [selectedStepId, selectStep] = useState<number | null>(null);
@@ -343,7 +358,18 @@ const Selector: FunctionComponent<{}> = () => {
     const frontVisible = !!labelAreas.front;
     const backVisible  = !!labelAreas.back;
 
+    // Step validation helpers
+    const stepNameLc = (selectedStep?.name || '').toLowerCase();
+    const isBottleStep  = stepNameLc.includes('bottle');
+    const isLiquidStep  = stepNameLc.includes('gin') || stepNameLc.includes('liquid');
+    const isClosureStep = stepNameLc.includes('closure');
+    const hasValidSelection = !!(selectedAttribute?.options?.some(o => o.selected && o.name !== 'No Selection'));
+
     const handleLabelClick = (side: 'front' | 'back') => {
+      if (!canDesign) {
+        setWarning('Please select a bottle, liquid, and closure (not "No Selection") before designing labels.');
+        return;
+      }
       const hasDesign = side === 'front' ? !!labelDesigns.front : !!labelDesigns.back;
       const designType = hasDesign ? 'edit' : 'design';
       const designId = side === 'front'
@@ -493,6 +519,7 @@ const Selector: FunctionComponent<{}> = () => {
     return (
       <>
         <RotateNotice>Please rotate your device to landscape for the best experience.</RotateNotice>
+        <div id="config-warning" aria-live="polite" style={{ display: 'none' }} />
         <LayoutWrapper>
         <ContentWrapper>
           <Container>
@@ -520,9 +547,27 @@ const Selector: FunctionComponent<{}> = () => {
                 <NavButton
                   onClick={() => {
                     const currentIndex = selectedGroup.steps.findIndex(s => s.id === selectedStep.id);
-                    if (currentIndex < selectedGroup.steps.length - 1) selectStep(selectedGroup.steps[currentIndex + 1].id);
+                    if (currentIndex < selectedGroup.steps.length - 1) {
+                      // Do not allow moving past Bottle, Liquid, or Closure without a valid selection
+                      if ((isBottleStep || isLiquidStep || isClosureStep) && !hasValidSelection) {
+                        const which = isBottleStep ? 'bottle' : isLiquidStep ? 'liquid' : 'closure';
+                        setWarning(`Please select a ${which} option (not "No Selection") to continue.`);
+                        return;
+                      }
+
+                      const nextStep = selectedGroup.steps[currentIndex + 1];
+                      const isLabelish = /label|design/i.test(nextStep?.name || '');
+                      if (isLabelish && !canDesign) {
+                        setWarning('Please select a bottle, liquid, and closure (not "No Selection") before designing labels.');
+                        return;
+                      }
+                      selectStep(nextStep.id);
+                    }
                   }}
-                  disabled={selectedGroup.steps.findIndex(s => s.id === selectedStep.id) === selectedGroup.steps.length - 1}
+                  disabled={
+                    selectedGroup.steps.findIndex(s => s.id === selectedStep.id) === selectedGroup.steps.length - 1 ||
+                    ((isBottleStep || isLiquidStep || isClosureStep) && !hasValidSelection)
+                  }
                   title="Next"
                 >
                   →
@@ -600,7 +645,12 @@ const Selector: FunctionComponent<{}> = () => {
                   {frontVisible && (
                     <div style={{ border: '1px solid #ddd', borderRadius: 8, padding: 16 }}>
                       <h4 style={{ marginTop: 0 }}>Front Label</h4>
-                      <button className="configurator-button" onClick={() => handleLabelClick('front')}>
+                      <button
+                        className="configurator-button"
+                        disabled={!canDesign}
+                        title={!canDesign ? 'Select bottle, liquid, and closure first' : undefined}
+                        onClick={() => handleLabelClick('front')}
+                      >
                         {labelDesigns.front ? 'Edit Front Label' : 'Design Front Label'}
                       </button>
                     </div>
@@ -608,7 +658,12 @@ const Selector: FunctionComponent<{}> = () => {
                   {backVisible && (
                     <div style={{ border: '1px solid #ddd', borderRadius: 8, padding: 16 }}>
                       <h4 style={{ marginTop: 0 }}>Back Label</h4>
-                      <button className="configurator-button" onClick={() => handleLabelClick('back')}>
+                      <button
+                        className="configurator-button"
+                        disabled={!canDesign}
+                        title={!canDesign ? 'Select bottle, liquid, and closure first' : undefined}
+                        onClick={() => handleLabelClick('back')}
+                      >
                         {labelDesigns.back ? 'Edit Back Label' : 'Design Back Label'}
                       </button>
                     </div>
@@ -622,24 +677,28 @@ const Selector: FunctionComponent<{}> = () => {
               </>
             )}
 
-            {selectedStep?.name && selectedAttribute && selectedAttribute.options.find(opt => opt.selected && opt.name !== "No Selection") && (
+            {(() => {
+              const stepName = (selectedStep?.name || '').toLowerCase();
+              const notesAllowed = /bottle|gin|liquid/.test(stepName);
+              return notesAllowed && selectedStep?.name && selectedAttribute && selectedAttribute.options.find(opt => opt.selected && opt.name !== "No Selection");
+            })() && (
               <div style={{ marginTop: '24px', padding: '16px', background: '#f9f9f9', border: '1px solid #ddd', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
                 <strong>Notes</strong>
                 <p style={{ margin: '8px 0 0', color: '#555' }}>
                   {(() => {
-                    const selectedOption = selectedAttribute.options.find(opt => opt.selected);
+                    const selectedOption = selectedAttribute?.options?.find(opt => opt.selected) || null;
                     if (!selectedOption) return 'Select an option to see notes.';
 
-                    const stepName = selectedStep.name.toLowerCase();
+                    const stepName = (selectedStep?.name || '').toLowerCase();
                     const category =
                       stepName.includes('bottle') ? 'bottles' :
                         stepName.includes('gin') || stepName.includes('liquid') ? 'liquids' :
                           stepName.includes('closure') ? 'closures' :
-                            null;
+                            null as 'bottles' | 'liquids' | 'closures' | null;
 
-                    if (!category || !optionNotes[category]) return null;
+                    if (!category || !(optionNotes as any)[category]) return null;
 
-                    return optionNotes[category][selectedOption.name] || '';
+                    return ((optionNotes as any)[category][selectedOption.name]) || '';
                   })()}
                 </p>
               </div>
