@@ -4,7 +4,7 @@ export const optionNotes: Record<string, Record<string, string>> = {
         "Antica": "Inspired by the former apothecary era, this timeless shape seduces with its charm and pure simplicity.",
         "Outlaw": "Retro-inspired with a nostalgic charm. Outlaw is understated, practical, and tells a frontier story.",
         "Origin": "Elegant and iconic. The refined lines, evoking vintage-style atmospheres, bring a timeless charm.",
-        "Polo": "Strong and stable, wuth a heavy glass base and rounded shoulders, Polo is a classic bottle with a timeless style.",
+        "Polo": "Strong and stable, with a heavy glass base and rounded shoulders, Polo is a classic bottle with a timeless style.",
     },
     liquids: {
         "Contemporary Gin": "This contemporary London dry gin opens with a vibrant burst of citrus that invigorates the palate, leading into rich juniper notes. The experience concludes with a warming touch of spice, creating a balanced and satisfying finish.",

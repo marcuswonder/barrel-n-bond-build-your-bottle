@@ -6,6 +6,7 @@ import { LayoutWrapper, ContentWrapper, Container,  StepTitle, OptionListItem, R
 import { optionNotes } from '../data/option-notes';
 import { TailSpin } from 'react-loader-spinner';
 import { useOrderStore } from '../state/orderStore';
+import { WOOD_SWATCHES, WAX_SWATCHES } from '../data/options';  
 
 const Selector: FunctionComponent<{}> = () => {
     const {
@@ -22,9 +23,8 @@ const Selector: FunctionComponent<{}> = () => {
         isAreaVisible,
         createImageFromUrl, 
         addItemImage,
-        previewOnly__setItemImageFromBase64,
         setCameraByName,
-        removeItem
+        removeItem,
         // templates,
         // setTemplate,
         // setMeshDesignVisibility,
@@ -120,7 +120,14 @@ const Selector: FunctionComponent<{}> = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [orderKey]);
 
-    const { setFromSelections, labelDesigns, setFromUploadDesign } = useOrderStore();
+    const {
+      setFromSelections,
+      labelDesigns,
+      setFromUploadDesign,
+      closureChoices,
+      setClosureWood,
+      setClosureWax
+    } = useOrderStore();
 
     useEffect(() => {
       setFromSelections({
@@ -336,6 +343,31 @@ const Selector: FunctionComponent<{}> = () => {
         }
     }, [selectedGroupId, selectedGroup, setCamera]);
 
+    // Ensure the underlying Zakeke closure attribute sits on the right “macro” option
+    const ensureClosureVariantSelected = (variant: 'wood' | 'wax') => {
+      if (!selectedAttribute) return;
+      const needle = variant === 'wood' ? 'wood' : 'wax';
+      const opt = selectedAttribute.options?.find(o => (o.name || '').toLowerCase().includes(needle));
+      if (opt && !opt.selected) selectOption(opt.id);
+    };
+
+    const onPickWood = (name: string, hex: string) => {
+      setClosureWood({ name, hex });
+      ensureClosureVariantSelected('wood');
+      // Hook: apply cap material color here if you later wire Zakeke material updates
+    };
+
+    const onPickWax = (name: string, hex: string) => {
+      if (!hex) {
+        // Clear wax
+        setClosureWax(null);
+      } else {
+        setClosureWax({ name: `Wax Sealed in ${name}`, hex });
+      }
+      ensureClosureVariantSelected('wax');
+      // Hook: toggle wax mesh / set wax material color here when ready
+    };
+
 
     const onLabelStep =
       (selectedStep?.name || '').toLowerCase().includes('design') ||
@@ -484,6 +516,7 @@ const Selector: FunctionComponent<{}> = () => {
                         liquid: productObject.selections.liquid,
                         closure: productObject.selections.closure,
                         label: productObject.selections.label,
+                        closureExtras: closureChoices,
                     }
                 }
                 )
@@ -500,6 +533,7 @@ const Selector: FunctionComponent<{}> = () => {
                         liquid: productObject.selections.liquid,
                         closure: productObject.selections.closure,
                         label: productObject.selections.label,
+                        closureExtras: closureChoices,
                     }
                 }, "*");
 
@@ -577,7 +611,8 @@ const Selector: FunctionComponent<{}> = () => {
 
             {/* Options */}
             {/* Options (hidden on label step) */}
-            {!onLabelStep && (
+            {/* Options / Custom rendering for Closure step */}
+            {!onLabelStep && !isClosureStep && (
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', justifyContent: 'center' }}>
                 {selectedAttribute?.options
                   .filter(() => true)
@@ -636,6 +671,76 @@ const Selector: FunctionComponent<{}> = () => {
                       </OptionListItem>
                     )
                   ))}
+              </div>
+            )}
+
+            {(!onLabelStep && isClosureStep) && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 24, marginTop: 8 }}>
+                {/* Wood section */}
+                <div>
+                  <h4 style={{ margin: '0 0 8px' }}>Select Closure (Wood)</h4>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(64px, 1fr))', gap: 12 }}>
+                    {WOOD_SWATCHES.map(s => {
+                      const selected = closureChoices?.wood?.hex === s.hex;
+                      return (
+                        <button
+                          key={s.key}
+                          aria-label={s.key}
+                          onClick={() => onPickWood(s.key, s.hex)}
+                          style={{
+                            width: 64,
+                            height: 64,
+                            borderRadius: '50%',
+                            border: selected ? '3px solid #000' : '1px solid #ccc',
+                            background: s.hex,
+                            cursor: 'pointer'
+                          }}
+                          title={s.key}
+                        />
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Wax section */}
+                <div>
+                  <h4 style={{ margin: '0 0 8px' }}>Select Wax</h4>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(64px, 1fr))', gap: 12 }}>
+                    {WAX_SWATCHES.map(s => {
+                      const isNone = s.key === 'No Wax Seal';
+                      const selected = isNone ? !closureChoices?.wax : closureChoices?.wax?.hex === s.hex;
+                      return (
+                        <button
+                          key={s.key}
+                          aria-label={s.key}
+                          onClick={() => onPickWax(s.key, s.hex)}
+                          style={{
+                            width: 64,
+                            height: 64,
+                            borderRadius: '50%',
+                            border: selected ? '3px solid #000' : '1px solid #ccc',
+                            background: isNone ? 'transparent' : s.hex,
+                            position: 'relative',
+                            cursor: 'pointer'
+                          }}
+                          title={s.key}
+                        >
+                          {isNone && (
+                            <span style={{
+                              position: 'absolute',
+                              inset: 0,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontSize: 12,
+                              color: '#555'
+                            }}>None</span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
               </div>
             )}
 
@@ -712,7 +817,7 @@ const Selector: FunctionComponent<{}> = () => {
               <CartButton onClick={handleAddToCart}>
                 {isAddToCartLoading
                   ? <TailSpin color="#FFFFFF" height="25px" />
-                  : <span>Save and Create Label</span>}
+                  : <span>Save and Order</span>}
               </CartButton>
             )}
           </div>

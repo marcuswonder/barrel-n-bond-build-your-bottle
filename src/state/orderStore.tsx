@@ -6,6 +6,9 @@ export type Mini = { id: number; guid: string; name: string; selected: boolean }
 export type LabelDesign = any;
 export type LabelDesigns = { front: LabelDesign | null; back: LabelDesign | null };
 
+export type ClosurePick = { name: string; hex: string } | null;
+export type ClosureChoices = { wood: ClosurePick; wax: ClosurePick };
+
 // Order coming from your parent window message (subset you care about)
 export type ParentOrderPayload = {
   bottle: { id: number; guid: string; name: string; selected: boolean };
@@ -31,6 +34,10 @@ export type Order = {
 export type OrderState = {
   order: Order;
   labelDesigns: LabelDesigns;
+  closureChoices: ClosureChoices;
+  setClosureWood: (pick: ClosurePick) => void;
+  setClosureWax: (pick: ClosurePick) => void;
+  clearClosureChoices: () => void;
   /** existing setter used when you derive selections inside the configurator */
   setFromSelections: (args: {
     selections: {
@@ -66,6 +73,15 @@ export const useOrderStore = create<OrderState>((set, get) => ({
     label: null,
   },
   labelDesigns: { front: null, back: null },
+  closureChoices: { wood: null, wax: null },
+
+  setClosureWood: (pick) => set((state) => ({
+    closureChoices: { ...state.closureChoices, wood: pick }
+  })),
+  setClosureWax: (pick) => set((state) => ({
+    closureChoices: { ...state.closureChoices, wax: pick }
+  })),
+  clearClosureChoices: () => set({ closureChoices: { wood: null, wax: null } }),
 
   setFromSelections: ({ selections, sku, price }) =>
     set((state) => {
@@ -96,8 +112,12 @@ export const useOrderStore = create<OrderState>((set, get) => ({
       if (same && !bottleChanged) return state; // No change, don’t update
 
       if (bottleChanged) {
-        // When bottle changes, UVs/areas differ -> clear designs
-        return { order: next, labelDesigns: { front: null, back: null } };
+        // When bottle changes, UVs/areas differ -> clear designs and closure picks
+        return {
+          order: next,
+          labelDesigns: { front: null, back: null },
+          closureChoices: { wood: null, wax: null }
+        };
       }
 
       return { order: next };
