@@ -120,7 +120,7 @@ const Selector: FunctionComponent<{}> = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [orderKey]);
 
-    const { setFromSelections } = useOrderStore();
+    const { setFromSelections, labelDesigns, setFromUploadDesign } = useOrderStore();
 
     useEffect(() => {
       setFromSelections({
@@ -129,11 +129,6 @@ const Selector: FunctionComponent<{}> = () => {
         price,
       });
     }, [orderKey]);
-
-    const [labelDesigns, setLabelDesigns] = useState<{ front: string | null; back: string | null }>({
-      front: null,
-      back: null,
-    });
 
     const productObject = useMemo(() => {
       const bottleName = selections.bottleSel?.name?.toLowerCase() || '';
@@ -155,13 +150,13 @@ const Selector: FunctionComponent<{}> = () => {
           closure: selections.closure,
           label: selections.label,
           // carry VistaCreate design IDs for edit flow
-          frontDesignId: labelDesigns.front,
-          backDesignId: labelDesigns.back,
+          frontDesignId: (labelDesigns as any)?.front?.id ?? null,
+          backDesignId:  (labelDesigns as any)?.back?.id  ?? null,
         },
         mesh: { frontMeshId, backMeshId },
         valid,
       } as const;
-    }, [price, product?.sku, selections, getMeshIDbyName, labelDesigns.front, labelDesigns.back, miniBottle, miniClosure, miniLiquid]);
+    }, [price, product?.sku, selections, getMeshIDbyName, labelDesigns, miniBottle, miniClosure, miniLiquid]);
 
     const visibleAreas = useMemo(() => {
       const areas = product?.areas ?? [];
@@ -194,17 +189,17 @@ const Selector: FunctionComponent<{}> = () => {
       if (selectedGroupId !== null && selectedStepId !== null && selectedAttributeId !== null) return;
 
       const bottleGroup = groups.find(g => g.name === 'Build Your Bottle') || groups[0];
-      selectGroup(prev => (prev === null ? bottleGroup.id : prev));
+      selectGroup((prev: number | null) => (prev === null ? bottleGroup.id : prev));
 
       const firstStep = bottleGroup.steps?.[0] || null;
       if (firstStep) {
-        selectStep(prev => (prev === null ? firstStep.id : prev));
+        selectStep((prev: number | null) => (prev === null ? firstStep.id : prev));
       }
 
       const attrs = (firstStep || bottleGroup)?.attributes || [];
       const firstEnabledAttr = attrs.find(a => a.enabled) || attrs[0];
       if (firstEnabledAttr) {
-        selectAttribute(prev => (prev === null ? firstEnabledAttr.id : prev));
+        selectAttribute((prev: number | null) => (prev === null ? firstEnabledAttr.id : prev));
       }
     }, [groups, selectedGroupId, selectedStepId, selectedAttributeId]);
 
@@ -245,11 +240,20 @@ const Selector: FunctionComponent<{}> = () => {
           const { designExport, designSide } = e.data.message || {};
           console.log("designExport", designExport)
           console.log("designSide", designSide)
+          const parentOrder = e.data.message?.order;
+          if (designSide) {
+            // Persist to zustand so UI flips to "Edit [side] label" and save gating can use it
+            setFromUploadDesign({
+              order: parentOrder,
+              designSide,
+              designExport,
+            });
+          }
 
-          items.forEach(item => {
-            const itemGuid = item.guid;
-            removeItem(itemGuid)
-          })
+          // items.forEach(item => {
+          //   const itemGuid = item.guid;
+          //   removeItem(itemGuid)
+          // })
 
           if (!designSide ) return;
 
@@ -294,7 +298,7 @@ const Selector: FunctionComponent<{}> = () => {
       };
       window.addEventListener('message', onMsg);
       return () => window.removeEventListener('message', onMsg);
-    }, [createImageFromUrl, getMeshIDbyName, addItemImage, removeItem, items, productObject?.selections?.bottle?.name, product?.areas, setCameraByName]);
+    }, [createImageFromUrl, getMeshIDbyName, addItemImage, removeItem, items, productObject?.selections?.bottle?.name, product?.areas, setCameraByName, setFromUploadDesign]);
 
 
     
@@ -342,7 +346,9 @@ const Selector: FunctionComponent<{}> = () => {
     const handleLabelClick = (side: 'front' | 'back') => {
       const hasDesign = side === 'front' ? !!labelDesigns.front : !!labelDesigns.back;
       const designType = hasDesign ? 'edit' : 'design';
-      const designId = side === 'front' ? labelDesigns.front : labelDesigns.back;
+      const designId = side === 'front'
+        ? ((labelDesigns as any)?.front?.id ?? null)
+        : ((labelDesigns as any)?.back?.id  ?? null);
 
       window.parent.postMessage({
         customMessageType: 'callDesigner',
@@ -480,7 +486,9 @@ const Selector: FunctionComponent<{}> = () => {
     }
 };
 
-    const showAddToCartButton = productObject.valid;
+    const hasFront = !frontVisible || !!labelDesigns.front;
+    const hasBack  = !backVisible  || !!labelDesigns.back;
+    const showAddToCartButton = productObject.valid && hasFront && hasBack;
 
     return (
       <>
