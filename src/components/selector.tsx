@@ -343,29 +343,24 @@ const Selector: FunctionComponent<{}> = () => {
         }
     }, [selectedGroupId, selectedGroup, setCamera]);
 
-    // Ensure the underlying Zakeke closure attribute sits on the right “macro” option
-    const ensureClosureVariantSelected = (variant: 'wood' | 'wax') => {
-      if (!selectedAttribute) return;
-      const needle = variant === 'wood' ? 'wood' : 'wax';
-      const opt = selectedAttribute.options?.find(o => (o.name || '').toLowerCase().includes(needle));
-      if (opt && !opt.selected) selectOption(opt.id);
-    };
-
     const onPickWood = (name: string, hex: string) => {
       setClosureWood({ name, hex });
-      ensureClosureVariantSelected('wood');
-      // Hook: apply cap material color here if you later wire Zakeke material updates
+      const id = getOptionIdByName(name); // 'Light Wood' | 'Medium Wood' | 'Dark Wood'
+      if (id) selectOption(id);
     };
 
     const onPickWax = (name: string, hex: string) => {
       if (!hex) {
-        // Clear wax
+        // No Wax Seal
         setClosureWax(null);
-      } else {
-        setClosureWax({ name: `Wax Sealed in ${name}`, hex });
+        const idNone = getOptionIdByName('No Wax Seal');
+        if (idNone) selectOption(idNone);
+        return;
       }
-      ensureClosureVariantSelected('wax');
-      // Hook: toggle wax mesh / set wax material color here when ready
+      const full = `Wax Sealed in ${name}`; // matches your step option names
+      setClosureWax({ name: full, hex });
+      const id = getOptionIdByName(full);
+      if (id) selectOption(id);
     };
 
 
@@ -396,6 +391,24 @@ const Selector: FunctionComponent<{}> = () => {
     const isLiquidStep  = stepNameLc.includes('gin') || stepNameLc.includes('liquid');
     const isClosureStep = stepNameLc.includes('closure');
     const hasValidSelection = !!(selectedAttribute?.options?.some(o => o.selected && o.name !== 'No Selection'));
+
+    // Closure options can live on step or attribute depending on Zakeke setup
+    const closureOptions = useMemo(() => {
+      const stepOpts = (isClosureStep && selectedStep && Array.isArray((selectedStep as any).options))
+        ? ((selectedStep as any).options as any[])
+        : [];
+      const attrOpts = (selectedAttribute && Array.isArray((selectedAttribute as any).options))
+        ? ((selectedAttribute as any).options as any[])
+        : [];
+      // Prefer step-level options when present
+      return stepOpts.length ? stepOpts : attrOpts;
+    }, [isClosureStep, selectedStep, selectedAttribute]);
+
+    const getOptionIdByName = (name: string) => {
+      const needle = (name || '').trim().toLowerCase();
+      const hit = closureOptions.find(o => (o.name || '').trim().toLowerCase() === needle);
+      return hit?.id ?? null;
+    };
 
     const handleLabelClick = (side: 'front' | 'back') => {
       if (!canDesign) {
