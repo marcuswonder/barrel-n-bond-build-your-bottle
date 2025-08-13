@@ -1,8 +1,8 @@
 
 
 const WOOD_SWATCHES = [
-  { key: 'Light Wood',  hex: '#FBF7EE' },
-  { key: 'Medium Wood', hex: '#D4A341' },
+  { key: 'Light Wood',  hex: '#f4E1BB' },
+  { key: 'Medium Wood', hex: '#925737' },
   { key: 'Dark Wood',   hex: '#0D0A03' },
 ] as const;
 

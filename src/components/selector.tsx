@@ -8,6 +8,7 @@ import { TailSpin } from 'react-loader-spinner';
 import { useOrderStore } from '../state/orderStore';
 import { WOOD_SWATCHES, WAX_SWATCHES } from '../data/options';  
 
+
 const Selector: FunctionComponent<{}> = () => {
     const {
         isSceneLoading,
@@ -84,7 +85,17 @@ const Selector: FunctionComponent<{}> = () => {
     console.log("miniClosure", miniClosure);
     console.log("miniLabel", miniLabel);
 
-    const selections = {
+    const {
+      setFromSelections,
+      labelDesigns,
+      setFromUploadDesign,
+      closureChoices,
+      setClosureWood,
+      setClosureWax
+    } = useOrderStore();
+
+
+    const selections = useMemo(() => ({
       bottleSel,
       liquidSel,
       closureSel,
@@ -93,7 +104,18 @@ const Selector: FunctionComponent<{}> = () => {
       liquid: miniLiquid,
       closure: miniClosure,
       label: miniLabel,
-    } as const;
+      closureExtras: closureChoices,
+    } as const), [
+      bottleSel,
+      liquidSel,
+      closureSel,
+      labelSel,
+      miniBottle,
+      miniLiquid,
+      miniClosure,
+      miniLabel,
+      closureChoices,
+    ]);
 
     console.log("selections", selections)
 
@@ -120,14 +142,6 @@ const Selector: FunctionComponent<{}> = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [orderKey]);
 
-    const {
-      setFromSelections,
-      labelDesigns,
-      setFromUploadDesign,
-      closureChoices,
-      setClosureWood,
-      setClosureWax
-    } = useOrderStore();
 
     useEffect(() => {
       setFromSelections({
@@ -159,6 +173,7 @@ const Selector: FunctionComponent<{}> = () => {
           // carry VistaCreate design IDs for edit flow
           frontDesignId: (labelDesigns as any)?.front?.id ?? null,
           backDesignId:  (labelDesigns as any)?.back?.id  ?? null,
+          closureExtras: selections.closureExtras,
         },
         mesh: { frontMeshId, backMeshId },
         valid,
@@ -429,6 +444,7 @@ const Selector: FunctionComponent<{}> = () => {
             'liquid': productObject.selections.liquid,
             'closure': productObject.selections.closure,
             'label': productObject.selections.label,
+            'closureExtras': productObject.selections.closureExtras,
           },
           'designSide': side,
           'designType': designType,
@@ -445,6 +461,7 @@ const Selector: FunctionComponent<{}> = () => {
             'liquid': productObject.selections.liquid,
             'closure': productObject.selections.closure,
             'label': productObject.selections.label,
+            'closureExtras': productObject.selections.closureExtras,
           },
           'designSide': side,
           'designType': designType,
