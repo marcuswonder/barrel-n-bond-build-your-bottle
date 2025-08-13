@@ -358,24 +358,51 @@ const Selector: FunctionComponent<{}> = () => {
         }
     }, [selectedGroupId, selectedGroup, setCamera]);
 
-    const onPickWood = (name: string, hex: string) => {
-      setClosureWood({ name, hex });
-      const id = getOptionIdByName(name); // 'Light Wood' | 'Medium Wood' | 'Dark Wood'
-      if (id) selectOption(id);
+    // --- Helper: find an option by exact name across ALL attributes in the current step ---
+    const findOptionInStepByName = useMemo(() => {
+      return (step: any, name: string): { attributeId: number | null; optionId: number | null } => {
+        if (!step) return { attributeId: null, optionId: null };
+        const needle = (name || '').trim().toLowerCase();
+        const attrs: any[] = Array.isArray(step.attributes) ? step.attributes : [];
+        for (const a of attrs) {
+          const opts: any[] = Array.isArray(a?.options) ? a.options : [];
+          const hit = opts.find(o => (o?.name || '').trim().toLowerCase() === needle);
+          if (hit) return { attributeId: a.id, optionId: hit.id };
+        }
+        return { attributeId: null, optionId: null };
+      };
+    }, []);
+
+    // --- Helper: ensure we are on the attribute that owns the option, then select the option ---
+    const selectOptionOnAttribute = async (attributeId: number | null, optionId: number | null) => {
+      if (!attributeId || !optionId) return;
+      // switch attribute if needed
+      if (selectedAttributeId !== attributeId) {
+        selectAttribute(attributeId);
+        // wait one frame so Zakeke focuses the attribute before selecting the option
+        await new Promise(requestAnimationFrame);
+      }
+      selectOption(optionId);
     };
 
-    const onPickWax = (name: string, hex: string) => {
+    const onPickWood = async (name: string, hex: string) => {
+      setClosureWood({ name, hex });
+      const { attributeId, optionId } = findOptionInStepByName(selectedStep, name);
+      await selectOptionOnAttribute(attributeId, optionId);
+    };
+
+    const onPickWax = async (name: string, hex: string) => {
       if (!hex) {
         // No Wax Seal
         setClosureWax(null);
-        const idNone = getOptionIdByName('No Wax Seal');
-        if (idNone) selectOption(idNone);
+        const { attributeId, optionId } = findOptionInStepByName(selectedStep, 'No Wax Seal');
+        await selectOptionOnAttribute(attributeId, optionId);
         return;
       }
-      const full = `Wax Sealed in ${name}`; // matches your step option names
+      const full = `Wax Sealed in ${name}`; // matches option names
       setClosureWax({ name: full, hex });
-      const id = getOptionIdByName(full);
-      if (id) selectOption(id);
+      const { attributeId, optionId } = findOptionInStepByName(selectedStep, full);
+      await selectOptionOnAttribute(attributeId, optionId);
     };
 
 
@@ -708,7 +735,7 @@ const Selector: FunctionComponent<{}> = () => {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 24, marginTop: 8 }}>
                 {/* Wood section */}
                 <div>
-                  <h4 style={{ margin: '0 0 8px' }}>Select Closure (Wood)</h4>
+                  <h4 style={{ margin: '0 0 8px' }}>Choose Your Wood</h4>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(64px, 1fr))', gap: 12 }}>
                     {WOOD_SWATCHES.map(s => {
                       const selected = closureChoices?.wood?.hex === s.hex;
@@ -734,7 +761,7 @@ const Selector: FunctionComponent<{}> = () => {
 
                 {/* Wax section */}
                 <div>
-                  <h4 style={{ margin: '0 0 8px' }}>Select Wax</h4>
+                  <h4 style={{ margin: '0 0 8px' }}>Choose a Wax Colour</h4>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(64px, 1fr))', gap: 12 }}>
                     {WAX_SWATCHES.map(s => {
                       const isNone = s.key === 'No Wax Seal';
