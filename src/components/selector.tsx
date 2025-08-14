@@ -307,10 +307,10 @@ const Selector: FunctionComponent<{}> = () => {
             const frontImage = await createImageFromUrl(designExport.s3url);
             // const frontImage = await createImageFromUrl("https://barrel-n-bond.s3.eu-west-2.amazonaws.com/public/Front+Label+for+the+Polo+Bottle+inc+Bleed.jpg");
             const frontMeshId = getMeshIDbyName(`${productObject?.selections?.bottle?.name.toLowerCase()}_label_front`);
-            console.log("frontMeshId", frontMeshId);
+            // console.log("frontMeshId", frontMeshId);
 
             const frontAreaId = product?.areas.find(a => a.name === productObject?.selections?.bottle?.name.toLowerCase() + '_label_front')?.id;
-            console.log("frontAreaId", frontAreaId);
+            // console.log("frontAreaId", frontAreaId);
             
             if (frontImage?.imageID && frontAreaId) {
               await addItemImage(frontImage.imageID, frontAreaId);
@@ -321,11 +321,11 @@ const Selector: FunctionComponent<{}> = () => {
             // const backImage = await createImageFromUrl("https://barrel-n-bond.s3.eu-west-2.amazonaws.com/public/Front+Label+for+the+Polo+Bottle+inc+Bleed.jpg");
   
             const backMeshId = getMeshIDbyName(`${productObject?.selections?.bottle?.name.toLowerCase()}_label_back`);
-            console.log("backMeshId", backMeshId);
+            // console.log("backMeshId", backMeshId);
   
             const backAreaId = product?.areas.find(a => a.name === productObject?.selections?.bottle?.name.toLowerCase() + '_label_back')?.id;
   
-            console.log("backAreaId", backAreaId);
+            // console.log("backAreaId", backAreaId);
   
             if (backImage?.imageID && backAreaId) {
               await addItemImage(backImage.imageID, backAreaId);
@@ -373,16 +373,63 @@ const Selector: FunctionComponent<{}> = () => {
       };
     }, []);
 
+    // Utility: wait for a predicate to become true with timeout (helps with Zakeke async UI updates)
+    const waitFor = (predicate: () => boolean, timeout = 2500, interval = 50) =>
+      new Promise<boolean>((resolve) => {
+        const start = Date.now();
+        const tick = () => {
+          let ok = false;
+          try { ok = !!predicate(); } catch {}
+          if (ok) return resolve(true);
+          if (Date.now() - start >= timeout) return resolve(false);
+          setTimeout(tick, interval);
+        };
+        tick();
+      });
+
     // --- Helper: ensure we are on the attribute that owns the option, then select the option ---
     const selectOptionOnAttribute = async (attributeId: number | null, optionId: number | null) => {
       if (!attributeId || !optionId) return;
-      // switch attribute if needed
-      if (selectedAttributeId !== attributeId) {
-        selectAttribute(attributeId);
-        // wait one frame so Zakeke focuses the attribute before selecting the option
-        await new Promise(requestAnimationFrame);
+
+      const attrId = Number(attributeId);
+      const optId  = Number(optionId);
+      if (!Number.isFinite(attrId) || !Number.isFinite(optId)) return;
+
+      // Ensure we are on the Closure step when acting (defensive)
+      const isClosure = /closure/i.test(selectedStep?.name || '');
+      if (!isClosure) {
+        // try to locate a closure-like step and focus it
+        const closureStep = selectedGroup?.steps?.find(s => /closure/i.test(s?.name || ''));
+        if (closureStep) {
+          selectStep(closureStep.id);
+          await waitFor(() => selectedStepId === closureStep.id, 2000, 40);
+        }
       }
-      selectOption(optionId);
+
+      if (selectedAttributeId !== attrId) {
+        selectAttribute(attrId);
+        // wait until the attribute is actually active in Zakeke
+        await waitFor(() => selectedAttributeId === attrId, 2000, 40);
+      }
+
+      // First attempt
+      selectOption(optId);
+      const ok = await waitFor(() => {
+        const activeAttr = attributes.find(a => a.id === (selectedAttributeId ?? -1));
+        const opts = activeAttr?.options || [];
+        return !!opts.find(o => o.id === optId && o.selected);
+      }, 2000, 40);
+
+      if (!ok) {
+        // Retry once after a micro delay
+        await new Promise(r => setTimeout(r, 60));
+        selectOption(optId);
+        await waitFor(() => {
+          const activeAttr = attributes.find(a => a.id === (selectedAttributeId ?? -1));
+          const opts = activeAttr?.options || [];
+          return !!opts.find(o => o.id === optId && o.selected);
+        }, 2000, 40);
+      }
     };
 
     const onPickWood = async (name: string, hex: string) => {
