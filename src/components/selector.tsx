@@ -264,8 +264,8 @@ const Selector: FunctionComponent<{}> = () => {
 
     useEffect(() => {
       const { mesh } = productObject;
-      console.log('frontMeshId', mesh.frontMeshId);
-      console.log('backMeshId', mesh.backMeshId);
+      // console.log('frontMeshId', mesh.frontMeshId);
+      // console.log('backMeshId', mesh.backMeshId);
     }, [productObject]);
 
 
@@ -362,13 +362,29 @@ const Selector: FunctionComponent<{}> = () => {
     const findOptionInStepByName = useMemo(() => {
       return (step: any, name: string): { attributeId: number | null; optionId: number | null } => {
         if (!step) return { attributeId: null, optionId: null };
+
         const needle = (name || '').trim().toLowerCase();
         const attrs: any[] = Array.isArray(step.attributes) ? step.attributes : [];
-        for (const a of attrs) {
+
+        // Search order: enabled attrs first, then the rest
+        const orderedAttrs = [
+          ...attrs.filter(a => !!a?.enabled),
+          ...attrs.filter(a => !a?.enabled),
+        ];
+
+        for (const a of orderedAttrs) {
           const opts: any[] = Array.isArray(a?.options) ? a.options : [];
-          const hit = opts.find(o => (o?.name || '').trim().toLowerCase() === needle);
+          // Prefer enabled options, but fall back if needed
+          const orderedOpts = [
+            ...opts.filter(o => !!o?.enabled),
+            ...opts.filter(o => !o?.enabled),
+          ];
+          const hit = orderedOpts.find(
+            o => (o?.name || '').trim().toLowerCase() === needle
+          );
           if (hit) return { attributeId: a.id, optionId: hit.id };
         }
+
         return { attributeId: null, optionId: null };
       };
     }, []);
