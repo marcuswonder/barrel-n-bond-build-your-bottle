@@ -1,5 +1,5 @@
-import React, { FunctionComponent, useEffect, useMemo, useState } from 'react';
-import styled from 'styled-components';
+import React, { FunctionComponent, useEffect, useMemo, useRef, useState } from 'react';
+// import styled from 'styled-components';
 import { useZakeke } from 'zakeke-configurator-react';
 import { LayoutWrapper, ContentWrapper, Container,  StepTitle, OptionListItem, RotateNotice, NavButton, PriceWrapper, CartButton, LoadingSpinner } from './list';
 // import { List, StepListItem, , ListItemImage } from './list';
@@ -37,7 +37,8 @@ const Selector: FunctionComponent<{}> = () => {
     console.log("product", product)
     console.log("items", items)
     
-    
+    const isApplyingSelectionRef = useRef(false);
+
     const buildGroup = groups.find(g => g.name === "Build Your Bottle") ?? null;
 
     const steps = buildGroup?.steps ?? [];
@@ -58,11 +59,35 @@ const Selector: FunctionComponent<{}> = () => {
     const bottleSel = bottleIdx >= 0 ? bottleOptions[bottleIdx] : null;
     console.log("bottleSel", bottleSel);
 
-    const pick = (stepIdx: number) => (
-      bottleIdx >= 0
-        ? steps[stepIdx]?.attributes?.[bottleIdx]?.options?.find(o => o.selected) ?? null
-        : null
-    );
+    const pick = (stepIdx: number) => {
+      const step = steps[stepIdx];
+      if (!step) return null;
+
+      // For the Closure step: prefer enabled attribute, then the actively selected attribute,
+      // then fall back to bottle-index mapping for legacy layouts
+      if (stepIdx === closureStepIdx) {
+        const attrs: any[] = Array.isArray(step.attributes) ? step.attributes : [];
+
+        // 1) enabled attr first
+        let attr = attrs.find(a => !!a?.enabled) || null;
+
+        // 2) if none flagged enabled, try the currently selected attribute in the UI
+        if (!attr && selectedAttributeId != null) {
+          attr = attrs.find(a => a?.id === selectedAttributeId) || null;
+        }
+
+        // 3) final fallbacks to avoid nulls
+        if (!attr) attr = (bottleIdx >= 0 ? attrs[bottleIdx] : null) || attrs[0] || null;
+
+        const opts: any[] = Array.isArray(attr?.options) ? attr!.options : [];
+        return opts.find(o => o?.selected) || null;
+      }
+
+      // All other steps can keep bottle-index mapping
+      return bottleIdx >= 0
+        ? step.attributes?.[bottleIdx]?.options?.find(o => o.selected) ?? null
+        : null;
+    };
 
     const liquidSel  = pick(liquidStepIdx);
     const closureSel = pick(closureStepIdx);
@@ -404,47 +429,50 @@ const Selector: FunctionComponent<{}> = () => {
       });
 
     // --- Helper: ensure we are on the attribute that owns the option, then select the option ---
+    // 3) wrap your programmatic selection so we don't emit transient state
     const selectOptionOnAttribute = async (attributeId: number | null, optionId: number | null) => {
       if (!attributeId || !optionId) return;
 
-      const attrId = Number(attributeId);
-      const optId  = Number(optionId);
-      if (!Number.isFinite(attrId) || !Number.isFinite(optId)) return;
+      isApplyingSelectionRef.current = true;
+      try {
+        const attrId = Number(attributeId);
+        const optId  = Number(optionId);
+        if (!Number.isFinite(attrId) || !Number.isFinite(optId)) return;
 
-      // Ensure we are on the Closure step when acting (defensive)
-      const isClosure = /closure/i.test(selectedStep?.name || '');
-      if (!isClosure) {
-        // try to locate a closure-like step and focus it
-        const closureStep = selectedGroup?.steps?.find(s => /closure/i.test(s?.name || ''));
-        if (closureStep) {
-          selectStep(closureStep.id);
-          await waitFor(() => selectedStepId === closureStep.id, 2000, 40);
+        // (your existing logic)
+        const isClosure = /closure/i.test(selectedStep?.name || '');
+        if (!isClosure) {
+          const closureStep = selectedGroup?.steps?.find(s => /closure/i.test(s?.name || ''));
+          if (closureStep) {
+            selectStep(closureStep.id);
+            await waitFor(() => selectedStepId === closureStep.id, 2000, 40);
+          }
         }
-      }
 
-      if (selectedAttributeId !== attrId) {
-        selectAttribute(attrId);
-        // wait until the attribute is actually active in Zakeke
-        await waitFor(() => selectedAttributeId === attrId, 2000, 40);
-      }
+        if (selectedAttributeId !== attrId) {
+          selectAttribute(attrId);
+          await waitFor(() => selectedAttributeId === attrId, 2000, 40);
+        }
 
-      // First attempt
-      selectOption(optId);
-      const ok = await waitFor(() => {
-        const activeAttr = attributes.find(a => a.id === (selectedAttributeId ?? -1));
-        const opts = activeAttr?.options || [];
-        return !!opts.find(o => o.id === optId && o.selected);
-      }, 2000, 40);
-
-      if (!ok) {
-        // Retry once after a micro delay
-        await new Promise(r => setTimeout(r, 60));
         selectOption(optId);
-        await waitFor(() => {
+        const ok = await waitFor(() => {
           const activeAttr = attributes.find(a => a.id === (selectedAttributeId ?? -1));
           const opts = activeAttr?.options || [];
           return !!opts.find(o => o.id === optId && o.selected);
         }, 2000, 40);
+
+        if (!ok) {
+          await new Promise(r => setTimeout(r, 60));
+          selectOption(optId);
+          await waitFor(() => {
+            const activeAttr = attributes.find(a => a.id === (selectedAttributeId ?? -1));
+            const opts = activeAttr?.options || [];
+            return !!opts.find(o => o.id === optId && o.selected);
+          }, 2000, 40);
+        }
+      } finally {
+        // release AFTER Zakeke confirms selection
+        isApplyingSelectionRef.current = false;
       }
     };
 
