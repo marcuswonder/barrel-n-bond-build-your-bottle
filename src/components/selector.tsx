@@ -37,7 +37,6 @@ const Selector: FunctionComponent<{}> = () => {
     console.log("product", product)
     console.log("items", items)
     
-    const isApplyingSelectionRef = useRef(false);
 
     const buildGroup = groups.find(g => g.name === "Build Your Bottle") ?? null;
 
@@ -144,13 +143,13 @@ const Selector: FunctionComponent<{}> = () => {
 
     console.log("selections", selections)
 
-    // Key that only changes when meaningful order fields change
+    // Key that only changes when meaningful order fields change, closure id excluded to avoid transient updates during attribute switch
     const orderKey = [
       product?.sku ?? '',
       String(price ?? ''),
       selections.bottle?.id ?? 0,
       selections.liquid?.id ?? 0,
-      selections.closure?.id ?? 0,
+      /* closure id excluded to avoid transient updates during attribute switch */
       selections.label?.id ?? 0,
     ].join('|');
 
@@ -243,6 +242,8 @@ const Selector: FunctionComponent<{}> = () => {
     const [selectedGroupId, selectGroup] = useState<number | null>(null);
     const [selectedStepId, selectStep] = useState<number | null>(null);
     const [selectedAttributeId, selectAttribute] = useState<number | null>(null);
+
+    const [isSelecting, setIsSelecting] = useState(false);
 
 
     // Initialize group/step/attribute once groups are available
@@ -428,18 +429,20 @@ const Selector: FunctionComponent<{}> = () => {
         tick();
       });
 
-    // --- Helper: ensure we are on the attribute that owns the option, then select the option ---
-    // 3) wrap your programmatic selection so we don't emit transient state
-    const selectOptionOnAttribute = async (attributeId: number | null, optionId: number | null) => {
-      if (!attributeId || !optionId) return;
+    // --- Helper: ensure atomic update for closure selection ---
+    const selectOptionOnAttribute = async (
+      attributeId: number | null,
+      optionId: number | null
+    ) => {
+      if (!attributeId || !optionId || isSelecting) return;
 
-      isApplyingSelectionRef.current = true;
+      setIsSelecting(true);
       try {
         const attrId = Number(attributeId);
         const optId  = Number(optionId);
         if (!Number.isFinite(attrId) || !Number.isFinite(optId)) return;
 
-        // (your existing logic)
+        // Ensure we're on the Closure step (defensive)
         const isClosure = /closure/i.test(selectedStep?.name || '');
         if (!isClosure) {
           const closureStep = selectedGroup?.steps?.find(s => /closure/i.test(s?.name || ''));
@@ -454,12 +457,13 @@ const Selector: FunctionComponent<{}> = () => {
           await waitFor(() => selectedAttributeId === attrId, 2000, 40);
         }
 
+        // Select the option and confirm
         selectOption(optId);
         const ok = await waitFor(() => {
           const activeAttr = attributes.find(a => a.id === (selectedAttributeId ?? -1));
           const opts = activeAttr?.options || [];
           return !!opts.find(o => o.id === optId && o.selected);
-        }, 2000, 40);
+        }, 1500, 40);
 
         if (!ok) {
           await new Promise(r => setTimeout(r, 60));
@@ -470,9 +474,38 @@ const Selector: FunctionComponent<{}> = () => {
             return !!opts.find(o => o.id === optId && o.selected);
           }, 2000, 40);
         }
+
+        // === Atomic commit to store ===
+        const step = steps[closureStepIdx];
+        let attr = Array.isArray(step?.attributes) ? step!.attributes.find((a: any) => !!a?.enabled) : null;
+        if (!attr && selectedAttributeId != null) {
+          attr = step?.attributes?.find((a: any) => a?.id === selectedAttributeId) || null;
+        }
+        if (!attr) {
+          const attrs: any[] = Array.isArray(step?.attributes) ? step!.attributes : [];
+          attr = (bottleIdx >= 0 ? attrs[bottleIdx] : null) || attrs[0] || null;
+        }
+        const latestClosureSel = Array.isArray(attr?.options) ? attr!.options.find((o: any) => !!o?.selected) || null : null;
+
+        const latestBottleSel = bottleSel;
+        const latestLiquidSel = liquidSel;
+        const latestLabelSel  = labelSel;
+
+        const latestSelections = {
+          bottleSel: latestBottleSel,
+          liquidSel: latestLiquidSel,
+          closureSel: latestClosureSel,
+          labelSel: latestLabelSel,
+          bottle: latestBottleSel ? { id: latestBottleSel.id, guid: latestBottleSel.guid, name: latestBottleSel.name, selected: !!latestBottleSel.selected } : null,
+          liquid: latestLiquidSel ? { id: latestLiquidSel.id, guid: latestLiquidSel.guid, name: latestLiquidSel.name, selected: !!latestLiquidSel.selected } : null,
+          closure: latestClosureSel ? { id: latestClosureSel.id, guid: latestClosureSel.guid, name: latestClosureSel.name, selected: !!latestClosureSel.selected } : null,
+          label: latestLabelSel ? { id: latestLabelSel.id, guid: latestLabelSel.guid, name: latestLabelSel.name, selected: !!latestLabelSel.selected } : null,
+        } as const;
+
+        setFromSelections({ selections: latestSelections as any, sku: product?.sku ?? null, price });
       } finally {
-        // release AFTER Zakeke confirms selection
-        isApplyingSelectionRef.current = false;
+        // small delay to avoid rapid double-clicks
+        setTimeout(() => setIsSelecting(false), 120);
       }
     };
 
@@ -727,6 +760,7 @@ const Selector: FunctionComponent<{}> = () => {
                       <OptionListItem
                         key={option.id}
                         onClick={() => {
+                          if (isSelecting) return;
                           console.log('User selected option:', {
                             name: option.name,
                             attribute: selectedAttribute.name,
@@ -736,9 +770,11 @@ const Selector: FunctionComponent<{}> = () => {
                           selectOption(option.id);
                         }}
                         selected={option.selected}
+                        className={isSelecting ? 'is-selecting' : undefined}
+                        aria-busy={isSelecting ? true : undefined}
                         style={{
                           width: '200px',
-                          cursor: 'pointer',
+                          cursor: isSelecting ? 'not-allowed' : 'pointer',
                           transition: 'all 0.2s ease-in-out',
                           boxShadow: option.selected ? '0 0 0 2px black' : 'none',
                           border: option.selected ? '2px solid #222' : '1px solid #ddd',
@@ -793,13 +829,15 @@ const Selector: FunctionComponent<{}> = () => {
                           key={s.key}
                           aria-label={s.key}
                           onClick={() => onPickWood(s.key, s.hex)}
+                          disabled={isSelecting}
+                          className={isSelecting ? 'is-selecting' : undefined}
                           style={{
                             width: 64,
                             height: 64,
                             borderRadius: '50%',
                             border: selected ? '3px solid #000' : '1px solid #ccc',
                             background: s.hex,
-                            cursor: 'pointer'
+                            cursor: isSelecting ? 'wait' : 'pointer'
                           }}
                           title={s.key}
                         />
@@ -820,6 +858,8 @@ const Selector: FunctionComponent<{}> = () => {
                           key={s.key}
                           aria-label={s.key}
                           onClick={() => onPickWax(s.key, s.hex)}
+                          disabled={isSelecting}
+                          className={isSelecting ? 'is-selecting' : undefined}
                           style={{
                             width: 64,
                             height: 64,
@@ -827,7 +867,7 @@ const Selector: FunctionComponent<{}> = () => {
                             border: selected ? '3px solid #000' : '1px solid #ccc',
                             background: isNone ? 'transparent' : s.hex,
                             position: 'relative',
-                            cursor: 'pointer'
+                            cursor: isSelecting ? 'wait' : 'pointer'
                           }}
                           title={s.key}
                         >
