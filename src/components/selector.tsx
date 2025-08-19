@@ -62,30 +62,49 @@ const Selector: FunctionComponent<{}> = () => {
       const step = steps[stepIdx];
       if (!step) return null;
 
-      // For the Closure step: prefer enabled attribute, then the actively selected attribute,
-      // then fall back to bottle-index mapping for legacy layouts
-      if (stepIdx === closureStepIdx) {
-        const attrs: any[] = Array.isArray(step.attributes) ? step.attributes : [];
+      const attrs: any[] = Array.isArray(step.attributes) ? step.attributes : [];
+      const stepName = (step.name || '').toLowerCase();
+      const isLabelStepLocal = stepName.includes('label') || stepName.includes('design');
 
-        // 1) enabled attr first
-        let attr = attrs.find(a => !!a?.enabled) || null;
-
-        // 2) if none flagged enabled, try the currently selected attribute in the UI
-        if (!attr && selectedAttributeId != null) {
-          attr = attrs.find(a => a?.id === selectedAttributeId) || null;
+      // --- Label/Design step: SINGLE attribute shared across bottles ---
+      if (isLabelStepLocal) {
+        // 1) any selected option across attributes
+        for (const a of attrs) {
+          const sel = (Array.isArray(a?.options) ? a.options : []).find((o: any) => !!o?.selected);
+          if (sel) return sel;
         }
+        // 2) explicit "No Selection"
+        for (const a of attrs) {
+          const noSel = (Array.isArray(a?.options) ? a.options : []).find((o: any) => (o?.name || '').trim().toLowerCase() === 'no selection');
+          if (noSel) return noSel;
+        }
+        // 3) fallback to first enabled attribute's first option (or first available)
+        const firstEnabledAttr = attrs.find(a => !!a?.enabled) || attrs[0] || null;
+        const firstOpt = (Array.isArray(firstEnabledAttr?.options) ? firstEnabledAttr.options : [])[0] || null;
+        return firstOpt || null;
+      }
 
-        // 3) final fallbacks to avoid nulls
-        if (!attr) attr = (bottleIdx >= 0 ? attrs[bottleIdx] : null) || attrs[0] || null;
-
+      // --- Closure step: prefer enabled attribute, else bottle-index attr, else first ---
+      if (stepIdx === closureStepIdx) {
+        const attr = attrs.find(a => !!a?.enabled) || (bottleIdx >= 0 ? attrs[bottleIdx] : null) || attrs[0] || null;
         const opts: any[] = Array.isArray(attr?.options) ? attr!.options : [];
         return opts.find(o => o?.selected) || null;
       }
 
-      // All other steps can keep bottle-index mapping
-      return bottleIdx >= 0
-        ? step.attributes?.[bottleIdx]?.options?.find(o => o.selected) ?? null
+      // --- Default (Bottle/Liquid/etc): bottle-index mapping with safety net ---
+      const attrByBottleIndex = (typeof bottleIdx === 'number' && bottleIdx >= 0) ? attrs[bottleIdx] : undefined;
+      const selectedViaIndex = Array.isArray(attrByBottleIndex?.options)
+        ? attrByBottleIndex.options.find((o: any) => !!o?.selected) || null
         : null;
+      if (selectedViaIndex) return selectedViaIndex;
+
+      // Safety net: any selected across attributes
+      for (const a of attrs) {
+        const sel = (Array.isArray(a?.options) ? a.options : []).find((o: any) => !!o?.selected);
+        if (sel) return sel;
+      }
+
+      return null;
     };
 
     const liquidSel  = pick(liquidStepIdx);
@@ -95,6 +114,31 @@ const Selector: FunctionComponent<{}> = () => {
     console.log("liquidSel", liquidSel);
     console.log("closureSel", closureSel);
     console.log("labelSel", labelSel);
+
+    // Ensure the single label attribute follows the selected bottle
+    // Options order expected: [0:'No Selection', 1:'Polo', 2:'Outlaw', 3:'Antica', 4:'Manila', 5:'Origin']
+    useEffect(() => {
+      const step = steps[labelStepIdx];
+      if (!step) return;
+
+      const attrs: any[] = Array.isArray(step.attributes) ? step.attributes : [];
+      const attr = attrs[0] || null; // single attribute holding all label options
+      if (!attr) return;
+
+      const opts: any[] = Array.isArray((attr as any).options) ? (attr as any).options : [];
+      if (!opts.length) return;
+
+      // Map bottle index to label option (+1 shift because index 0 is 'No Selection')
+      const desiredIdx = typeof bottleIdx === 'number' && bottleIdx >= 0 ? bottleIdx + 1 : 0;
+      const desired =
+        opts[desiredIdx] ||
+        opts.find((o: any) => (o?.name || '').trim().toLowerCase() === 'no selection') ||
+        opts[0];
+
+      if (desired && !desired.selected) {
+        selectOption(desired.id);
+      }
+    }, [steps, labelStepIdx, bottleIdx, selectOption]);
 
     const toMini = (o: any) => (o ? ({ id: o.id, guid: o.guid, name: o.name, selected: !!o.selected }) : null);
 
@@ -578,7 +622,7 @@ const Selector: FunctionComponent<{}> = () => {
 
     const handleLabelClick = (side: 'front' | 'back') => {
       if (!canDesign) {
-        setWarning('Please select a bottle, liquid, and closure (not "No Selection") before designing labels.');
+        setWarning('Please select a bottle, liquid, and closure before designing labels.');
         return;
       }
       const hasDesign = side === 'front' ? !!labelDesigns.front : !!labelDesigns.back;
