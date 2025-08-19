@@ -116,7 +116,8 @@ const Selector: FunctionComponent<{}> = () => {
     console.log("labelSel", labelSel);
 
     // Ensure the single label attribute follows the selected bottle
-    // Options order expected: [0:'No Selection', 1:'Polo', 2:'Outlaw', 3:'Antica', 4:'Manila', 5:'Origin']
+    // We match by option.code which encodes the bottle key, e.g.
+    //  all_bottles_design_your_labels_polo | ..._outlaw | ..._antica | ..._manila | ..._origin
     useEffect(() => {
       const step = steps[labelStepIdx];
       if (!step) return;
@@ -128,17 +129,42 @@ const Selector: FunctionComponent<{}> = () => {
       const opts: any[] = Array.isArray((attr as any).options) ? (attr as any).options : [];
       if (!opts.length) return;
 
-      // Map bottle index to label option (+1 shift because index 0 is 'No Selection')
-      const desiredIdx = typeof bottleIdx === 'number' && bottleIdx >= 0 ? bottleIdx + 1 : 0;
-      const desired =
-        opts[desiredIdx] ||
-        opts.find((o: any) => (o?.name || '').trim().toLowerCase() === 'no selection') ||
-        opts[0];
+      const bottleName = (bottleSel?.name || '').trim().toLowerCase();
+      const bottleKey = bottleName.replace(/\s+/g, '_'); // e.g. 'Polo' -> 'polo'
 
-      if (desired && !desired.selected) {
-        selectOption(desired.id);
+      // If no bottle yet, ensure "No Selection" is active
+      if (!bottleKey) {
+        const noSel = opts.find(o => (o?.name || '').trim().toLowerCase() === 'no selection');
+        if (noSel && !noSel.selected) selectOption(noSel.id);
+        return;
       }
-    }, [steps, labelStepIdx, bottleIdx, selectOption]);
+
+      // Find the label option whose code ends with the bottle key
+      const match = opts.find(o =>
+        typeof o?.code === 'string' && o.code.toLowerCase().endsWith(`_${bottleKey}`)
+      );
+
+      // If already selected, do nothing
+      if (match && match.selected) return;
+
+      // Prefer exact code match; otherwise fallback to name matching of the form "Design Your Labels"
+      if (match) {
+        selectOption(match.id);
+        return;
+      }
+
+      // Fallbacks:
+      // 1) An enabled non-"No Selection" option (keeps UX moving if codes ever drift)
+      const enabledDesign = opts.find(o => o?.enabled && (o?.name || '').toLowerCase() !== 'no selection');
+      if (enabledDesign && !enabledDesign.selected) {
+        selectOption(enabledDesign.id);
+        return;
+      }
+
+      // 2) Last resort -> No Selection
+      const noSel = opts.find(o => (o?.name || '').trim().toLowerCase() === 'no selection') || opts[0];
+      if (noSel && !noSel.selected) selectOption(noSel.id);
+    }, [steps, labelStepIdx, bottleSel?.name, selectOption]);
 
     const toMini = (o: any) => (o ? ({ id: o.id, guid: o.guid, name: o.name, selected: !!o.selected }) : null);
 
