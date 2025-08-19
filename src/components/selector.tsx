@@ -115,9 +115,18 @@ const Selector: FunctionComponent<{}> = () => {
     console.log("closureSel", closureSel);
     console.log("labelSel", labelSel);
 
+    // --- UI navigation state (must be declared before effects that depend on them) ---
+    const [selectedGroupId, selectGroup] = useState<number | null>(null);
+    const [selectedStepId, selectStep] = useState<number | null>(null);
+    const [selectedAttributeId, selectAttribute] = useState<number | null>(null);
+
+    const [isSelecting, setIsSelecting] = useState(false);
+
+    const selectedGroup = groups.find(group => group.id === selectedGroupId);
+    const selectedStep = selectedGroup?.steps.find(step => step.id === selectedStepId) ?? null;
+
     // Ensure the single label attribute follows the selected bottle
-    // We match by option.code which encodes the bottle key, e.g.
-    //  all_bottles_design_your_labels_polo | ..._outlaw | ..._antica | ..._manila | ..._origin
+    // BUT only when we are on the Label/Design step. Otherwise keep labels hidden via "No Selection".
     useEffect(() => {
       const step = steps[labelStepIdx];
       if (!step) return;
@@ -129,42 +138,39 @@ const Selector: FunctionComponent<{}> = () => {
       const opts: any[] = Array.isArray((attr as any).options) ? (attr as any).options : [];
       if (!opts.length) return;
 
+      const noSel = opts.find(o => (o?.name || '').trim().toLowerCase() === 'no selection') || null;
+
+      const isLabelStep = /label|design/i.test(selectedStep?.name || '');
+
+      // If we're NOT on the label step, force "No Selection" so labels stay hidden
+      if (!isLabelStep) {
+        const active = opts.find(o => !!o?.selected);
+        if (active && noSel && active.id !== noSel.id) {
+          selectOption(noSel.id);
+        }
+        return;
+      }
+
+      // We ARE on the label step → map bottle -> specific label option by code suffix
       const bottleName = (bottleSel?.name || '').trim().toLowerCase();
       const bottleKey = bottleName.replace(/\s+/g, '_'); // e.g. 'Polo' -> 'polo'
 
-      // If no bottle yet, ensure "No Selection" is active
       if (!bottleKey) {
-        const noSel = opts.find(o => (o?.name || '').trim().toLowerCase() === 'no selection');
         if (noSel && !noSel.selected) selectOption(noSel.id);
         return;
       }
 
-      // Find the label option whose code ends with the bottle key
-      const match = opts.find(o =>
-        typeof o?.code === 'string' && o.code.toLowerCase().endsWith(`_${bottleKey}`)
-      );
+      const match = opts.find(o => typeof o?.code === 'string' && o.code.toLowerCase().endsWith(`_${bottleKey}`));
 
-      // If already selected, do nothing
-      if (match && match.selected) return;
-
-      // Prefer exact code match; otherwise fallback to name matching of the form "Design Your Labels"
-      if (match) {
+      if (match && !match.selected) {
         selectOption(match.id);
         return;
       }
 
-      // Fallbacks:
-      // 1) An enabled non-"No Selection" option (keeps UX moving if codes ever drift)
-      const enabledDesign = opts.find(o => o?.enabled && (o?.name || '').toLowerCase() !== 'no selection');
-      if (enabledDesign && !enabledDesign.selected) {
-        selectOption(enabledDesign.id);
-        return;
+      if (!match && noSel && !noSel.selected) {
+        selectOption(noSel.id);
       }
-
-      // 2) Last resort -> No Selection
-      const noSel = opts.find(o => (o?.name || '').trim().toLowerCase() === 'no selection') || opts[0];
-      if (noSel && !noSel.selected) selectOption(noSel.id);
-    }, [steps, labelStepIdx, bottleSel?.name, selectOption]);
+    }, [steps, labelStepIdx, selectedStepId, selectedStep?.name, bottleSel?.name, selectOption]);
 
     const toMini = (o: any) => (o ? ({ id: o.id, guid: o.guid, name: o.name, selected: !!o.selected }) : null);
 
@@ -309,11 +315,6 @@ const Selector: FunctionComponent<{}> = () => {
       miniLiquid.name !== 'No Selection' &&
       miniClosure.name !== 'No Selection';
 
-    const [selectedGroupId, selectGroup] = useState<number | null>(null);
-    const [selectedStepId, selectStep] = useState<number | null>(null);
-    const [selectedAttributeId, selectAttribute] = useState<number | null>(null);
-
-    const [isSelecting, setIsSelecting] = useState(false);
 
 
     // Initialize group/step/attribute once groups are available
@@ -336,8 +337,6 @@ const Selector: FunctionComponent<{}> = () => {
       }
     }, [groups, selectedGroupId, selectedStepId, selectedAttributeId]);
 
-    const selectedGroup = groups.find(group => group.id === selectedGroupId);
-    const selectedStep = selectedGroup?.steps.find(step => step.id === selectedStepId) ?? null;
 
     // (Optional debug) Log selected group/step
     console.log('UI selectedGroupId', selectedGroupId, '->', selectedGroup?.name);
@@ -604,19 +603,6 @@ const Selector: FunctionComponent<{}> = () => {
       (selectedStep?.name || '').toLowerCase().includes('design') ||
       (selectedStep?.name || '').toLowerCase().includes('label');
 
-    useEffect(() => {
-      if (!onLabelStep || !selectedAttribute) return;
-
-      const opts = selectedAttribute.options || [];
-      const designOpt = opts.find(
-        o => (o.name || '').toLowerCase().includes('design your label')
-      );
-
-      // Only trigger if it's not already selected
-      if (designOpt && !designOpt.selected) {
-        selectOption(designOpt.id);
-      }
-    }, [onLabelStep, selectedAttribute, selectOption]);
 
     const frontVisible = !!labelAreas.front;
     const backVisible  = !!labelAreas.back;
