@@ -9,6 +9,7 @@ import { useOrderStore } from '../state/orderStore';
 import { WOOD_SWATCHES, WAX_SWATCHES } from '../data/options';  
 
 
+
 const Selector: FunctionComponent<{}> = () => {
     const {
         isSceneLoading,
@@ -18,13 +19,13 @@ const Selector: FunctionComponent<{}> = () => {
         selectOption,
         addToCart,
         setCamera,
+        setCameraByName,
         product,
         items,
         getMeshIDbyName,
         isAreaVisible,
         createImageFromUrl, 
         addItemImage,
-        setCameraByName,
         removeItem,
         // templates,
         // setTemplate,
@@ -453,6 +454,162 @@ const Selector: FunctionComponent<{}> = () => {
         }
     }, [selectedGroupId, selectedGroup, setCamera]);
 
+
+    useEffect(() => {
+      const sendHeight = () => {
+        const h = Math.max(
+          document.documentElement.scrollHeight,
+          document.body?.scrollHeight || 0
+        );
+        window.parent.postMessage(
+          { customMessageType: 'CONFIG_IFRAME_HEIGHT', height: h },
+          '*'
+        );
+      };
+
+      // observe size changes
+      const ro = new ResizeObserver(() => sendHeight());
+      ro.observe(document.documentElement);
+
+      // initial + on load
+      sendHeight();
+      window.addEventListener('load', sendHeight);
+
+      // on orientation changes
+      window.addEventListener('orientationchange', () => setTimeout(sendHeight, 250));
+
+      return () => {
+        ro.disconnect();
+        window.removeEventListener('load', sendHeight);
+      };
+    }, []);
+
+    // === Camera animation: refs & helpers (top-level inside component) ===
+    const camAbort = useRef<AbortController | null>(null);
+    const lastCamRef = useRef<string | null>(null);
+    const isAnimatingCam = useRef(false);
+    const prevTourKeyRef = useRef<string | null>(null);
+
+    const waitSceneIdle = async (timeout = 1500, interval = 60) => {
+      const start = Date.now();
+      let stable = 0;
+      while (Date.now() - start < timeout) {
+        if (!isSceneLoading) {
+          stable++;
+          if (stable >= 2) break;
+        } else {
+          stable = 0;
+        }
+        await new Promise(r => setTimeout(r, interval));
+      }
+      await new Promise(r => requestAnimationFrame(() => r(null)));
+    };
+
+    const moveCamera = async (name: string) => {
+      try {
+        await setCameraByName(name);
+        lastCamRef.current = name;
+      } catch {}
+    };
+
+    const runCameraTour = async (frames: string[], final: string, perFrameMs = 600) => {
+      // prevent concurrent tours
+      if (isAnimatingCam.current) return;
+      isAnimatingCam.current = true;
+
+      camAbort.current?.abort();
+      const ctrl = new AbortController();
+      camAbort.current = ctrl;
+
+      try {
+        // ensure visible motion if we're already on the final cam
+        const seq = [...frames];
+        if (lastCamRef.current && lastCamRef.current === final) {
+          const alt = frames.find(f => f !== final);
+          if (alt) seq.unshift(alt);
+        }
+
+        for (const f of seq) {
+          if (ctrl.signal.aborted) return;
+          await moveCamera(f);
+          await new Promise(r => setTimeout(r, perFrameMs));
+        }
+        if (!ctrl.signal.aborted) await moveCamera(final);
+      } finally {
+        if (camAbort.current === ctrl) camAbort.current = null;
+        isAnimatingCam.current = false;
+      }
+    };
+
+    // Fire tour on step / bottle change, but debounce identical requests
+    useEffect(() => {
+      if (!selectedStep) return;
+
+      // current step key
+      const s = (selectedStep.name || '').toLowerCase();
+      const stepKey: 'bottle' | 'liquid' | 'closure' | 'label' =
+        s.includes('bottle') ? 'bottle' :
+        s.includes('closure') ? 'closure' :
+        s.includes('label')   ? 'label'   : 'liquid';
+
+      // derive bottle key from current bottle selection (e.g. "Antica" -> "antica")
+      const bottleKey = (bottleSel?.name || selections.bottle?.name || '')
+        .trim()
+        .toLowerCase()
+        .replace(/\s+/g, '_');
+
+      // if no bottle yet, skip anim
+      if (!bottleKey) return;
+
+      // build dynamic camera names based on your convention
+      const cams: Record<'full_front'|'full_side'|'closure'|'label_front'|'label_back', string> = {
+        full_front: `${bottleKey}_full_front`,
+        full_side: `${bottleKey}_full_side`,
+        closure: `${bottleKey}_closure`,
+        label_front: `${bottleKey}_label_front`,
+        label_back: `${bottleKey}_label_back`,
+      };
+
+      // choose keyframe path for a short orbit feel per step
+      let frames: string[] = [];
+      let final: string = cams.full_front;
+
+      if (stepKey === 'bottle') {
+        frames = ['wide_high_back', 'wide_high_front'];
+        final = cams.full_front;
+      } else if (stepKey === 'liquid') {
+        frames = ['wide_low_front'];
+        final = cams.full_front;
+      } else if (stepKey === 'closure') {
+        frames = ['wide_high_front', 'wide_high_back'];
+        final = cams.closure;
+      } else if (stepKey === 'label') {
+        frames = ['wide_high_front', 'wide_high_back'];
+        const preferFront = !!labelAreas.front || !labelAreas.back;
+        final = preferFront ? cams.label_front : cams.label_back;
+      }
+
+      const tourKey = `${stepKey}|${bottleKey}|${final}`;
+      if (!isSceneLoading && prevTourKeyRef.current === tourKey) {
+        return; // identical request, skip to avoid jitter
+      }
+      prevTourKeyRef.current = tourKey;
+
+      (async () => {
+        await waitSceneIdle(1500, 60); // wait for model/meshes swap to settle
+        await runCameraTour(frames, final, 600); // adjust per-frame ms as desired
+      })();
+
+      return () => camAbort.current?.abort();
+    }, [
+      selectedStep?.id,
+      selections.bottle?.name,
+      bottleSel?.name,
+      labelAreas.front?.id,
+      labelAreas.back?.id,
+      isSceneLoading
+    ]);
+
     // --- Helper: find an option by exact name across ALL attributes in the current step ---
     const findOptionInStepByName = useMemo(() => {
       return (step: any, name: string): { attributeId: number | null; optionId: number | null } => {
@@ -626,11 +783,11 @@ const Selector: FunctionComponent<{}> = () => {
       return stepOpts.length ? stepOpts : attrOpts;
     }, [isClosureStep, selectedStep, selectedAttribute]);
 
-    const getOptionIdByName = (name: string) => {
-      const needle = (name || '').trim().toLowerCase();
-      const hit = closureOptions.find(o => (o.name || '').trim().toLowerCase() === needle);
-      return hit?.id ?? null;
-    };
+    // const getOptionIdByName = (name: string) => {
+    //   const needle = (name || '').trim().toLowerCase();
+    //   const hit = closureOptions.find(o => (o.name || '').trim().toLowerCase() === needle);
+    //   return hit?.id ?? null;
+    // };
 
     const handleLabelClick = (side: 'front' | 'back') => {
       if (!canDesign) {
