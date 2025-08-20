@@ -1,5 +1,5 @@
 * {
-    font-family: 'Arial', sans-serif;
+    font-family: 'Anonymous Pro', monospace;
     box-sizing: border-box;
   }
 
@@ -21,22 +21,20 @@ html,body {
 .configurator-button {
   display: inline-block;
   padding: 10px 16px;
-  font-size: 14px;
+  font-size: 10px;
   font-weight: 400;
   color: #fff;
   background-color: black;
   border: none;
-  border-radius: 4px;
   cursor: pointer;
-  transition: background-color 0.2s ease;
   text-align: center;
+  letter-spacing: .1rem;
 }
 
 .configurator-button:hover {
-  transform: scale(1.1);
+  border: 1px black solid;
 }
 
 .configurator-button:disabled {
-  background-color: #ccc;
   cursor: not-allowed;
 }
