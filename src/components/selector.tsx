@@ -741,9 +741,8 @@ const Selector: FunctionComponent<{}> = () => {
     }
 };
 
-    const hasFront = !frontVisible || !!labelDesigns.front;
-    const hasBack  = !backVisible  || !!labelDesigns.back;
-    const showAddToCartButton = productObject.valid && hasFront && hasBack;
+    const bothLabelsDesigned = Boolean(labelDesigns.front && labelDesigns.back);
+    const showAddToCartButton = productObject.valid && bothLabelsDesigned;
 
     return (
       <>
