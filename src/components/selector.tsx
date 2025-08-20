@@ -1,7 +1,7 @@
 import React, { FunctionComponent, useEffect, useMemo, useRef, useState } from 'react';
 // import styled from 'styled-components';
 import { useZakeke } from 'zakeke-configurator-react';
-import { LayoutWrapper, ContentWrapper, Container,  StepTitle, OptionListItem, RotateNotice, NavButton, LoadingSpinner, NotesWrapper, CartBar, StepNav, OptionsWrap, OptionText, OptionTitle, OptionDescription, ClosureSections, SectionTitle, SwatchGrid, SwatchButton, SwatchNoneLabel, LabelGrid, LabelCard, LabelCardTitle, ActionsCenter, ConfigWarning } from './list';
+import { LayoutWrapper, ContentWrapper, Container,  StepTitle, OptionListItem, RotateNotice, NavButton, LoadingSpinner, NotesWrapper, CartBar, StepNav, OptionsWrap, OptionText, OptionTitle, OptionDescription, ClosureSections, SectionTitle, SwatchGrid, SwatchButton, SwatchNoneLabel, LabelGrid, LabelCard, LabelCardTitle, ActionsCenter, ConfigWarning, ViewportSpacer } from './list';
 // import { List, StepListItem, , ListItemImage } from './list';
 import { optionNotes } from '../data/option-notes';
 import { TailSpin } from 'react-loader-spinner';
@@ -959,6 +959,7 @@ const Selector: FunctionComponent<{}> = () => {
             )}
           </Container>
         </ContentWrapper>
+        <ViewportSpacer />
         <CartBar
           price={price}
           showButton={showAddToCartButton}

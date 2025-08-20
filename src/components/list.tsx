@@ -181,14 +181,14 @@ export const NotesWrapper = styled.div`
 `;
 
 
-// Sticky cart bar + helpers
 export const CartBarContainer = styled.div`
   position: sticky;
   bottom: 0;
   background: #fff;
-  padding: 16px 16px 24px;
+  padding: 16px 16px calc(24px + env(safe-area-inset-bottom));
   border-top: 1px solid #ccc;
-  z-index: 10;
+  z-index: 100;
+  box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.06);
 `;
 
 export const CartBarInner = styled.div`
@@ -220,6 +220,12 @@ export const CartBar: React.FC<{
     </CartBarInner>
   </CartBarContainer>
 );
+
+export const ViewportSpacer = styled.div`
+  flex: 0 0 auto;
+  height: 96px;
+  height: calc(72px + env(safe-area-inset-bottom));
+`;
 
 export const NavContainer = styled.div`
   display: flex;
