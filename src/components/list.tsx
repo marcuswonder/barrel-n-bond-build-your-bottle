@@ -1,26 +1,31 @@
+import React from 'react';
 import styled from "styled-components";
 
 // Option item – for attribute selections with images
-export const OptionListItem = styled.li<{ selected?: boolean }>`
+export const OptionListItem = styled.li<{
+  $selected?: boolean;
+  $disabled?: boolean;
+  $width?: string;
+}>`
   display: flex;
   align-items: center;
   padding: 16px;
   margin-bottom: 12px;
-  // border-radius: 12px;
-  border: 1px solid ${({ selected }) => (selected ? '#000' : '#d1d5db')};
-  background-color: ${({ selected }) => (selected ? '#000' : '#fff')};
-  color: ${({ selected }) => (selected ? '#fff' : '#000')};
-  cursor: pointer;
+  width: ${({ $width }) => $width || '200px'};
+  border: 1px solid ${({ $selected }) => ($selected ? '#222' : '#ddd')};
+  background-color: ${({ $selected }) => ($selected ? '#f3f3fa' : '#fff')};
+  color: #000;
+  cursor: ${({ $disabled }) => ($disabled ? 'not-allowed' : 'pointer')};
   gap: 16px;
-  box-shadow: ${({ selected }) =>
-    selected ? '0 6px 12px rgba(0, 0, 0, 0.2)' : '0 2px 6px rgba(0, 0, 0, 0.1)'};
-  transition: all 0.2s ease;
+  box-shadow: ${({ $selected }) => ($selected ? '0 0 0 2px black' : 'none')};
+  transition: all 0.2s ease-in-out;
+  outline: none;
   transform-style: preserve-3d;
 
   &:hover {
-    background-color: ${({ selected }) => (selected ? '#111' : '#f0f0f0')};
-    transform: scale(1.005);
-    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15);
+    ${({ $disabled }) => ($disabled ? 'transform: none; box-shadow: none; background-color: inherit;' : '')}
+    background-color: #F2F2F3;
+    border: 1px gray solid;
   }
 
   &:active {
@@ -29,13 +34,6 @@ export const OptionListItem = styled.li<{ selected?: boolean }>`
   }
 `;
 
-
-// export const ListItemImage = styled.img`
-//     width: 64px;
-//     height: 64px;
-//     object-fit: contain;
-//     margin-bottom: 20px;
-// `
 
 export const NavButton = styled.button`
   background: none;
@@ -137,9 +135,9 @@ export const LayoutWrapper = styled.div`
   height: 100vh;
   display: flex;
   flex-direction: column;
-`;
-
-export const ContentWrapper = styled.div`
+  `;
+  
+  export const ContentWrapper = styled.div`
   flex: 1;
   overflow-y: auto;
 `;
@@ -147,7 +145,7 @@ export const ContentWrapper = styled.div`
 export const Container = styled.div`
   height: 100%;
   overflow: auto;
-  background: linear-gradient(135deg, #fef3ff 0%, #e3f6ff 100%);
+  border-top: 6px solid black;
   padding: 24px;
   box-sizing: border-box;
 `;
@@ -161,7 +159,222 @@ export const PriceWrapper = styled.div`
   z-index: 10;
   padding: 16px 32px;
   border-top: 1px solid #ccc;
-  background: linear-gradient(135deg, #fef3ff 0%, #e3f6ff 100%);
   text-align: left;
   box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.1);
 `;
+
+export const NotesWrapper = styled.div`
+  margin-top: 24px;
+  padding: 16px;
+  background-color: #F2F2F3;
+  border: 1px gray solid;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+
+  strong {
+    display: block;
+  }
+
+  p {
+    margin: 8px 0 0;
+    color: #555;
+  }
+`;
+
+
+// Sticky cart bar + helpers
+export const CartBarContainer = styled.div`
+  position: sticky;
+  bottom: 0;
+  background: #fff;
+  padding: 16px 16px 24px;
+  border-top: 1px solid #ccc;
+  z-index: 10;
+`;
+
+export const CartBarInner = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+`;
+
+export const CartPrice = styled.h3`
+  margin: 0;
+`;
+
+// Reusable CartBar component
+export const CartBar: React.FC<{
+  price: React.ReactNode;
+  showButton: boolean;
+  loading?: boolean;
+  onAdd: () => void;
+  renderSpinner?: React.ReactNode;
+}> = ({ price, showButton, loading, onAdd, renderSpinner }) => (
+  <CartBarContainer>
+    <CartBarInner>
+      <CartPrice>Price: {price}</CartPrice>
+      {showButton && (
+        <CartButton onClick={onAdd}>
+          {loading ? (renderSpinner ?? <span>…</span>) : <span>Save and Order</span>}
+        </CartButton>
+      )}
+    </CartBarInner>
+  </CartBarContainer>
+);
+
+export const NavContainer = styled.div`
+  display: flex;
+  alignItems: center;
+  justifyContent: space-between;
+  margin: 16px 0;
+`;
+
+export const StepNavContainer = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 16px 0;
+`;
+
+export const StepNavCenter = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+
+  span {
+    font-size: 12px;
+    color: #888;
+    margin-top: 4px;
+  }
+`;
+
+export const StepNav: React.FC<{
+  title: React.ReactNode;
+  stepIndex: number;         // zero-based
+  totalSteps: number;
+  onPrev: () => void;
+  onNext: () => void;
+  disablePrev?: boolean;
+  disableNext?: boolean;
+}> = ({ title, stepIndex, totalSteps, onPrev, onNext, disablePrev, disableNext }) => (
+  <StepNavContainer>
+    <NavButton onClick={onPrev} disabled={!!disablePrev} title="Back">←</NavButton>
+
+    <StepNavCenter>
+      <StepTitle>{title}</StepTitle>
+      <span>Step {stepIndex + 1} of {totalSteps}</span>
+    </StepNavCenter>
+
+    <NavButton onClick={onNext} disabled={!!disableNext} title="Next">→</NavButton>
+  </StepNavContainer>
+);
+
+// ===== Reusable UI blocks =====
+
+// Options list layout
+export const OptionsWrap = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  justify-content: center;
+`;
+
+// Text inside an option card
+export const OptionText = styled.div`
+  display: flex;
+  flex-direction: column;
+`;
+
+export const OptionTitle = styled.span<{ $selected?: boolean }>`
+  font-weight: 600;
+  color: ${({ $selected }) => ($selected ? '#000' : 'inherit')};
+`;
+
+export const OptionDescription = styled.span`
+  font-size: 13px;
+  color: #666;
+  margin-top: 4px;
+`;
+
+// Closure step sections
+export const ClosureSections = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  margin-top: 8px;
+`;
+
+export const SectionTitle = styled.h4`
+  margin: 0 0 8px;
+`;
+
+export const SwatchGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(64px, 1fr));
+  gap: 12px;
+`;
+
+export const SwatchButton = styled.button<{
+  $selected?: boolean;
+  $hex?: string;
+  $isNone?: boolean;
+  $disabled?: boolean;
+}>`
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  border: ${({ $selected }) => ($selected ? '3px solid #000' : '1px solid #ccc')};
+  background: ${({ $isNone, $hex }) => ($isNone ? 'transparent' : ($hex || 'transparent'))};
+  cursor: ${({ $disabled }) => ($disabled ? 'wait' : 'pointer')};
+  position: relative;
+`;
+
+export const SwatchNoneLabel = styled.span`
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  color: #555;
+`;
+
+// Label step cards
+export const LabelGrid = styled.div`
+  display: grid;
+  gap: 16px;
+  grid-template-columns: 1fr 1fr;
+  margin-top: 16px;
+`;
+
+export const LabelCard = styled.div`
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 16px;
+`;
+
+export const LabelCardTitle = styled.h4`
+  margin-top: 0;
+`;
+
+export const ActionsCenter = styled.div`
+  margin-top: 12px;
+  display: flex;
+  justify-content: center;
+`;
+
+// Accessible live region for config warnings
+export const VisuallyHiddenLive = styled.div`
+  position: absolute !important;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+`;
+
+export const ConfigWarning: React.FC = () => (
+  <VisuallyHiddenLive id="config-warning" aria-live="polite" role="status" />
+);

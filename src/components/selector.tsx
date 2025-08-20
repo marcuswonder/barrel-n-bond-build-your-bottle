@@ -1,7 +1,7 @@
 import React, { FunctionComponent, useEffect, useMemo, useRef, useState } from 'react';
 // import styled from 'styled-components';
 import { useZakeke } from 'zakeke-configurator-react';
-import { LayoutWrapper, ContentWrapper, Container,  StepTitle, OptionListItem, RotateNotice, NavButton, PriceWrapper, CartButton, LoadingSpinner } from './list';
+import { LayoutWrapper, ContentWrapper, Container,  StepTitle, OptionListItem, RotateNotice, NavButton, LoadingSpinner, NotesWrapper, CartBar, StepNav, OptionsWrap, OptionText, OptionTitle, OptionDescription, ClosureSections, SectionTitle, SwatchGrid, SwatchButton, SwatchNoneLabel, LabelGrid, LabelCard, LabelCardTitle, ActionsCenter, ConfigWarning } from './list';
 // import { List, StepListItem, , ListItemImage } from './list';
 import { optionNotes } from '../data/option-notes';
 import { TailSpin } from 'react-loader-spinner';
@@ -748,67 +748,50 @@ const Selector: FunctionComponent<{}> = () => {
     return (
       <>
         <RotateNotice>Please rotate your device to landscape for the best experience.</RotateNotice>
-        <div id="config-warning" aria-live="polite" style={{ display: 'none' }} />
+        <ConfigWarning />
         <LayoutWrapper>
         <ContentWrapper>
           <Container>
             {/* Step Navigation */}
             {selectedGroup && selectedGroup.steps.length > 0 && selectedStep && (
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '16px 0' }}>
-                <NavButton
-                  onClick={() => {
-                    const currentIndex = selectedGroup.steps.findIndex(s => s.id === selectedStep.id);
-                    if (currentIndex > 0) selectStep(selectedGroup.steps[currentIndex - 1].id);
-                  }}
-                  disabled={selectedGroup.steps.findIndex(s => s.id === selectedStep.id) === 0}
-                  title="Back"
-                >
-                  ←
-                </NavButton>
-
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                  <StepTitle>{selectedStep.name}</StepTitle>
-                  <span style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
-                    Step {selectedGroup.steps.findIndex(s => s.id === selectedStep.id) + 1} of {selectedGroup.steps.length}
-                  </span>
-                </div>
-
-                <NavButton
-                  onClick={() => {
-                    const currentIndex = selectedGroup.steps.findIndex(s => s.id === selectedStep.id);
-                    if (currentIndex < selectedGroup.steps.length - 1) {
-                      // Do not allow moving past Bottle, Liquid, or Closure without a valid selection
-                      if ((isBottleStep || isLiquidStep || isClosureStep) && !hasValidSelection) {
-                        const which = isBottleStep ? 'bottle' : isLiquidStep ? 'liquid' : 'closure';
-                        setWarning(`Please select a ${which} option (not "No Selection") to continue.`);
-                        return;
-                      }
-
-                      const nextStep = selectedGroup.steps[currentIndex + 1];
-                      const isLabelish = /label|design/i.test(nextStep?.name || '');
-                      if (isLabelish && !canDesign) {
-                        setWarning('Please select a bottle, liquid, and closure (not "No Selection") before designing labels.');
-                        return;
-                      }
-                      selectStep(nextStep.id);
+              <StepNav
+                title={selectedStep.name}
+                stepIndex={selectedGroup.steps.findIndex(s => s.id === selectedStep.id)}
+                totalSteps={selectedGroup.steps.length}
+                onPrev={() => {
+                  const i = selectedGroup.steps.findIndex(s => s.id === selectedStep.id);
+                  if (i > 0) selectStep(selectedGroup.steps[i - 1].id);
+                }}
+                onNext={() => {
+                  const i = selectedGroup.steps.findIndex(s => s.id === selectedStep.id);
+                  if (i < selectedGroup.steps.length - 1) {
+                    if ((isBottleStep || isLiquidStep || isClosureStep) && !hasValidSelection) {
+                      const which = isBottleStep ? 'bottle' : isLiquidStep ? 'liquid' : 'closure';
+                      setWarning(`Please select a ${which} option (not "No Selection") to continue.`);
+                      return;
                     }
-                  }}
-                  disabled={
-                    selectedGroup.steps.findIndex(s => s.id === selectedStep.id) === selectedGroup.steps.length - 1 ||
-                    ((isBottleStep || isLiquidStep || isClosureStep) && !hasValidSelection)
+                    const nextStep = selectedGroup.steps[i + 1];
+                    const isLabelish = /label|design/i.test(nextStep?.name || '');
+                    if (isLabelish && !canDesign) {
+                      setWarning('Please select a bottle, liquid, and closure (not "No Selection") before designing labels.');
+                      return;
+                    }
+                    selectStep(nextStep.id);
                   }
-                  title="Next"
-                >
-                  →
-                </NavButton>
-              </div>
+                }}
+                disablePrev={selectedGroup.steps.findIndex(s => s.id === selectedStep.id) === 0}
+                disableNext={
+                  selectedGroup.steps.findIndex(s => s.id === selectedStep.id) === selectedGroup.steps.length - 1 ||
+                  ((isBottleStep || isLiquidStep || isClosureStep) && !hasValidSelection)
+                }
+              />
             )}
 
             {/* Options */}
             {/* Options (hidden on label step) */}
             {/* Options / Custom rendering for Closure step */}
             {!onLabelStep && !isClosureStep && (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', justifyContent: 'center' }}>
+              <OptionsWrap>
                 {selectedAttribute?.options
                   .filter(() => true)
                   .map(option => (
@@ -825,133 +808,83 @@ const Selector: FunctionComponent<{}> = () => {
                           });
                           selectOption(option.id);
                         }}
-                        selected={option.selected}
+                        $selected={option.selected}
+                        $disabled={isSelecting}
+                        $width="200px"
                         className={isSelecting ? 'is-selecting' : undefined}
                         aria-busy={isSelecting ? true : undefined}
-                        style={{
-                          width: '200px',
-                          cursor: isSelecting ? 'not-allowed' : 'pointer',
-                          transition: 'all 0.2s ease-in-out',
-                          boxShadow: option.selected ? '0 0 0 2px black' : 'none',
-                          border: option.selected ? '2px solid #222' : '1px solid #ddd',
-                          borderRadius: '8px',
-                          background: option.selected ? '#f3f3fa' : '#fff',
-                          outline: 'none'
-                        }}
                         tabIndex={0}
-                        onMouseOver={e => {
-                          (e.currentTarget as HTMLElement).style.boxShadow = option.selected
-                            ? '0 0 0 2.5px #333'
-                            : '0 2px 8px rgba(0,0,0,0.07)';
-                        }}
-                        onMouseOut={e => {
-                          (e.currentTarget as HTMLElement).style.boxShadow = option.selected
-                            ? '0 0 0 2px black'
-                            : 'none';
-                        }}
-                        onFocus={e => {
-                          (e.currentTarget as HTMLElement).style.boxShadow = '0 0 0 2.5px #0074d9';
-                        }}
-                        onBlur={e => {
-                          (e.currentTarget as HTMLElement).style.boxShadow = option.selected
-                            ? '0 0 0 2px black'
-                            : 'none';
-                        }}
                       >
-                        <div style={{ display: 'flex', flexDirection: 'column' }}>
-                          <span style={{ fontWeight: 600, color: option.selected ? '#000' : undefined }}>{option.name}</span>
-                          {selectedStep?.name === "Select your Gin" && option.description && (
-                            <span style={{ fontSize: '13px', color: '#666', marginTop: '4px' }}>
-                              {option.description}
-                            </span>
+                        <OptionText>
+                          <OptionTitle $selected={!!option.selected}>{option.name}</OptionTitle>
+                          {selectedStep?.name === 'Select your Gin' && option.description && (
+                            <OptionDescription>{option.description}</OptionDescription>
                           )}
-                        </div>
+                        </OptionText>
                       </OptionListItem>
                     )
                   ))}
-              </div>
+              </OptionsWrap>
             )}
 
             {(!onLabelStep && isClosureStep) && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 24, marginTop: 8 }}>
+              <ClosureSections>
                 {/* Wood section */}
                 <div>
-                  <h4 style={{ margin: '0 0 8px' }}>Choose Your Wood</h4>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(64px, 1fr))', gap: 12 }}>
+                  <SectionTitle>Choose Your Wood</SectionTitle>
+                  <SwatchGrid>
                     {WOOD_SWATCHES.map(s => {
                       const selected = closureChoices?.wood?.hex === s.hex;
                       return (
-                        <button
+                        <SwatchButton
                           key={s.key}
                           aria-label={s.key}
                           onClick={() => onPickWood(s.key, s.hex)}
-                          disabled={isSelecting}
+                          $disabled={isSelecting}
                           className={isSelecting ? 'is-selecting' : undefined}
-                          style={{
-                            width: 64,
-                            height: 64,
-                            borderRadius: '50%',
-                            border: selected ? '3px solid #000' : '1px solid #ccc',
-                            background: s.hex,
-                            cursor: isSelecting ? 'wait' : 'pointer'
-                          }}
+                          $selected={selected}
+                          $hex={s.hex}
                           title={s.key}
                         />
                       );
                     })}
-                  </div>
+                  </SwatchGrid>
                 </div>
 
                 {/* Wax section */}
                 <div>
-                  <h4 style={{ margin: '0 0 8px' }}>Choose a Wax Colour</h4>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(64px, 1fr))', gap: 12 }}>
+                  <SectionTitle>Choose a Wax Colour</SectionTitle>
+                  <SwatchGrid>
                     {WAX_SWATCHES.map(s => {
                       const isNone = s.key === 'No Wax Seal';
                       const selected = isNone ? !closureChoices?.wax : closureChoices?.wax?.hex === s.hex;
                       return (
-                        <button
+                        <SwatchButton
                           key={s.key}
                           aria-label={s.key}
                           onClick={() => onPickWax(s.key, s.hex)}
-                          disabled={isSelecting}
+                          $disabled={isSelecting}
                           className={isSelecting ? 'is-selecting' : undefined}
-                          style={{
-                            width: 64,
-                            height: 64,
-                            borderRadius: '50%',
-                            border: selected ? '3px solid #000' : '1px solid #ccc',
-                            background: isNone ? 'transparent' : s.hex,
-                            position: 'relative',
-                            cursor: isSelecting ? 'wait' : 'pointer'
-                          }}
+                          $selected={selected}
+                          $hex={s.hex}
+                          $isNone={isNone}
                           title={s.key}
                         >
-                          {isNone && (
-                            <span style={{
-                              position: 'absolute',
-                              inset: 0,
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              fontSize: 12,
-                              color: '#555'
-                            }}>None</span>
-                          )}
-                        </button>
+                          {isNone && (<SwatchNoneLabel>None</SwatchNoneLabel>)}
+                        </SwatchButton>
                       );
                     })}
-                  </div>
+                  </SwatchGrid>
                 </div>
-              </div>
+              </ClosureSections>
             )}
 
             {onLabelStep && (frontVisible || backVisible) && (
               <>
-                <div style={{ display: 'grid', gap: 16, gridTemplateColumns: '1fr 1fr', marginTop: 16 }}>
+                <LabelGrid>
                   {frontVisible && (
-                    <div style={{ border: '1px solid #ddd', borderRadius: 8, padding: 16 }}>
-                      <h4 style={{ marginTop: 0 }}>Front Label</h4>
+                    <LabelCard>
+                      <LabelCardTitle>Front Label</LabelCardTitle>
                       <button
                         className="configurator-button"
                         disabled={!canDesign}
@@ -960,11 +893,11 @@ const Selector: FunctionComponent<{}> = () => {
                       >
                         {labelDesigns.front ? 'Edit Front Label' : 'Design Front Label'}
                       </button>
-                    </div>
+                    </LabelCard>
                   )}
                   {backVisible && (
-                    <div style={{ border: '1px solid #ddd', borderRadius: 8, padding: 16 }}>
-                      <h4 style={{ marginTop: 0 }}>Back Label</h4>
+                    <LabelCard>
+                      <LabelCardTitle>Back Label</LabelCardTitle>
                       <button
                         className="configurator-button"
                         disabled={!canDesign}
@@ -973,14 +906,14 @@ const Selector: FunctionComponent<{}> = () => {
                       >
                         {labelDesigns.back ? 'Edit Back Label' : 'Design Back Label'}
                       </button>
-                    </div>
+                    </LabelCard>
                   )}
-                </div>
-                <div style={{ marginTop: 12, display: 'flex', justifyContent: 'center' }}>
+                </LabelGrid>
+                <ActionsCenter>
                   <button className="configurator-button" onClick={() => handleLearnClick()}>
                     Learn How to Use Our Designer
                   </button>
-                </div>
+                </ActionsCenter>
               </>
             )}
 
@@ -989,9 +922,24 @@ const Selector: FunctionComponent<{}> = () => {
               const notesAllowed = /bottle|gin|liquid/.test(stepName);
               return notesAllowed && selectedStep?.name && selectedAttribute && selectedAttribute.options.find(opt => opt.selected && opt.name !== "No Selection");
             })() && (
-              <div style={{ marginTop: '24px', padding: '16px', background: '#f9f9f9', border: '1px solid #ddd', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
-                <strong>Notes</strong>
-                <p style={{ margin: '8px 0 0', color: '#555' }}>
+              <NotesWrapper>
+                <strong>
+                  {(() => {
+                    const stepName = (selectedStep?.name || '').toLowerCase();
+
+                    if (stepName.includes('bottle')) return 'Bottle Style';
+                    if (
+                      stepName.includes('gin') || 
+                      stepName.includes('vodka') ||
+                      stepName.includes('whiskey') ||
+                      stepName.includes('rum')
+                    ) return 'Tasting Notes';
+                    if (stepName.includes('closure')) return 'Closure';
+
+                    return 'Notes';
+                  })()}
+                </strong>
+                <p>
                   {(() => {
                     const selectedOption = selectedAttribute?.options?.find(opt => opt.selected) || null;
                     if (!selectedOption) return 'Select an option to see notes.';
@@ -1008,22 +956,17 @@ const Selector: FunctionComponent<{}> = () => {
                     return ((optionNotes as any)[category][selectedOption.name]) || '';
                   })()}
                 </p>
-              </div>
+              </NotesWrapper>
             )}
           </Container>
         </ContentWrapper>
-        <div style={{ position: 'sticky', bottom: 0, background: '#fff', padding: '16px 16px 24px', borderTop: '1px solid #ccc', zIndex: 10 }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            <h3 style={{ margin: 0 }}>Price: {price}</h3>
-            {showAddToCartButton && (
-              <CartButton onClick={handleAddToCart}>
-                {isAddToCartLoading
-                  ? <TailSpin color="#FFFFFF" height="25px" />
-                  : <span>Save and Order</span>}
-              </CartButton>
-            )}
-          </div>
-        </div>
+        <CartBar
+          price={price}
+          showButton={showAddToCartButton}
+          loading={isAddToCartLoading}
+          onAdd={handleAddToCart}
+          renderSpinner={<TailSpin color="#FFFFFF" height="25px" />}
+        />
         </LayoutWrapper>
       </>
     );
