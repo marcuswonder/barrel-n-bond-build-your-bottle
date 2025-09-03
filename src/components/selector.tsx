@@ -122,17 +122,24 @@ const Selector: FunctionComponent<{}> = () => {
     const firstRenderSent = useRef(false);
 
     useEffect(() => {
+      console.log("isSceneLoading triggers useEffect")
       if (!isSceneLoading && !firstRenderSent.current) {
         firstRenderSent.current = true;
         try {
           console.log('postMessage:', {
             customMessageType: 'firstRender',
-            message: { closeLoadingScreen: true }
+            message: { 'closeLoadingScreen': true }
           });
-          window.parent.postMessage(
-            { customMessageType: 'firstRender', message: { closeLoadingScreen: true } },
-            '*'
-          );
+
+          window.parent.postMessage({
+            customMessageType: 'firstRender',
+            message: {
+              'closeLoadingScreen': true
+            }
+          }, '*');
+
+
+
         } catch (e) {
           console.error('postMessage failed', e);
         }
