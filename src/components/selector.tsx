@@ -125,10 +125,12 @@ const Selector: FunctionComponent<{}> = () => {
       if (!isSceneLoading && !firstRenderSent.current) {
         firstRenderSent.current = true;
         try {
+          console.log("firstRender postMessage being sent")
           window.parent?.postMessage(
-          { customMessageType: 'firstRender', message: { closeLoadingScreen: true } },
-          '*'
+            { customMessageType: 'firstRender', message: { closeLoadingScreen: true } },
+            '*'
           );
+          console.log("firstRender postMessage sent")
         } catch (e) {
           console.error('postMessage failed', e);
         }
