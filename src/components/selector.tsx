@@ -118,25 +118,6 @@ const Selector: FunctionComponent<{}> = () => {
     console.log("closureSel", closureSel);
     console.log("labelSel", labelSel);
 
-    // Testing/debugging first render and load sequence
-    // 1) Does the component ever mount?
-    useEffect(() => {
-      console.warn('firstRender Debug: [first-render] mounted');
-      return () => console.warn('[first-render] unmounted');
-    }, []);
-
-    // 2) Does this specific effect even get scheduled?
-    useLayoutEffect(() => {
-      console.warn('firstRender Debug: [first-render] layout effect fired (before paint)');
-    }, []);
-
-    // 3) What transitions do we see?
-    const prevRef = useRef(isSceneLoading);
-    useEffect(() => {
-      console.warn('firstRender Debug: [first-render] effect tick. prev:', prevRef.current, 'curr:', isSceneLoading);
-      prevRef.current = isSceneLoading;
-    }, [isSceneLoading]);
-
     // Notify parent once when the configurator finishes first render/load
     const firstRenderSent = useRef(false);
 
@@ -157,20 +138,6 @@ const Selector: FunctionComponent<{}> = () => {
         }
       }
       }, [isSceneLoading]);
-
-    //   If you want extra robustness, delay to the next frame so it runs after paint:
-
-    //   useEffect(() => {
-    //   if (!isSceneLoading && !firstRenderSent.current) {
-    //   firstRenderSent.current = true;
-    //   requestAnimationFrame(() => {
-    //   window.parent.postMessage(
-    //   { customMessageType: 'firstRender', message: { closeLoadingScreen: true } },
-    //   '*'
-    //   );
-    //   });
-    //   }
-    // }, [isSceneLoading]);
 
     // --- UI navigation state (must be declared before effects that depend on them) ---
     const [selectedGroupId, selectGroup] = useState<number | null>(null);
