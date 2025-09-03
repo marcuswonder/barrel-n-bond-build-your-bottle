@@ -1,4 +1,4 @@
-import React, { FunctionComponent, useEffect, useMemo, useRef, useState } from 'react';
+import React, { FunctionComponent, useEffect, useMemo, useRef, useState, useCallback } from 'react';
 // import styled from 'styled-components';
 import { useZakeke } from 'zakeke-configurator-react';
 import { LayoutWrapper, ContentWrapper, Container,  StepTitle, OptionListItem, RotateNotice, NavButton, LoadingSpinner, NotesWrapper, CartBar, StepNav, OptionsWrap, OptionText, OptionTitle, OptionDescription, ClosureSections, SectionTitle, SwatchGrid, SwatchButton, SwatchNoneLabel, LabelGrid, LabelCard, LabelCardTitle, ActionsCenter, ConfigWarning, ViewportSpacer } from './list';
@@ -37,11 +37,13 @@ const Selector: FunctionComponent<{}> = () => {
     console.log("groups", groups)
     console.log("product", product)
     console.log("items", items)
+    console.log("price", price)
+    console.log("isSceneLoading", isSceneLoading)
     
 
     const buildGroup = groups.find(g => g.name === "Build Your Bottle") ?? null;
 
-    const steps = buildGroup?.steps ?? [];
+    const steps = useMemo(() => buildGroup?.steps ?? [], [buildGroup]);
 
   
     const findStepIndex = (needle: string, fallbackIndex: number) => {
@@ -115,6 +117,30 @@ const Selector: FunctionComponent<{}> = () => {
     console.log("liquidSel", liquidSel);
     console.log("closureSel", closureSel);
     console.log("labelSel", labelSel);
+
+    // Notify parent once when the configurator finishes first render/load
+   let __firstRenderPosted = false;
+
+  const prevRef = useRef(isSceneLoading);
+
+  useEffect(() => {
+    const prev = prevRef.current;
+    const becameFalse = prev === true && isSceneLoading === false;
+
+    if (becameFalse && !__firstRenderPosted) {
+      __firstRenderPosted = true;
+      try {
+        console.log("postMessage:", { customMessageType: "firstRender", message: { closeLoadingScreen: true } })
+        window.parent?.postMessage(
+          { customMessageType: "firstRender", message: { closeLoadingScreen: true } }
+        );
+      } catch (e) {
+        console.error("postMessage failed", e);
+      }
+    }
+
+    prevRef.current = isSceneLoading;
+  }, [isSceneLoading]);
 
     // --- UI navigation state (must be declared before effects that depend on them) ---
     const [selectedGroupId, selectGroup] = useState<number | null>(null);
@@ -434,7 +460,35 @@ const Selector: FunctionComponent<{}> = () => {
     }, [createImageFromUrl, getMeshIDbyName, addItemImage, removeItem, items, productObject?.selections?.bottle?.name, product?.areas, setCameraByName, setFromUploadDesign]);
 
 
-    
+    // --- Clear items when bottle changes ---
+    const prevBottleIdRef = useRef<number | null>(null);
+
+    const clearAllItems = useCallback(async () => {
+      if (typeof removeItem !== 'function') {
+        console.warn('[Configurator] removeItem not available from useZakeke; cannot clear items on bottle change.');
+        return;
+      }
+      const live = (Array.isArray(items) ? items : []).filter((it: any) => !it?.deleted);
+      for (const it of live) {
+        try {
+          await removeItem(it.guid);
+        } catch (err) {
+          console.warn('[Configurator] Failed to remove item', it?.guid, err);
+        }
+      }
+      console.log('[Configurator] Cleared', live.length, 'items after bottle change');
+    }, [items, removeItem]);
+
+    useEffect(() => {
+      const currentBottleId = (bottleSel?.id ?? miniBottle?.id ?? null) as number | null;
+      const prev = prevBottleIdRef.current;
+
+      // Avoid clearing on first mount; only clear when actual bottle id changes
+      if (prev !== null && currentBottleId !== null && currentBottleId !== prev) {
+        clearAllItems(); // fire-and-forget
+      }
+      prevBottleIdRef.current = currentBottleId;
+    }, [bottleSel?.id, miniBottle?.id, clearAllItems]);
 
 
 
@@ -455,34 +509,34 @@ const Selector: FunctionComponent<{}> = () => {
     }, [selectedGroupId, selectedGroup, setCamera]);
 
 
-    useEffect(() => {
-      const sendHeight = () => {
-        const h = Math.max(
-          document.documentElement.scrollHeight,
-          document.body?.scrollHeight || 0
-        );
-        window.parent.postMessage(
-          { customMessageType: 'CONFIG_IFRAME_HEIGHT', height: h },
-          '*'
-        );
-      };
+    // useEffect(() => {
+    //   const sendHeight = () => {
+    //     const h = Math.max(
+    //       document.documentElement.scrollHeight,
+    //       document.body?.scrollHeight || 0
+    //     );
+    //     window.parent.postMessage(
+    //       { customMessageType: 'CONFIG_IFRAME_HEIGHT', height: h },
+    //       '*'
+    //     );
+    //   };
 
-      // observe size changes
-      const ro = new ResizeObserver(() => sendHeight());
-      ro.observe(document.documentElement);
+    //   // observe size changes
+    //   const ro = new ResizeObserver(() => sendHeight());
+    //   ro.observe(document.documentElement);
 
-      // initial + on load
-      sendHeight();
-      window.addEventListener('load', sendHeight);
+    //   // initial + on load
+    //   sendHeight();
+    //   window.addEventListener('load', sendHeight);
 
-      // on orientation changes
-      window.addEventListener('orientationchange', () => setTimeout(sendHeight, 250));
+    //   // on orientation changes
+    //   window.addEventListener('orientationchange', () => setTimeout(sendHeight, 250));
 
-      return () => {
-        ro.disconnect();
-        window.removeEventListener('load', sendHeight);
-      };
-    }, []);
+    //   return () => {
+    //     ro.disconnect();
+    //     window.removeEventListener('load', sendHeight);
+    //   };
+    // }, []);
 
     // === Camera animation: refs & helpers (top-level inside component) ===
     const camAbort = useRef<AbortController | null>(null);
@@ -550,7 +604,7 @@ const Selector: FunctionComponent<{}> = () => {
       const stepKey: 'bottle' | 'liquid' | 'closure' | 'label' =
         s.includes('bottle') ? 'bottle' :
         s.includes('closure') ? 'closure' :
-        s.includes('label')   ? 'label'   : 'liquid';
+        s.includes('liquid')   ? 'liquid'   : 'label';
 
       // derive bottle key from current bottle selection (e.g. "Antica" -> "antica")
       const bottleKey = (bottleSel?.name || selections.bottle?.name || '')
@@ -575,16 +629,16 @@ const Selector: FunctionComponent<{}> = () => {
       let final: string = cams.full_front;
 
       if (stepKey === 'bottle') {
-        frames = ['wide_high_back', 'wide_high_front'];
+        frames = ['wide_high_back'];
         final = cams.full_front;
       } else if (stepKey === 'liquid') {
         frames = ['wide_low_front'];
         final = cams.full_front;
       } else if (stepKey === 'closure') {
         frames = ['wide_high_front', 'wide_high_back'];
-        final = cams.closure;
+        final = cams.label_front;
       } else if (stepKey === 'label') {
-        frames = ['wide_high_front', 'wide_high_back'];
+        frames = ['wide_high_front'];
         const preferFront = !!labelAreas.front || !labelAreas.back;
         final = preferFront ? cams.label_front : cams.label_back;
       }
@@ -597,7 +651,7 @@ const Selector: FunctionComponent<{}> = () => {
 
       (async () => {
         await waitSceneIdle(1500, 60); // wait for model/meshes swap to settle
-        await runCameraTour(frames, final, 600); // adjust per-frame ms as desired
+        await runCameraTour(frames, final, 1000); // adjust per-frame ms as desired
       })();
 
       return () => camAbort.current?.abort();
@@ -1130,4 +1184,3 @@ const Selector: FunctionComponent<{}> = () => {
 };
 
 export default Selector;
-
