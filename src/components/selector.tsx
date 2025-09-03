@@ -119,24 +119,26 @@ const Selector: FunctionComponent<{}> = () => {
     console.log("labelSel", labelSel);
 
     // Notify parent once when the configurator finishes first render/load
-   const firstRenderSent = useRef(false);
+    const firstRenderSent = useRef(false);
 
     useEffect(() => {
-      console.log("isSceneLoading in firstRender useEffect", isSceneLoading)
+      console.log("isSceneLoading in firstRender useEffect", isSceneLoading);
+
       if (!isSceneLoading && !firstRenderSent.current) {
-        firstRenderSent.current = true;
+        firstRenderSent.current = true; // mark as sent
         try {
-          console.log("firstRender postMessage being sent")
+          console.log("firstRender postMessage being sent");
           window.parent?.postMessage(
-            { customMessageType: 'firstRender', message: { closeLoadingScreen: true } },
-            '*'
+            { customMessageType: "firstRender", message: { closeLoadingScreen: true } },
+            "*"
           );
-          console.log("firstRender postMessage sent")
+          console.log("firstRender postMessage sent");
         } catch (e) {
-          console.error('postMessage failed', e);
+          console.error("postMessage failed", e);
         }
       }
     }, [isSceneLoading]);
+
     // --- UI navigation state (must be declared before effects that depend on them) ---
     const [selectedGroupId, selectGroup] = useState<number | null>(null);
     const [selectedStepId, selectStep] = useState<number | null>(null);
