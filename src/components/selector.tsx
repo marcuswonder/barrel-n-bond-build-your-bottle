@@ -503,6 +503,17 @@ const Selector: FunctionComponent<{}> = () => {
       prevBottleIdRef.current = currentBottleId;
     }, [bottleSel?.id, miniBottle?.id, clearAllItems]);
 
+    // Clear any previously attached label items on first entry to the Label/Design step
+    const didClearOnLabelRef = useRef(false);
+    useEffect(() => {
+      const name = (selectedStep?.name || '').toLowerCase();
+      const onLabelStepNow = name.includes('label') || name.includes('design');
+      if (onLabelStepNow && !didClearOnLabelRef.current) {
+        didClearOnLabelRef.current = true;
+        clearAllItems();
+      }
+    }, [selectedStep?.id, clearAllItems]);
+
 
 
     useEffect(() => {
