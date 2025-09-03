@@ -119,32 +119,41 @@ const Selector: FunctionComponent<{}> = () => {
     console.log("labelSel", labelSel);
 
     // Notify parent once when the configurator finishes first render/load
-    const firstRenderSent = useRef(false);
+    const seenTrue   = useRef(false);
+    const prev       = useRef(isSceneLoading);
+    const postedOnce = useRef(false); // per-mount guard
+
+    // optional (prevents double post in React 18 StrictMode dev)
+    let modulePosted = false; // module-scope (file-level), not on window
 
     useEffect(() => {
-      console.log("isSceneLoading triggers useEffect: isSceneLoading", isSceneLoading)
-      console.log("isSceneLoading triggers useEffect: firstRenderSent", firstRenderSent)
-      if (!isSceneLoading && !firstRenderSent.current) {
+      // record if we've *ever* seen true
+      if (isSceneLoading === true) seenTrue.current = true;
+
+      // detect first falling edge: true -> false
+      const becameFalse = prev.current === true && isSceneLoading === false;
+
+      if (
+        becameFalse &&
+        seenTrue.current &&
+        !postedOnce.current &&
+        !modulePosted
+      ) {
+        postedOnce.current = true;
+        modulePosted = true; // avoid double post across dev remounts
+
         try {
-          console.log('postMessage:', {
-            customMessageType: 'firstRender',
-            message: { 'closeLoadingScreen': true }
-          });
-
-          window.parent.postMessage({
-            customMessageType: 'firstRender',
-            message: {
-              'closeLoadingScreen': true
-            }
-          }, '*');
-
-          firstRenderSent.current = true;
-
+          window.parent?.postMessage(
+            { customMessageType: 'firstRender', message: { closeLoadingScreen: true } },
+            '*' // set a specific origin if you can
+          );
         } catch (e) {
           console.error('postMessage failed', e);
         }
       }
-      }, [isSceneLoading]);
+
+      prev.current = isSceneLoading;
+    }, [isSceneLoading]);
 
     // --- UI navigation state (must be declared before effects that depend on them) ---
     const [selectedGroupId, selectGroup] = useState<number | null>(null);
