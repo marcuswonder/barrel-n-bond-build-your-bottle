@@ -122,7 +122,8 @@ const Selector: FunctionComponent<{}> = () => {
     const firstRenderSent = useRef(false);
 
     useEffect(() => {
-      console.log("isSceneLoading triggers useEffect")
+      console.log("isSceneLoading triggers useEffect: isSceneLoading", isSceneLoading)
+      console.log("isSceneLoading triggers useEffect: firstRenderSent", firstRenderSent)
       if (!isSceneLoading && !firstRenderSent.current) {
         firstRenderSent.current = true;
         try {
