@@ -22,12 +22,13 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
-      - run: npm run build
-      # ensure your custom domain works
-      - run: echo "build.barrelnbond.com" > ./build/CNAME
+      - run: CI=false npm run build
+      - run: echo "build.barrelnbond.com" > build/CNAME
+      - run: touch build/.nojekyll
+      - run: cp build/index.html build/404.html
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: ./build     # <-- your bundler output
+          path: build
   deploy:
     needs: build
     runs-on: ubuntu-latest
