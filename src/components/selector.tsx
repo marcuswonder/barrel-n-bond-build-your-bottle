@@ -125,7 +125,6 @@ const Selector: FunctionComponent<{}> = () => {
       console.log("isSceneLoading triggers useEffect: isSceneLoading", isSceneLoading)
       console.log("isSceneLoading triggers useEffect: firstRenderSent", firstRenderSent)
       if (!isSceneLoading && !firstRenderSent.current) {
-        firstRenderSent.current = true;
         try {
           console.log('postMessage:', {
             customMessageType: 'firstRender',
@@ -139,7 +138,7 @@ const Selector: FunctionComponent<{}> = () => {
             }
           }, '*');
 
-
+          firstRenderSent.current = true;
 
         } catch (e) {
           console.error('postMessage failed', e);
