@@ -130,10 +130,8 @@ const Selector: FunctionComponent<{}> = () => {
     if (becameFalse && !__firstRenderPosted) {
       __firstRenderPosted = true;
       try {
-        console.log("postMessage:", { customMessageType: "firstRender", message: { closeLoadingScreen: true } })
-        window.parent?.postMessage(
-          { customMessageType: "firstRender", message: { closeLoadingScreen: true } }
-        );
+        console.log("postMessage:", { customMessageType: "firstRender",  }, '*' );
+        window.parent?.postMessage( { customMessageType: "firstRender",  }, '*' );
       } catch (e) {
         console.error("postMessage failed", e);
       }
