@@ -7,37 +7,71 @@ export const OptionListItem = styled.li<{
   $disabled?: boolean;
   $width?: string;
 }>`
+  --cut: 24px;
+  --b: 6px;
+  --bc: #ff3df2;
+  --bg: #000;
+
+  position: relative;
   display: flex;
-  align-items: center;
+  align-items: stretch;
   justify-content: center;
-  padding: 12px;
-  margin-bottom: 12px;
+  padding: 0;
   font-size: 13px;
   width: ${({ $width }) => $width || '200px'};
-  border: 1px solid ${({ $selected }) => ($selected ? '#222' : '#ddd')};
-  background-color: ${({ $selected }) => ($selected ? '#f3f3fa' : '#fff')};
-  color: #000;
+  height: 100%;
+  border: 0;
+  background: var(--bc);
+  color: #fff;
+  clip-path: polygon(
+    var(--cut) 0,
+    100% 0,
+    100% calc(100% - var(--cut)),
+    calc(100% - var(--cut)) 100%,
+    0 100%,
+    0 var(--cut)
+  );
+  transform: translateZ(0);
+  transform-style: preserve-3d;
   cursor: ${({ $disabled }) => ($disabled ? 'not-allowed' : 'pointer')};
   gap: 16px;
-  box-shadow: ${({ $selected }) => ($selected ? '0 0 0 2px black' : 'none')};
-  transition: all 0.2s ease-in-out;
+  box-shadow: ${({ $selected }) => ($selected ? '0 0 0 2px #fff' : 'none')};
+  opacity: ${({ $disabled }) => ($disabled ? 0.6 : 1)};
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
   outline: none;
-  transform-style: preserve-3d;
+
+  &::before {
+    content: "";
+    position: absolute;
+    inset: calc(var(--b) - 1px);
+    background: var(--bg);
+    clip-path: polygon(
+      calc(var(--cut) - var(--b) + 1px) 0,
+      100% 0,
+      100% calc(100% - (var(--cut) - var(--b) + 1px)),
+      calc(100% - (var(--cut) - var(--b) + 1px)) 100%,
+      0 100%,
+      0 calc(var(--cut) - var(--b) + 1px)
+    );
+    transform: translateZ(0);
+    pointer-events: none;
+  }
+
+  &::after {
+    content: none;
+    display: none;
+  }
 
   &:hover {
-    ${({ $disabled }) => ($disabled ? 'transform: none; box-shadow: none; background-color: inherit;' : '')}
-    background-color: #F2F2F3;
-    border: 1px gray solid;
+    ${({ $disabled }) => ($disabled ? 'transform: none; box-shadow: none;' : 'transform: translateY(-2px);')}
   }
 
   &:active {
-    transform: translateY(0px);
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    transform: translateY(0);
   }
 
   @media (max-width: 768px) and (orientation: portrait) {
-    padding: 5px;
-    margin: 0px;
+    padding: 0;
     font-size: .75rem;
     flex-direction: row;
     justify-content: center;
@@ -57,7 +91,7 @@ export const NavButton = styled.button`
   transition: color 0.2s ease;
 
   &:hover:not(:disabled) {
-    color: #000;
+    color: #fff;
   }
 
   &:disabled {
@@ -178,11 +212,13 @@ export const Container = styled.div`
 `;
 
 
-export const NotesWrapper = styled.div`
+export const NotesWrapper = styled.div<{ $accent?: string }>`
+  --notes-accent: ${({ $accent }) => ($accent ? $accent : 'gray')};
+
   margin-top: 24px;
   padding: 16px;
-  background-color: #F2F2F3;
-  border: 1px gray solid;
+  background-color: transparent;
+  border: 2px solid var(--notes-accent);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 
   strong {
@@ -302,29 +338,76 @@ export const StepNav: React.FC<{
 // ===== Reusable UI blocks =====
 
 // Options list layout
-export const OptionsWrap = styled.div`
+export const OptionsWrap = styled.ul`
   display: flex;
   flex-wrap: wrap;
   gap: 16px;
   justify-content: center;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+
+  & > li:nth-child(1) {
+    --bc: #f42492;
+  }
+
+  & > li:nth-child(2) {
+    --bc: #f9f02c;
+  }
+
+  & > li:nth-child(3) {
+    --bc: #24e2f3;
+  }
+
+  & > li:nth-child(4) {
+    --bc: #4e3fbb;
+  }
+
+  & > li:nth-child(5) {
+    --bc: #f1211b;
+  }
+
+  & > li:nth-child(6) {
+    --bc: #b2ef3e;
+  }
+
+  & > li:nth-child(7) {
+    --bc: #29c396;
+  }
+
+  & > li:nth-child(8) {
+    --bc: #f69027;
+  }
+
+  & > li:nth-child(9) {
+    --bc: #20a0de;
+  }
 `;
 
 // Text inside an option card
 export const OptionText = styled.div`
+  position: relative;
+  z-index: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
   text-align: center;
+  background: transparent;
+  color: #fff;
+  padding: 22px;
 `;
 
 export const OptionTitle = styled.span<{ $selected?: boolean }>`
+  display: inline-block;
+  padding-bottom: 0.4rem;
+  border-bottom: 2px solid var(--bc);
   font-weight: 600;
-  color: ${({ $selected }) => ($selected ? '#000' : 'inherit')};
+  color: ${({ $selected }) => ($selected ? '#fff' : 'inherit')};
 `;
 
 export const OptionDescription = styled.span`
   font-size: 13px;
-  color: #666;
+  color: #cfcfcf;
   margin-top: 4px;
 `;
 

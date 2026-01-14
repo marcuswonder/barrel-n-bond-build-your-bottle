@@ -1,13 +1,18 @@
 * {
-    font-family: 'Anonymous Pro', monospace;
-    box-sizing: border-box;
-  }
+  font-family: "Source Sans 3", sans-serif;
+  box-sizing: border-box;
+  color: white;
+  background-color: black;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Special Gothic Condensed One', sans-serif;
+}
 
 html,body {
   margin: 0;
   padding: 0;
   height: 100%;
-
 }
 
 :root {
@@ -22,10 +27,6 @@ html,body {
   }
 }
 
-* {
-  box-sizing: border-box;
-}
-
 #root {
   height: 100%;
 }
@@ -37,8 +38,8 @@ html,body {
   font-size: 10px;
   font-weight: 400;
   color: #fff;
-  background-color: black;
-  border: 5px solid transparent;
+  background-color: #f42492;
+  border: 5px solid #f42492;
   cursor: pointer;
   text-align: center;
   letter-spacing: .1rem;
@@ -46,8 +47,8 @@ html,body {
 }
 
 .configurator-button:hover {
-  background-color: #1a1a1a;
-  border: 5px solid #1a1a1a;
+  background-color: #d81f7f;
+  border: 5px solid #d81f7f;
 }
 
 .configurator-button:disabled {

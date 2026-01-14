@@ -1468,6 +1468,26 @@ const Selector: FunctionComponent<{}> = () => {
       return opts.find((opt: any) => opt?.selected && opt?.name !== 'No Selection') || null;
     }, [selectedAttribute]);
 
+    const notesAccent = useMemo(() => {
+      if (!selectedAttribute || !selectedOptionForNotes) return null;
+      const opts = Array.isArray((selectedAttribute as any).options) ? (selectedAttribute as any).options : [];
+      const filtered = opts.filter((opt: any) => opt?.name !== 'No Selection');
+      const index = filtered.findIndex((opt: any) => opt?.id === selectedOptionForNotes.id);
+      if (index < 0) return null;
+      const palette = [
+        '#f42492',
+        '#f9f02c',
+        '#24e2f3',
+        '#4e3fbb',
+        '#f1211b',
+        '#b2ef3e',
+        '#29c396',
+        '#f69027',
+        '#20a0de',
+      ];
+      return palette[index % palette.length];
+    }, [selectedAttribute, selectedOptionForNotes]);
+
     const onLabelStep = selectedStepRole === 'label';
 
     const buildSelectionsMessage = useCallback(() => ({
@@ -1720,7 +1740,7 @@ const Selector: FunctionComponent<{}> = () => {
             )}
 
             {notesCategory && selectedOptionForNotes && (
-              <NotesWrapper>
+              <NotesWrapper $accent={notesAccent || undefined}>
                 <strong>{notesTitle}</strong>
                 <p>
                   {(optionNotes as any)[notesCategory]?.[selectedOptionForNotes.name] || ''}
