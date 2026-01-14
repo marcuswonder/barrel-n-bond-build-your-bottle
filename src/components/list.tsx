@@ -134,10 +134,10 @@ export const LoadingSpinner = styled.div`
 `; 
 
 export const CartButton = styled.button`
-  background-color: #000;
+  background-color: #f42492;
   color: #fff;
   padding: 12px 24px;
-  border: none;
+  border: 5px solid #f42492;
   border-radius: 8px;
   cursor: pointer;
   font-size: 16px;
@@ -146,6 +146,8 @@ export const CartButton = styled.button`
   transform-style: preserve-3d;
 
   &:hover {
+    background-color: #d81f7f;
+    border-color: #d81f7f;
     transform: translateY(-4px);
     box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
   }
