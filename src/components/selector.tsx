@@ -1,247 +1,14 @@
-import React, { FunctionComponent, useEffect, useMemo, useRef, useState, useCallback } from 'react';
+import React, { FunctionComponent, useEffect, useMemo, useRef, useState, useCallback, useLayoutEffect } from 'react';
 // import styled from 'styled-components';
 import { useZakeke } from 'zakeke-configurator-react';
-import { LayoutWrapper, ContentWrapper, Container, OptionListItem, RotateNotice, LoadingSpinner, NotesWrapper, CartBar, StepNav, OptionsWrap, OptionText, OptionTitle, OptionDescription, ActionsCenter, ConfigWarning, ViewportSpacer, CartButton } from './list';
+import { LayoutWrapper, ContentWrapper, Container,  StepTitle, OptionListItem, RotateNotice, NavButton, LoadingSpinner, NotesWrapper, CartBar, StepNav, OptionsWrap, OptionText, OptionTitle, OptionDescription, ClosureSections, SectionTitle, SwatchGrid, SwatchButton, SwatchNoneLabel, LabelGrid, LabelCard, LabelCardTitle, ActionsCenter, ConfigWarning, ViewportSpacer } from './list';
 // import { List, StepListItem, , ListItemImage } from './list';
 import { optionNotes } from '../data/option-notes';
-// import { ClipLoader } from 'react-loader-spinner';
 import ClipLoader from 'react-spinners/ClipLoader';
-
 import { useOrderStore } from '../state/orderStore';
-
-// ---- Safari / legacy polyfills & diagnostics ----
-// Polyfill Array.prototype.flatMap for older Safari builds
-if (!Array.prototype.flatMap) {
-  // eslint-disable-next-line no-extend-native
-  Object.defineProperty(Array.prototype, 'flatMap', {
-    configurable: true,
-    writable: true,
-    value: function flatMap<T, U>(this: T[], mapper: (v: T, i: number, a: T[]) => U | U[]): U[] {
-      const out: any[] = [];
-      for (let i = 0; i < this.length; i += 1) {
-        if (i in this) {
-          const r = mapper(this[i], i, this);
-          if (Array.isArray(r)) out.push.apply(out, r);
-          else out.push(r);
-        }
-      }
-      return out as U[];
-    }
-  });
-}
-
-// Light shims frequently missing on Safari versions we still encounter
-if (!('requestIdleCallback' in window)) {
-  // @ts-ignore
-  window.requestIdleCallback = (cb: any) => setTimeout(() => cb(Date.now()), 1);
-}
-if (!('structuredClone' in window)) {
-  // @ts-ignore
-  window.structuredClone = (o: any) => JSON.parse(JSON.stringify(o));
-}
-
-// Robust Safari detection (exclude Chrome/iOS Chrome/Android UA overlays)
-const __IS_SAFARI__ = typeof navigator !== 'undefined' && /safari/i.test(navigator.userAgent) && !/chrome|crios|android/i.test(navigator.userAgent);
-
-// Early environment diagnostics (safe to keep in production; helps field debugging)
-try {
-  const webglSupport = (() => {
-    try {
-      const c = document.createElement('canvas');
-      return !!(c.getContext('webgl') || c.getContext('experimental-webgl'));
-    } catch { return false; }
-  })();
-  let storageOk = true;
-  try { localStorage.setItem('__t','1'); localStorage.removeItem('__t'); } catch { storageOk = false; }
-  // eslint-disable-next-line no-console
-  console.log('[ENV]', { safari: __IS_SAFARI__, ua: navigator.userAgent, webglSupport, storageOk });
-} catch {}
+import { WOOD_SWATCHES, WAX_SWATCHES } from '../data/options';  
 
 
-const slugify = (value: string) =>
-  (value || '')
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, '_')
-    .replace(/[^a-z0-9_-]/g, '');
-
-const titleize = (slug: string) =>
-  slug
-    .replace(/[^a-z0-9_-]/gi, ' ')
-    .split(/[\s_-]+/)
-    .filter(Boolean)
-    .map(part => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(' ');
-
-const formatList = (items: string[]) => {
-  if (!items.length) return '';
-  if (items.length === 1) return items[0];
-  if (items.length === 2) return `${items[0]} and ${items[1]}`;
-  return `${items.slice(0, -1).join(', ')}, and ${items[items.length - 1]}`;
-};
-
-const syntheticIdFromSlug = (slug: string) => {
-  let hash = 0;
-  for (let i = 0; i < slug.length; i += 1) {
-    hash = ((hash << 5) - hash) + slug.charCodeAt(i);
-    hash |= 0;
-  }
-  const normalized = Math.abs(hash) || 1;
-  return -normalized;
-};
-
-const buildSyntheticBottle = (slug: string) => {
-  if (!slug) return null;
-  return {
-    slug,
-    mini: {
-      id: syntheticIdFromSlug(slug),
-      guid: `synthetic-${slug}`,
-      name: titleize(slug),
-      selected: true,
-    },
-    option: null,
-  };
-};
-
-const DEFAULT_BOTTLE_SLUG = 'antica';
-const DEFAULT_BOTTLE = buildSyntheticBottle(DEFAULT_BOTTLE_SLUG) ?? {
-  slug: DEFAULT_BOTTLE_SLUG,
-  mini: {
-    id: syntheticIdFromSlug(DEFAULT_BOTTLE_SLUG),
-    guid: `synthetic-${DEFAULT_BOTTLE_SLUG}`,
-    name: titleize(DEFAULT_BOTTLE_SLUG),
-    selected: true,
-  },
-  option: null,
-};
-
-const slugFromOption = (option: any) => {
-  if (!option) return '';
-  const code = typeof option?.code === 'string' ? option.code : '';
-  if (code) {
-    const normalized = slugify(code.split('|').pop() || code);
-    if (normalized) return normalized;
-  }
-  return slugify(option?.name || '');
-};
-
-const toMini = (o: any) =>
-  o ? ({ id: o.id, guid: o.guid, name: o.name, selected: !!o.selected }) : null;
-
-const sleep = (ms: number) => new Promise<void>(resolve => {
-  if (ms <= 0) {
-    resolve();
-    return;
-  }
-  setTimeout(resolve, ms);
-});
-
-const CAMERA_PREVIEW_SETTLE_MS = 800;
-
-type LabelDesignSource = 'vistaCreate' | 'ai' | 'upload';
-
-type LabelSelectionDetail = {
-  s3Url: string | null;
-  zakekeMediaUrl: string | null;
-  zakekePreviewUrl: string | null;
-  designSource: LabelDesignSource;
-  designSourceId: string | null;
-};
-
-type LabelSelectionsBySide = {
-  front: LabelSelectionDetail | null;
-  back: LabelSelectionDetail | null;
-};
-
-const toTrimmedString = (value: unknown): string | null => {
-  if (typeof value === 'string') {
-    const trimmed = value.trim();
-    return trimmed ? trimmed : null;
-  }
-  if (typeof value === 'number' || typeof value === 'boolean') {
-    return String(value);
-  }
-  return null;
-};
-
-const normalizeDesignSource = (
-  value: unknown,
-  fallback: LabelDesignSource = 'upload'
-): LabelDesignSource => {
-  const raw = toTrimmedString(value);
-  if (!raw) return fallback;
-  const normalized = raw.toLowerCase();
-  if (normalized.includes('vista')) return 'vistaCreate';
-  if (normalized === 'vc') return 'vistaCreate';
-  if (normalized === 'ai' || normalized.includes('ai')) return 'ai';
-  if (normalized === 'upload') return 'upload';
-  return fallback;
-};
-
-const buildLabelSelectionDetail = (
-  design: any,
-  options: {
-    fallbackSource?: LabelDesignSource;
-    overrides?: Partial<LabelSelectionDetail>;
-  } = {}
-): LabelSelectionDetail | null => {
-  const { fallbackSource = 'upload', overrides = {} } = options;
-  const safe = design && typeof design === 'object' ? design : null;
-
-  const s3Url =
-    overrides.s3Url ??
-    toTrimmedString(safe?.s3Url) ??
-    toTrimmedString(safe?.s3url) ??
-    toTrimmedString(safe?.url);
-
-  const zakekeMediaUrl =
-    overrides.zakekeMediaUrl ??
-    toTrimmedString(safe?.zakekeMediaUrl) ??
-    toTrimmedString(safe?.mediaUrl) ??
-    toTrimmedString(safe?.zakekeMedia?.url) ??
-    toTrimmedString(safe?.media?.url);
-
-  const zakekePreviewUrl =
-    overrides.zakekePreviewUrl ??
-    toTrimmedString(safe?.zakekePreviewUrl) ??
-    toTrimmedString(safe?.previewUrl) ??
-    toTrimmedString(safe?.preview?.url) ??
-    toTrimmedString(safe?.preview);
-
-  const designSourceId =
-    overrides.designSourceId ??
-    toTrimmedString(safe?.designSourceId) ??
-    toTrimmedString(safe?.sourceId) ??
-    toTrimmedString(safe?.id) ??
-    toTrimmedString(safe?.designId) ??
-    toTrimmedString(safe?.design_id);
-
-  const designSource =
-    overrides.designSource ??
-    normalizeDesignSource(
-      toTrimmedString(safe?.designSource) ?? toTrimmedString(safe?.source),
-      fallbackSource
-    );
-
-  const hasValue =
-    s3Url ||
-    zakekeMediaUrl ||
-    zakekePreviewUrl ||
-    designSourceId ||
-    overrides.designSource ||
-    overrides.designSourceId;
-
-  if (!hasValue) return null;
-
-  return {
-    s3Url: s3Url ?? null,
-    zakekeMediaUrl: zakekeMediaUrl ?? null,
-    zakekePreviewUrl: zakekePreviewUrl ?? null,
-    designSource,
-    designSourceId: designSourceId ?? null,
-  };
-};
 
 const Selector: FunctionComponent<{}> = () => {
     const {
@@ -251,6 +18,7 @@ const Selector: FunctionComponent<{}> = () => {
         groups,
         selectOption,
         addToCart,
+        setCamera,
         setCameraByName,
         product,
         items,
@@ -258,412 +26,149 @@ const Selector: FunctionComponent<{}> = () => {
         isAreaVisible,
         createImageFromUrl, 
         addItemImage,
-        cameras,
-        // removeItem,
-        isAssetsLoading,
-        isViewerReady,
+        removeItem,
         // templates,
         // setTemplate,
         // setMeshDesignVisibility,
         // restoreMeshVisibility,
     } = useZakeke();
 
-    // if (process.env.NODE_ENV !== 'production') console.log('[groups]', groups);
-    // if (process.env.NODE_ENV !== 'production') console.log('[items]', Array.isArray(items) ? items.length : 'n/a');
+    
+    console.log("groups", groups)
+    console.log("product", product)
+    console.log("items", items)
+    console.log("price", price)
+    console.log("isSceneLoading", isSceneLoading)
+    
 
+    const buildGroup = groups.find(g => g.name === "Build Your Bottle") ?? null;
 
-    const allowedParentOrigins = useMemo(() => {
-      const envList = (['https://create.spiritsstudio.co.uk','https://spiritsstudio.co.uk', 'http://localhost:3000', 'https://localhost:3000', 'http://127.0.0.1:9292'])
-        .map(origin => origin.trim())
-        .filter(Boolean);
-      const globalList =
-        typeof window !== 'undefined' && Array.isArray((window as any).__ZAKEKE_PARENT_ORIGINS)
-          ? ((window as any).__ZAKEKE_PARENT_ORIGINS as string[])
-          : [];
-      const normalizedGlobal = globalList
-        .map(origin => origin.trim())
-        .filter(Boolean);
-      return Array.from(new Set([...envList, ...normalizedGlobal]));
-    }, []);
+    const steps = useMemo(() => buildGroup?.steps ?? [], [buildGroup]);
 
-    const setFromSelections   = useOrderStore(state => state.setFromSelections);
-    const labelDesigns        = useOrderStore(state => state.labelDesigns);
-    const setFromUploadDesign = useOrderStore(state => state.setFromUploadDesign);
+  
+    const findStepIndex = (needle: string, fallbackIndex: number) => {
+      const i = steps.findIndex(s => s.name?.toLowerCase().includes(needle));
+      return i >= 0 ? i : fallbackIndex;
+    };
 
-    const primaryGroup = useMemo(() => {
-      if (!Array.isArray(groups)) return null;
-      const withSteps = groups.find(g => Array.isArray(g?.steps) && g.steps.length > 0);
-      return withSteps ?? null;
-    }, [groups]);
+    const bottleStepIdx = findStepIndex('bottle', 0);
+    const liquidStepIdx = findStepIndex('gin', 1);
+    const closureStepIdx = findStepIndex('closure', 2);
+    const labelStepIdx  = findStepIndex('label', 3);
 
-    const steps = useMemo(() => primaryGroup?.steps ?? [], [primaryGroup]);
+    const bottleOptions = steps[bottleStepIdx]?.attributes?.[0]?.options ?? [];
+    const bottleIdx = bottleOptions.findIndex(o => o.selected);
+    const bottleSel = bottleIdx >= 0 ? bottleOptions[bottleIdx] : null;
+    console.log("bottleSel", bottleSel);
 
-    type StepRole = 'bottle' | 'liquid' | 'closure' | 'label' | 'unknown';
-
-    const bottleNameSet = useMemo(() => new Set(
-      Object.keys(optionNotes.bottles || {}).map(name => name.trim().toLowerCase())
-    ), []);
-    const liquidNameSet = useMemo(() => new Set(
-      Object.keys(optionNotes.liquids || {}).map(name => name.trim().toLowerCase())
-    ), []);
-    const closureNameSet = useMemo(() => {
-      const base = [
-        ...Object.keys(optionNotes.closures || {}),
-        'No Wax Seal',
-        'Wax Sealed',
-        'Wooden Closure',
-      ];
-      return new Set(base.map(name => name.trim().toLowerCase()));
-    }, []);
-
-    const detectStepRole = useCallback((step: any): StepRole => {
-      if (!step) return 'unknown';
-      const attrs: any[] = Array.isArray(step.attributes) ? step.attributes : [];
-      if (!attrs.length) return 'unknown';
-
-      const attrNames = attrs
-        .map((a: any) => (a?.name || '').toString().trim().toLowerCase())
-        .filter(Boolean);
-      const options: any[] = attrs.flatMap((a: any) =>
-        Array.isArray(a?.options) ? a.options : []
-      );
-      const optionNames = options
-        .map(o => (o?.name || '').toString().trim().toLowerCase())
-        .filter(Boolean);
-      const optionCodes = options
-        .map(o => (o?.code || '').toString().trim().toLowerCase())
-        .filter(Boolean);
-
-      if (optionCodes.some(code => code.includes('_label_')) ||
-          attrNames.some(name => name.includes('label') || name.includes('design'))) {
-        return 'label';
-      }
-
-      const closureKeywordHit = optionNames.some(name =>
-        closureNameSet.has(name) || name.includes('wax') || name.includes('wood')
-      ) || attrNames.some(name => name.includes('closure') || name.includes('wax') || name.includes('wood'));
-
-      if (closureKeywordHit) {
-        return 'closure';
-      }
-
-      if (optionNames.some(name => liquidNameSet.has(name) || name.includes('gin') || name.includes('liquid'))) {
-        return 'liquid';
-      }
-
-      if (optionNames.some(name => bottleNameSet.has(name) || name.includes('bottle'))) {
-        return 'bottle';
-      }
-
-      return 'unknown';
-    }, [bottleNameSet, closureNameSet, liquidNameSet]);
-
-    const stepByRole = useMemo(() => {
-      const map: Record<Exclude<StepRole, 'unknown'>, any | null> = {
-        bottle: null,
-        liquid: null,
-        closure: null,
-        label: null,
-      };
-
-      for (const step of steps) {
-        const role = detectStepRole(step);
-        if (role !== 'unknown' && map[role] == null) {
-          map[role] = step;
-        }
-      }
-
-      return map;
-    }, [steps, detectStepRole]);
-
-    const bottleStep = stepByRole.bottle;
-    const liquidStep = stepByRole.liquid;
-    const closureStep = stepByRole.closure;
-    const labelStep = stepByRole.label ?? (steps.length ? steps[steps.length - 1] : null);
-
-    const bottleStepId = bottleStep?.id ?? null;
-    const liquidStepId = liquidStep?.id ?? null;
-    const closureStepId = closureStep?.id ?? null;
-    const labelStepId = labelStep?.id ?? null;
-
-    const findSelectedOption = (step: any | null) => {
+    const pick = (stepIdx: number) => {
+      const step = steps[stepIdx];
       if (!step) return null;
+
       const attrs: any[] = Array.isArray(step.attributes) ? step.attributes : [];
-      for (const attr of attrs) {
-        const options: any[] = Array.isArray(attr?.options) ? attr.options : [];
-        const hit = options.find((o: any) => !!o?.selected);
-        if (hit) return hit;
+      const stepName = (step.name || '').toLowerCase();
+      const isLabelStepLocal = stepName.includes('label') || stepName.includes('design');
+
+      // --- Label/Design step: SINGLE attribute shared across bottles ---
+      if (isLabelStepLocal) {
+        // 1) any selected option across attributes
+        for (const a of attrs) {
+          const sel = (Array.isArray(a?.options) ? a.options : []).find((o: any) => !!o?.selected);
+          if (sel) return sel;
+        }
+        // 2) explicit "No Selection"
+        for (const a of attrs) {
+          const noSel = (Array.isArray(a?.options) ? a.options : []).find((o: any) => (o?.name || '').trim().toLowerCase() === 'no selection');
+          if (noSel) return noSel;
+        }
+        // 3) fallback to first enabled attribute's first option (or first available)
+        const firstEnabledAttr = attrs.find(a => !!a?.enabled) || attrs[0] || null;
+        const firstOpt = (Array.isArray(firstEnabledAttr?.options) ? firstEnabledAttr.options : [])[0] || null;
+        return firstOpt || null;
       }
+
+      // --- Closure step: prefer enabled attribute, else bottle-index attr, else first ---
+      if (stepIdx === closureStepIdx) {
+        const attr = attrs.find(a => !!a?.enabled) || (bottleIdx >= 0 ? attrs[bottleIdx] : null) || attrs[0] || null;
+        const opts: any[] = Array.isArray(attr?.options) ? attr!.options : [];
+        return opts.find(o => o?.selected) || null;
+      }
+
+      // --- Default (Bottle/Liquid/etc): bottle-index mapping with safety net ---
+      const attrByBottleIndex = (typeof bottleIdx === 'number' && bottleIdx >= 0) ? attrs[bottleIdx] : undefined;
+      const selectedViaIndex = Array.isArray(attrByBottleIndex?.options)
+        ? attrByBottleIndex.options.find((o: any) => !!o?.selected) || null
+        : null;
+      if (selectedViaIndex) return selectedViaIndex;
+
+      // Safety net: any selected across attributes
+      for (const a of attrs) {
+        const sel = (Array.isArray(a?.options) ? a.options : []).find((o: any) => !!o?.selected);
+        if (sel) return sel;
+      }
+
       return null;
     };
 
-    const bottleSel = findSelectedOption(bottleStep);
+    const liquidSel  = pick(liquidStepIdx);
+    const closureSel = pick(closureStepIdx);
+    const labelSel   = pick(labelStepIdx);
 
-    const resolvedBottle = useMemo(() => {
-      if (bottleSel) {
-        return {
-          slug: DEFAULT_BOTTLE_SLUG,
-          mini: toMini(bottleSel),
-          option: bottleSel,
-        };
-      }
-      return DEFAULT_BOTTLE;
-    }, [bottleSel]);
+    console.log("liquidSel", liquidSel);
+    console.log("closureSel", closureSel);
+    console.log("labelSel", labelSel);
 
-    const fallbackOption = (step: any | null, preferEnabled = true) => {
-      if (!step) return null;
-      const attrs: any[] = Array.isArray(step.attributes) ? step.attributes : [];
-      const attr = (preferEnabled ? attrs.find(a => !!a?.enabled) : null) || attrs[0] || null;
-      const opts: any[] = Array.isArray(attr?.options) ? attr!.options : [];
-      return opts[0] || null;
-    };
+    // Notify parent once when the configurator finishes first render/load
+    const seenTrue   = useRef(false);
+    const prev       = useRef(isSceneLoading);
+    const postedOnce = useRef(false); // per-mount guard
 
-    const pickFromStep = (step: any | null, role: StepRole) => {
-      if (!step) return null;
-      const selected = findSelectedOption(step);
-      if (selected) return selected;
-
-      const attrs: any[] = Array.isArray(step.attributes) ? step.attributes : [];
-      const allOptions: any[] = attrs.flatMap((attr: any) =>
-        Array.isArray(attr?.options) ? attr.options : []
-      );
-
-      if (role === 'label') {
-        const noSel = allOptions.find(
-          (o: any) => (o?.name || '').trim().toLowerCase() === 'no selection'
-        );
-        if (noSel) return noSel;
-      }
-
-      return fallbackOption(step, true);
-    };
-
-    const liquidSel  = pickFromStep(liquidStep, 'liquid');
-    const closureSel = pickFromStep(closureStep, 'closure');
-    const labelSel   = pickFromStep(labelStep, 'label');
-
-    const bottleSlug = resolvedBottle.slug;
-    const hasBottleStep = !!bottleStep;
+    // optional (prevents double post in React 18 StrictMode dev)
+    let modulePosted = false; // module-scope (file-level), not on window
 
     useEffect(() => {
-      if (!bottleStep) return;
-      if (slugFromOption(bottleSel) === DEFAULT_BOTTLE_SLUG) return;
+      // record if we've *ever* seen true
+      if (isSceneLoading === true) seenTrue.current = true;
 
-      const attrs: any[] = Array.isArray(bottleStep.attributes) ? bottleStep.attributes : [];
-      for (const attr of attrs) {
-        const opts: any[] = Array.isArray(attr?.options) ? attr.options : [];
-        const antica = opts.find((o: any) => slugFromOption(o) === DEFAULT_BOTTLE_SLUG);
-        if (antica) {
-          if (!antica.selected) selectOption(antica.id);
-          break;
-        }
-      }
-    }, [bottleStep, bottleSel, selectOption]);
+      // detect first falling edge: true -> false
+      const becameFalse = prev.current === true && isSceneLoading === false;
 
-    // Post the ready signal only once per component mount (avoids Fast Refresh/module-scope leakage)
-    const firstRenderPostedRef = useRef(false);
-    // Handshake to avoid duplicate firstRender deliveries in production
-    const readyAckedRef = useRef(false);
-    // Stable correlation id per mount
-    const readyMsgIdRef = useRef<string>('');
-    if (!readyMsgIdRef.current) {
-      const t = Date.now();
-      const r = Math.floor(Math.random() * 1e9);
-      readyMsgIdRef.current = `ready-${t}-${r}`;
-    }
-    const readyRetryTimer1 = useRef<number | null>(null);
-    const readyRetryTimer2 = useRef<number | null>(null);
+      if (
+        becameFalse &&
+        seenTrue.current &&
+        !postedOnce.current &&
+        !modulePosted
+      ) {
+        postedOnce.current = true;
+        modulePosted = true; // avoid double post across dev remounts
 
-    // Safari-specific soft fallback: if core data (groups/product/price) arrive but viewer never flips,
-    // we allow the UI to progress after a grace period to avoid stalls.
-    const [safariGraceReady, setSafariGraceReady] = useState(false);
-    useEffect(() => {
-      if (!__IS_SAFARI__) return;
-      const t = window.setTimeout(() => setSafariGraceReady(true), 6000);
-      return () => window.clearTimeout(t);
-    }, []);
-
-    // Parent window should ACK with:
-    // window.postMessage({ customMessageType: 'firstRenderAck', meta: { correlationId: <value from our firstRender.meta.correlationId> } }, '*');
-    useEffect(() => {
-      // Compute readiness across multiple signals
-      const assetsOk = isAssetsLoading === false && isSceneLoading === false;
-      const viewerOk = typeof isViewerReady === 'boolean'
-        ? (__IS_SAFARI__ ? isViewerReady === true /* fail-closed here; gating relax is handled below */ : isViewerReady === true)
-        : true;
-      const basicsOk = !!product && Array.isArray(groups) && groups.length > 0;
-      const pricedOk = price != null; // Zakeke has calculated price at least once
-      let isReady = assetsOk && viewerOk && basicsOk && pricedOk;
-      if (__IS_SAFARI__ && !isReady) {
-        // If everything except viewer is ready, and grace timer expired, treat as ready.
-        const almostReady = assetsOk && basicsOk && pricedOk && !viewerOk;
-        if (almostReady && safariGraceReady) {
-          isReady = true;
+        try {
+          window.parent?.postMessage(
+            { customMessageType: 'firstRender', message: { closeLoadingScreen: true } },
+            '*' // set a specific origin if you can
+          );
+        } catch (e) {
+          console.error('postMessage failed', e);
         }
       }
 
-      // Debug: show gate state on every change
-      // console.log('[READY EFFECT]', { assetsOk, viewerOk, basicsOk, pricedOk, isReady, alreadyPosted: firstRenderPostedRef.current });
-
-      if (isReady && !firstRenderPostedRef.current) {
-        firstRenderPostedRef.current = true;
-
-        const correlationId = readyMsgIdRef.current;
-
-        const basePayload = { customMessageType: 'firstRender', message: { closeLoadingScreen: true }, meta: { iframeOrigin: window.location.origin, correlationId } } as const;
-
-        const send = (stage: 'immediate' | 'retry1' | 'retry2') => {
-          try {
-            window.parent?.postMessage(basePayload, '*');
-            window.top?.postMessage(basePayload, '*');
-            // console.log('[READY EFFECT] postMessage:', stage, basePayload.meta);
-          } catch (e) {
-            console.error('[READY EFFECT] postMessage failed', stage, e);
-          }
-        };
-
-
-        // 1) Send now
-        send('immediate');
-
-        // 2) Schedule up to 2 retries unless ACK arrives
-        readyRetryTimer1.current = window.setTimeout(() => {
-          if (!readyAckedRef.current) send('retry1');
-        }, 300);
-
-        readyRetryTimer2.current = window.setTimeout(() => {
-          if (!readyAckedRef.current) send('retry2');
-        }, 1000);
-      }
-      return () => {
-        if (readyRetryTimer1.current) { clearTimeout(readyRetryTimer1.current as any); readyRetryTimer1.current = null; }
-        if (readyRetryTimer2.current) { clearTimeout(readyRetryTimer2.current as any); readyRetryTimer2.current = null; }
-      };
-    }, [isAssetsLoading, isSceneLoading, isViewerReady, price, product, groups, safariGraceReady]);
-
-    // DEBUG: Log readiness flags and which condition is blocking firstRender
-    const prevReadySnapshotRef = useRef<null | {
-      assetsOk: boolean;
-      viewerOk: boolean;
-      basicsOk: boolean;
-      pricedOk: boolean;
-      isReady: boolean;
-    }>(null);
-
-    useEffect(() => {
-      const assetsOk = isAssetsLoading === false && isSceneLoading === false;
-      const viewerOk = typeof isViewerReady === 'boolean'
-        ? (__IS_SAFARI__ ? isViewerReady === true : isViewerReady === true)
-        : true;
-      const basicsOk = !!product && Array.isArray(groups) && groups.length > 0;
-      const pricedOk = price != null;
-      let isReady = assetsOk && viewerOk && basicsOk && pricedOk;
-      if (__IS_SAFARI__ && !isReady) {
-        const almostReady = assetsOk && basicsOk && pricedOk && !viewerOk;
-        if (almostReady && safariGraceReady) {
-          isReady = true;
-        }
-      }
-
-      const prev = prevReadySnapshotRef.current;
-      const changed =
-        !prev ||
-        prev.assetsOk !== assetsOk ||
-        prev.viewerOk !== viewerOk ||
-        prev.basicsOk !== basicsOk ||
-        prev.pricedOk !== pricedOk ||
-        prev.isReady !== isReady;
-
-      if (changed) {
-        prevReadySnapshotRef.current = { assetsOk, viewerOk, basicsOk, pricedOk, isReady };
-        const blocks: string[] = [];
-        if (!assetsOk) blocks.push(`assetsOk=false (isAssetsLoading=${String(isAssetsLoading)} isSceneLoading=${String(isSceneLoading)})`);
-        if (!viewerOk) blocks.push('viewerOk=false (isViewerReady=false)');
-        if (!basicsOk) blocks.push(`basicsOk=false (product=${!!product}, groups=${Array.isArray(groups) ? groups.length : 'n/a'})`);
-        if (!pricedOk) blocks.push('pricedOk=false (price is null)');
-
-        // single compact log line for grepability
-        // console.log('[ZAKEKE READY DEBUG]', {
-        //   assetsOk,
-        //   viewerOk,
-        //   basicsOk,
-        //   pricedOk,
-        //   isReady,
-        //   safariGraceReady,
-        //   price,
-        //   sku: product?.sku ?? null,
-        //   groupsCount: Array.isArray(groups) ? groups.length : null,
-        //   blocks,
-        // });
-      }
-    }, [isAssetsLoading, isSceneLoading, isViewerReady, price, product, groups, safariGraceReady]);
-    
-    // Speed Change
+      prev.current = isSceneLoading;
+    }, [isSceneLoading]);
 
     // --- UI navigation state (must be declared before effects that depend on them) ---
-    // const [selectedGroupId, selectGroup] = useState<number | null>(null);
-    // const [selectedStepId, selectStep] = useState<number | null>(null);
-    // const [selectedAttributeId, selectAttribute] = useState<number | null>(null);
-
     const [selectedGroupId, selectGroup] = useState<number | null>(null);
     const [selectedStepId, selectStep] = useState<number | null>(null);
     const [selectedAttributeId, selectAttribute] = useState<number | null>(null);
-    
-    useEffect(() => {
-      if (!groups || groups.length === 0) return;
-      if (selectedGroupId !== null && selectedStepId !== null && selectedAttributeId !== null) return;
 
-      const bottleGroup = groups.find(g => g.name === 'Build Your Bottle') || groups[0];
-      const firstStep = bottleGroup.steps?.[0] || null;
-      const attrs = (firstStep || bottleGroup)?.attributes || [];
-      const firstEnabledAttr = attrs.find(a => a.enabled) || attrs[0];
-
-      React.startTransition?.(() => {
-        selectGroup(prev => (prev === null ? bottleGroup.id : prev));
-        if (firstStep) selectStep(prev => (prev === null ? firstStep.id : prev));
-        if (firstEnabledAttr) selectAttribute(prev => (prev === null ? firstEnabledAttr.id : prev));
-      });
-    }, [groups, selectedGroupId, selectedStepId, selectedAttributeId, selectGroup, selectStep, selectAttribute]);
-
-    // Speed Change
+    const [isSelecting, setIsSelecting] = useState(false);
 
     const selectedGroup = groups.find(group => group.id === selectedGroupId);
     const selectedStep = selectedGroup?.steps.find(step => step.id === selectedStepId) ?? null;
 
-    const selectedStepRole = useMemo<StepRole>(() => {
-      if (!selectedStep) return 'unknown';
-      const id = selectedStep.id;
-      if (id === bottleStepId) return 'bottle';
-      if (id === liquidStepId) return 'liquid';
-      if (id === closureStepId) return 'closure';
-      if (id === labelStepId) return 'label';
-      return 'unknown';
-    }, [selectedStep, bottleStepId, liquidStepId, closureStepId, labelStepId]);
-
-    const notesCategory = useMemo(() => {
-      if (selectedStepRole === 'bottle') return 'bottles' as const;
-      if (selectedStepRole === 'liquid') return 'liquids' as const;
-      if (selectedStepRole === 'closure') return 'closures' as const;
-      return null;
-    }, [selectedStepRole]);
-
-    const notesTitle = useMemo(() => {
-      switch (notesCategory) {
-        case 'bottles':
-          return 'Bottle Style';
-        case 'liquids':
-          return 'Tasting Notes';
-        case 'closures':
-          return 'Closure';
-        default:
-          return 'Notes';
-      }
-    }, [notesCategory]);
-
     // Ensure the single label attribute follows the selected bottle
     // BUT only when we are on the Label/Design step. Otherwise keep labels hidden via "No Selection".
     useEffect(() => {
-      const step = labelStep;
+      const step = steps[labelStepIdx];
       if (!step) return;
 
       const attrs: any[] = Array.isArray(step.attributes) ? step.attributes : [];
@@ -675,9 +180,7 @@ const Selector: FunctionComponent<{}> = () => {
 
       const noSel = opts.find(o => (o?.name || '').trim().toLowerCase() === 'no selection') || null;
 
-      const isLabelStep =
-        (selectedStep?.id != null && selectedStep?.id === labelStepId) ||
-        selectedStepRole === 'label';
+      const isLabelStep = /label|design/i.test(selectedStep?.name || '');
 
       // If we're NOT on the label step, force "No Selection" so labels stay hidden
       if (!isLabelStep) {
@@ -689,38 +192,48 @@ const Selector: FunctionComponent<{}> = () => {
       }
 
       // We ARE on the label step → map bottle -> specific label option by code suffix
-      const bottleKey = bottleSlug;
+      const bottleName = (bottleSel?.name || '').trim().toLowerCase();
+      const bottleKey = bottleName.replace(/\s+/g, '_'); // e.g. 'Polo' -> 'polo'
 
-      const match = !!bottleKey
-        ? opts.find(o => {
-            const code = typeof o?.code === 'string' ? o.code.toLowerCase() : '';
-            const nameSlug = slugify(o?.name || '');
-            if (code.endsWith(`_${bottleKey}`)) return true;
-            if (code.includes(`${bottleKey}_label`)) return true;
-            return nameSlug === bottleKey;
-          })
-        : null;
+      if (!bottleKey) {
+        if (noSel && !noSel.selected) selectOption(noSel.id);
+        return;
+      }
+
+      const match = opts.find(o => typeof o?.code === 'string' && o.code.toLowerCase().endsWith(`_${bottleKey}`));
 
       if (match && !match.selected) {
         selectOption(match.id);
         return;
       }
 
-      const firstDesignOption = opts.find(o => o && o.id !== (noSel?.id ?? null)) || null;
-      if (firstDesignOption && !firstDesignOption.selected) {
-        selectOption(firstDesignOption.id);
-        return;
-      }
-      if (!match && !firstDesignOption && noSel && !noSel.selected) {
+      if (!match && noSel && !noSel.selected) {
         selectOption(noSel.id);
       }
-    }, [labelStep, labelStepId, selectedStepId, selectedStep?.id, selectedStepRole, bottleSlug, selectOption]);
+    }, [steps, labelStepIdx, selectedStepId, selectedStep?.name, bottleSel?.name, selectOption]);
+
+    const toMini = (o: any) => (o ? ({ id: o.id, guid: o.guid, name: o.name, selected: !!o.selected }) : null);
 
     // Keep "No Selection" visible in minis
-    const miniBottle  = resolvedBottle.mini;
+    const miniBottle  = toMini(bottleSel);
     const miniLiquid  = toMini(liquidSel);
     const miniClosure = toMini(closureSel);
     const miniLabel   = toMini(labelSel);
+
+    console.log("miniBottle", miniBottle);
+    console.log("miniLiquid", miniLiquid);
+    console.log("miniClosure", miniClosure);
+    console.log("miniLabel", miniLabel);
+
+    const {
+      setFromSelections,
+      labelDesigns,
+      setFromUploadDesign,
+      closureChoices,
+      setClosureWood,
+      setClosureWax
+    } = useOrderStore();
+
 
     const selections = useMemo(() => ({
       bottleSel,
@@ -731,6 +244,7 @@ const Selector: FunctionComponent<{}> = () => {
       liquid: miniLiquid,
       closure: miniClosure,
       label: miniLabel,
+      closureExtras: closureChoices,
     } as const), [
       bottleSel,
       liquidSel,
@@ -740,33 +254,12 @@ const Selector: FunctionComponent<{}> = () => {
       miniLiquid,
       miniClosure,
       miniLabel,
+      closureChoices,
     ]);
 
-    const labelSelBySide = useMemo<LabelSelectionsBySide>(() => {
-      const front = buildLabelSelectionDetail((labelDesigns as any)?.front);
-      const back = buildLabelSelectionDetail((labelDesigns as any)?.back);
-      return { front, back };
-    }, [labelDesigns]);
+    console.log("selections", selections)
 
-    // Speed Change
-    
     // Key that only changes when meaningful order fields change, closure id excluded to avoid transient updates during attribute switch
-    // const orderKey = [
-    //   product?.sku ?? '',
-    //   String(price ?? ''),
-    //   selections.bottle?.id ?? 0,
-    //   selections.liquid?.id ?? 0,
-    //   /* closure id excluded to avoid transient updates during attribute switch */
-    //   selections.label?.id ?? 0,
-    // ].join('|');
-    // useEffect(() => {
-    //   setFromSelections({
-    //     selections,
-    //     sku: product?.sku ?? null,
-    //     price,
-    //   });
-    // }, [orderKey, setFromSelections, selections, product?.sku, price]);
-
     const orderKey = [
       product?.sku ?? '',
       String(price ?? ''),
@@ -775,250 +268,76 @@ const Selector: FunctionComponent<{}> = () => {
       /* closure id excluded to avoid transient updates during attribute switch */
       selections.label?.id ?? 0,
     ].join('|');
-    // Debounce cross-window/store update to avoid bursts during initialisation
-    const debouncedSetFromSelectionsTimer = useRef<number | null>(null);
-    // We intentionally key this effect only on `orderKey` to debounce cross-window/store updates.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
+    // Debug: compact order log on every meaningful change
     useEffect(() => {
-      // clear any pending run
-      if (debouncedSetFromSelectionsTimer.current) {
-        clearTimeout(debouncedSetFromSelectionsTimer.current);
-        debouncedSetFromSelectionsTimer.current = null;
-      }
-
-      // schedule the update; adjust delay to taste (0 = microtask, 100–200ms = debounce)
-      debouncedSetFromSelectionsTimer.current = window.setTimeout(() => {
-        setFromSelections({
-          selections,
-          sku: product?.sku ?? null,
-          price,
-        });
-      }, 150);
-
-      // cleanup on dep change/unmount
-      return () => {
-        if (debouncedSetFromSelectionsTimer.current) {
-          clearTimeout(debouncedSetFromSelectionsTimer.current);
-          debouncedSetFromSelectionsTimer.current = null;
-        }
-      };
-      // Only re-run when the meaningful order fingerprint changes
+      console.log('order', {
+        sku: product?.sku ?? null,
+        price,
+        bottle: miniBottle?.name || null,
+        liquid: miniLiquid?.name || null,
+        closure: miniClosure?.name || null,
+        label: miniLabel?.name || null,
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [orderKey]);
 
-    // Speed Change
 
-    const hasBottleSelection = !!miniBottle && miniBottle.name !== 'No Selection';
-    const hasLiquidSelection = !!miniLiquid && miniLiquid.name !== 'No Selection';
-    const hasClosureSelection = !!miniClosure && miniClosure.name !== 'No Selection';
+    useEffect(() => {
+      setFromSelections({
+        selections,
+        sku: product?.sku ?? null,
+        price,
+      });
+    }, [orderKey]);
 
     const productObject = useMemo(() => {
-      const slug = bottleSlug || slugFromOption(selections.bottleSel);
-      const frontMeshId = slug ? getMeshIDbyName(`${slug}_label_front`) : null;
-      const backMeshId  = slug ? getMeshIDbyName(`${slug}_label_back`)  : null;
+      const bottleName = selections.bottleSel?.name?.toLowerCase() || '';
+      const frontMeshId = bottleName ? getMeshIDbyName(`${bottleName}_label_front`) : null;
+      const backMeshId  = bottleName ? getMeshIDbyName(`${bottleName}_label_back`)  : null;
 
-      const valid =
-        hasLiquidSelection &&
-        hasClosureSelection &&
-        (!hasBottleStep || hasBottleSelection);
+      const valid = !!(
+        miniBottle && miniLiquid && miniClosure &&
+        miniLiquid.name !== 'No Selection' &&
+        miniClosure.name !== 'No Selection'
+      );
 
       return {
         sku: product?.sku ?? null,
         price,
-        bottleSlug: slug,
         selections: {
           bottle: selections.bottle,
           liquid: selections.liquid,
           closure: selections.closure,
           label: selections.label,
-          labelSel: labelSelBySide,
           // carry VistaCreate design IDs for edit flow
           frontDesignId: (labelDesigns as any)?.front?.id ?? null,
           backDesignId:  (labelDesigns as any)?.back?.id  ?? null,
+          closureExtras: selections.closureExtras,
         },
         mesh: { frontMeshId, backMeshId },
-        labels: labelSelBySide,
-        labelSel: labelSelBySide,
         valid,
       } as const;
-    }, [
-      price,
-      product?.sku,
-      selections,
-      getMeshIDbyName,
-      labelDesigns,
-      bottleSlug,
-      labelSelBySide,
-      hasBottleSelection,
-      hasBottleStep,
-      hasClosureSelection,
-      hasLiquidSelection,
-    ]);
-
-    const findLabelArea = useCallback(
-      (side: 'front' | 'back') => {
-        const areas = Array.isArray(product?.areas) ? product!.areas : [];
-        const slug = (productObject.bottleSlug || bottleSlug || '').toLowerCase();
-        const lowerSide = side.toLowerCase();
-        const exact = slug
-          ? areas.find(a => (a?.name || '').toLowerCase() === `${slug}_label_${lowerSide}`)
-          : null;
-        if (exact) return exact;
-        return areas.find(a => (a?.name || '').toLowerCase().endsWith(`_label_${lowerSide}`)) || null;
-      },
-      [product, productObject.bottleSlug, bottleSlug]
-    );
-
-    // Speed Change
-
-    // const visibleAreas = useMemo(() => {
-    //   const areas = product?.areas ?? [];
-    //   if (isSceneLoading || !areas.length || typeof isAreaVisible !== 'function') return [];
-
-    //   return areas.filter(a => {
-    //     try { return isAreaVisible(a.id); } catch { return false; }
-    //   });
-    // }, [isSceneLoading, product?.areas, isAreaVisible]);
-
-    const areas = product?.areas ?? [];
-    const areaKey = areas.map(a => a.id).join(',');
+    }, [price, product?.sku, selections, getMeshIDbyName, labelDesigns, miniBottle, miniClosure, miniLiquid]);
 
     const visibleAreas = useMemo(() => {
+      const areas = product?.areas ?? [];
       if (isSceneLoading || !areas.length || typeof isAreaVisible !== 'function') return [];
+
       return areas.filter(a => {
         try { return isAreaVisible(a.id); } catch { return false; }
       });
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [areaKey, isSceneLoading, isAreaVisible]);
-
-    // Speed Change
+    }, [isSceneLoading, product?.areas, isAreaVisible]);
 
     const labelAreas = useMemo(() => {
       const byName = (needle: string) =>
-        visibleAreas.find(a => (a.name || '').toLowerCase().includes(needle)) || null;
+      visibleAreas.find(a => (a.name || '').toLowerCase().includes(needle)) || null;
 
       const front = byName('front');
-      const back = byName('back');
+      const back  = byName('back');
 
       return { front, back } as const;
     }, [visibleAreas]);
-
-    const activeItems = useMemo(
-      () => (Array.isArray(items) ? items.filter((it: any) => !it?.deleted) : []),
-      [items]
-    );
-
-    const resolveItemAreaId = useCallback((item: any): number | null => {
-      if (!item || typeof item !== 'object') return null;
-
-      const toNumeric = (value: any): number | null => {
-        if (value == null) return null;
-
-        if (typeof value === 'string') {
-          const parsed = Number.parseInt(value, 10);
-          return Number.isFinite(parsed) ? parsed : null;
-        }
-
-        if (typeof value === 'number') {
-          return Number.isFinite(value) ? value : null;
-        }
-
-        if (Array.isArray(value)) {
-          for (const entry of value) {
-            const resolved = toNumeric(entry);
-            if (resolved != null) return resolved;
-          }
-          return null;
-        }
-
-        if (typeof value === 'object') {
-          return toNumeric([
-            (value as any).id,
-            (value as any).ID,
-            (value as any).areaId,
-            (value as any).areaID,
-            (value as any).sideId,
-            (value as any).sideID,
-          ]);
-        }
-
-        return null;
-      };
-
-      return toNumeric([
-        item.areaId,
-        item.areaID,
-        item.sideId,
-        item.sideID,
-        item.side,
-        item.area,
-        item.sides,
-        item.sideIds,
-        item.sideIDs,
-        item.areaIds,
-        item.areaIDs,
-      ]);
-    }, []);
-
-    const frontLabelAreaId = useMemo(
-      () => findLabelArea('front')?.id ?? null,
-      [findLabelArea]
-    );
-
-    // const backLabelAreaId = useMemo(
-    //   () => findLabelArea('back')?.id ?? null,
-    //   [findLabelArea]
-    // );
-
-    // // Checks both front and back label areas (if defined) have at least one active item assigned
-    // const labelsPopulated = useMemo(() => {
-    //   const frontReady =
-    //     frontLabelAreaId == null ||
-    //     activeItems.some(item => resolveItemAreaId(item) === frontLabelAreaId);
-    //   const backReady =
-    //     backLabelAreaId == null ||
-    //     activeItems.some(item => resolveItemAreaId(item) === backLabelAreaId);
-    //   return frontReady && backReady;
-    // }, [activeItems, frontLabelAreaId, backLabelAreaId, resolveItemAreaId]);
-    
-    // Checks front label only
-    const labelsPopulated = useMemo(() => {
-      const frontReady =
-        frontLabelAreaId == null ||
-        activeItems.some(item => resolveItemAreaId(item) === frontLabelAreaId);
-      
-      return frontReady;
-    }, [activeItems, frontLabelAreaId, resolveItemAreaId]);
-
-    const labelsPopulatedRef = useRef(labelsPopulated);
-    useEffect(() => {
-      labelsPopulatedRef.current = labelsPopulated;
-    }, [labelsPopulated]);
-    const waitForLabelsPopulated = useCallback(
-      async (timeoutMs = 10000, pollMs = 120) => {
-        if (labelsPopulatedRef.current) return true;
-        return new Promise<boolean>((resolve) => {
-          const start = Date.now();
-          const tick = () => {
-            if (labelsPopulatedRef.current) {
-              resolve(true);
-              return;
-            }
-            if (Date.now() - start >= timeoutMs) {
-              resolve(false);
-              return;
-            }
-            setTimeout(tick, pollMs);
-          };
-          tick();
-        });
-      },
-      []
-    );
-    const markDomLabelReady = useCallback((side: 'front' | 'back') => {
-      if (typeof document === 'undefined') return;
-      const attr = side === 'front' ? 'data-front-label-ready' : 'data-back-label-ready';
-      document.body?.setAttribute(attr, 'true');
-    }, []);
 
     // Invisible warning helper (logs and stores a message for later UX surfacing)
     const setWarning = (msg: string) => {
@@ -1030,26 +349,13 @@ const Selector: FunctionComponent<{}> = () => {
       console.warn('[Configurator warning]', msg);
     };
 
-    const canDesign =
-      hasLiquidSelection &&
-      hasClosureSelection &&
-      (!hasBottleStep || hasBottleSelection);
+    // A user can "design" only when required selections are made and not "No Selection"
+    const canDesign = !!(miniBottle && miniLiquid && miniClosure) &&
+      miniBottle.name !== 'No Selection' &&
+      miniLiquid.name !== 'No Selection' &&
+      miniClosure.name !== 'No Selection';
 
-    const missingSelections = useCallback(() => {
-      const missing: string[] = [];
-      if (hasBottleStep && !hasBottleSelection) missing.push('bottle');
-      if (!hasLiquidSelection) missing.push('liquid');
-      if (!hasClosureSelection) missing.push('closure');
-      return missing;
-    }, [hasBottleStep, hasBottleSelection, hasLiquidSelection, hasClosureSelection]);
 
-    const warnMissingSelections = useCallback((suffix = '.') => {
-      const missing = missingSelections();
-      if (!missing.length) return;
-      const list = formatList(missing);
-      const message = suffix ? `Please select ${list}${suffix}` : `Please select ${list}.`;
-      setWarning(message.replace(/\.{2,}$/, '.'));
-    }, [missingSelections]);
 
     // Initialize group/step/attribute once groups are available
     useEffect(() => {
@@ -1073,6 +379,9 @@ const Selector: FunctionComponent<{}> = () => {
 
 
     // (Optional debug) Log selected group/step
+    console.log('UI selectedGroupId', selectedGroupId, '->', selectedGroup?.name);
+    console.log('UI selectedStepId', selectedStepId, '->', selectedStep?.name);
+
     const attributes = useMemo(() => (selectedStep || selectedGroup)?.attributes ?? [], [selectedGroup, selectedStep]);
     const selectedAttribute = attributes.find(attribute => attribute.id === selectedAttributeId);
 
@@ -1086,146 +395,62 @@ const Selector: FunctionComponent<{}> = () => {
         selectAttribute(firstEnabledAttr.id);
       }
     }, [selectedStep, selectedGroup, selectedAttributeId, attributes]);
-    
+
+
+    useEffect(() => {
+      const { mesh } = productObject;
+      // console.log('frontMeshId', mesh.frontMeshId);
+      // console.log('backMeshId', mesh.backMeshId);
+    }, [productObject]);
+
+
     useEffect(() => {
       const onMsg = async (e: MessageEvent) => {
-        // console.log("Received message", e);
-        const origin = e.origin || '';
-        const originAllowed = (() => {
-          if (!origin) return false;
-          if (allowedParentOrigins.length) {
-            return allowedParentOrigins.includes(origin);
-          }
-          if (typeof window === 'undefined') return false;
-          return origin === window.location.origin || origin === 'null';
-        })();
+        if (e.data?.customMessageType === 'uploadDesign') {
+          console.log("Received uploadDesign message:", e.data.message);
 
-        if (!originAllowed) {
-          console.warn('[Configurator] Ignoring message from untrusted origin', origin);
-          return;
-        }
-
-        const payload = e.data;
-        // Handle parent ACK to stop retries
-        if (payload && typeof payload === 'object' && payload.customMessageType === 'firstRenderAck') {
-          const cid = payload?.meta?.correlationId || payload?.correlationId;
-          if (cid && cid === readyMsgIdRef.current) {
-            readyAckedRef.current = true;
-            if (readyRetryTimer1.current) { clearTimeout(readyRetryTimer1.current as any); readyRetryTimer1.current = null; }
-            if (readyRetryTimer2.current) { clearTimeout(readyRetryTimer2.current as any); readyRetryTimer2.current = null; }
-            // console.log('[READY EFFECT] ACK received from parent; stopping retries');
-            return; // nothing else to do on ack
-          }
-        }
-        if (!payload || typeof payload !== 'object') return;
-
-        if (payload.customMessageType === 'uploadDesign') {
-          console.log("uploadDesign payload.message", payload.message);
-
-          const {
-            designExport,
-            designSide,
-            designSource: incomingDesignSource,
-            designSourceId: incomingDesignSourceId,
-          } = payload.message || {};
-          const normalizedDesignExport =
-            incomingDesignSource || incomingDesignSourceId
-              ? {
-                  ...(designExport || {}),
-                  ...(incomingDesignSource ? { designSource: incomingDesignSource } : {}),
-                  ...(incomingDesignSourceId ? { designSourceId: incomingDesignSourceId } : {}),
-                }
-              : designExport;
-          const parentOrder = payload.message?.order;
+          const { designExport, designSide } = e.data.message || {};
+          console.log("designExport", designExport)
+          console.log("designSide", designSide)
+          if (designSide && designSide !== 'front') return;
+          const parentOrder = e.data.message?.order;
           if (designSide) {
             // Persist to zustand so UI flips to "Edit [side] label" and save gating can use it
             setFromUploadDesign({
               order: parentOrder,
               designSide,
-              designExport: normalizedDesignExport,
+              designExport,
             });
           }
 
+          // items.forEach(item => {
+          //   const itemGuid = item.guid;
+          //   removeItem(itemGuid)
+          // })
+
           if (!designSide ) return;
-          if (designSide !== 'front' && designSide !== 'back') {
-            console.warn('[Configurator] Unsupported design side provided', designSide);
-            return;
-          }
 
-          const buildLabelMessagePayload = () => {
-            const sourceOverrideRaw = toTrimmedString(incomingDesignSource);
-            const designSourceOverride = sourceOverrideRaw
-              ? normalizeDesignSource(sourceOverrideRaw)
-              : undefined;
-            const designSourceIdOverride = toTrimmedString(incomingDesignSourceId) ?? undefined;
+          const bottleName = productObject?.selections?.bottle?.name?.toLowerCase() ?? '';
+          const areaName = `${bottleName}_label_${designSide}`;
 
-            const detail =
-              buildLabelSelectionDetail(normalizedDesignExport, {
-                fallbackSource: designSourceOverride ?? 'upload',
-                overrides: {
-                  designSource: designSourceOverride,
-                  designSourceId: designSourceIdOverride ?? null,
-                },
-              }) ??
-              {
-                s3Url: null,
-                zakekeMediaUrl: null,
-                zakekePreviewUrl: null,
-                designSource: designSourceOverride ?? 'upload',
-                designSourceId: designSourceIdOverride ?? null,
-              };
-
-            const labelsBase = productObject.labelSel ?? { front: null, back: null };
-            const mergedLabelSel: LabelSelectionsBySide = {
-              ...labelsBase,
-              [designSide]: detail,
-            };
-
-            return { mergedLabelSel };
-          };
-
-          const targetArea = findLabelArea(designSide);
-          console.log("targetArea", targetArea);
-          if (!targetArea) {
-            console.warn('No area found', { designSide, bottleSlug: productObject?.bottleSlug ?? null });
+          const area = product?.areas?.find(a => a.name === areaName);
+          if (!area) {
+            console.warn('No area found', { areaName });
             return;
           }
 
           if(designSide === "front") {
-            const frontS3Url =
-              toTrimmedString(normalizedDesignExport?.s3url) ??
-              toTrimmedString(normalizedDesignExport?.s3Url) ??
-              toTrimmedString(normalizedDesignExport?.url);
-            if (!frontS3Url) {
-              console.warn('No front label URL provided; cannot create image.');
-              return;
-            }
-            const frontImage = await createImageFromUrl(frontS3Url);
-            console.log("frontImage", frontImage);
-            // const frontImage = await createImageFromUrl("https://spirits-studio.s3.eu-west-2.amazonaws.com/public/Front+Label+for+the+Polo+Bottle+inc+Bleed.jpg");
+            const frontImage = await createImageFromUrl(designExport.s3url);
+            // const frontImage = await createImageFromUrl("https://barrel-n-bond.s3.eu-west-2.amazonaws.com/public/Front+Label+for+the+Polo+Bottle+inc+Bleed.jpg");
             // const frontMeshId = getMeshIDbyName(`${productObject?.selections?.bottle?.name.toLowerCase()}_label_front`);
             // console.log("frontMeshId", frontMeshId);
 
-            const frontAreaId = targetArea.id;
-            console.log("frontAreaId", frontAreaId);
-
-            console.log("areas", areas)
-
+            const frontAreaId = product?.areas.find(a => a.name === productObject?.selections?.bottle?.name.toLowerCase() + '_label_front')?.id;
+            // console.log("frontAreaId", frontAreaId);
             
             if (frontImage?.imageID && frontAreaId) {
               await addItemImage(frontImage.imageID, frontAreaId);
-              console.log("addItemImage", addItemImage)
 
-              const populated = await waitForLabelsPopulated();
-              if (!populated) {
-                console.warn('Timed out waiting for front label to populate.');
-                return;
-              }
-
-              console.log("populated", populated);
-              markDomLabelReady('front');
-
-              const { mergedLabelSel } = buildLabelMessagePayload();
               window.parent.postMessage({
                 customMessageType: 'labelAdded',
                 message: {
@@ -1234,49 +459,45 @@ const Selector: FunctionComponent<{}> = () => {
                     'liquid': productObject.selections.liquid,
                     'closure': productObject.selections.closure,
                     'label': productObject.selections.label,
+                    'closureExtras': productObject.selections.closureExtras,
                   },
-                  'labels': mergedLabelSel,
-                  'labelSel': mergedLabelSel,
                   'designSide': designSide,
-                  'designExport': normalizedDesignExport,
+                  'designExport': designExport,
                   'productSku': product?.sku ?? null,
                 }
               }, '*');
-            } else {
-              console.warn("Missing info to add front label", { frontImage, frontAreaId });
+
+              console.log("postMessage Content:", {
+                customMessageType: 'labelAdded',
+                message: {
+                  'order': {
+                    'bottle': productObject.selections.bottle,
+                    'liquid': productObject.selections.liquid,
+                    'closure': productObject.selections.closure,
+                    'label': productObject.selections.label,
+                    'closureExtras': productObject.selections.closureExtras,
+                  },
+                  'designSide': designSide,
+                  'designExport': designExport,
+                  'productSku': product?.sku ?? null,
+                }
+              });
             }
           
           } else if(designSide === "back") {
-            const backS3Url =
-              toTrimmedString(normalizedDesignExport?.s3url) ??
-              toTrimmedString(normalizedDesignExport?.s3Url) ??
-              toTrimmedString(normalizedDesignExport?.url);
-            if (!backS3Url) {
-              console.warn('No back label URL provided; cannot create image.');
-              return;
-            }
-            const backImage = await createImageFromUrl(backS3Url);
-            // const backImage = await createImageFromUrl("https://spirits-studio.s3.eu-west-2.amazonaws.com/public/Front+Label+for+the+Polo+Bottle+inc+Bleed.jpg");
+            const backImage = await createImageFromUrl(designExport.s3url);
+            // const backImage = await createImageFromUrl("https://barrel-n-bond.s3.eu-west-2.amazonaws.com/public/Front+Label+for+the+Polo+Bottle+inc+Bleed.jpg");
   
             // const backMeshId = getMeshIDbyName(`${productObject?.selections?.bottle?.name.toLowerCase()}_label_back`);
             // console.log("backMeshId", backMeshId);
   
-            const backAreaId = targetArea.id;
+            const backAreaId = product?.areas.find(a => a.name === productObject?.selections?.bottle?.name.toLowerCase() + '_label_back')?.id;
   
             // console.log("backAreaId", backAreaId);
   
             if (backImage?.imageID && backAreaId) {
               await addItemImage(backImage.imageID, backAreaId);
 
-              // Turn on the front and back label labelsPopulated check
-              const populated = await waitForLabelsPopulated();
-              if (!populated) {
-                console.warn('Timed out waiting for back label to populate.');
-                return;
-              }
-              markDomLabelReady('back');
-
-              const { mergedLabelSel } = buildLabelMessagePayload();
               window.parent.postMessage({
                 customMessageType: 'labelAdded',
                 message: {
@@ -1285,21 +506,78 @@ const Selector: FunctionComponent<{}> = () => {
                     'liquid': productObject.selections.liquid,
                     'closure': productObject.selections.closure,
                     'label': productObject.selections.label,
+                    'closureExtras': productObject.selections.closureExtras,
                   },
-                  'labels': mergedLabelSel,
-                  'labelSel': mergedLabelSel,
                   'designSide': designSide,
-                  'designExport': normalizedDesignExport,
+                  'designExport': designExport,
                   'productSku': product?.sku ?? null,
                 }
               }, '*');
+
+              console.log("postMessage Content:", {
+                customMessageType: 'labelAdded',
+                message: {
+                  'order': {
+                    'bottle': productObject.selections.bottle,
+                    'liquid': productObject.selections.liquid,
+                    'closure': productObject.selections.closure,
+                    'label': productObject.selections.label,
+                    'closureExtras': productObject.selections.closureExtras,
+                  },
+                  'designSide': designSide,
+                  'designExport': designExport,
+                  'productSku': product?.sku ?? null,
+                }
+              });
             }
           }
         }
       };
       window.addEventListener('message', onMsg);
       return () => window.removeEventListener('message', onMsg);
-    }, [allowedParentOrigins, groups, createImageFromUrl, addItemImage, items, productObject, product?.sku, setFromUploadDesign, findLabelArea, waitForLabelsPopulated, markDomLabelReady]);
+    }, [createImageFromUrl, getMeshIDbyName, addItemImage, removeItem, items, productObject?.selections?.bottle?.name, product?.areas, setCameraByName, setFromUploadDesign]);
+
+
+    // --- Clear items when bottle changes ---
+    const prevBottleIdRef = useRef<number | null>(null);
+
+    const clearAllItems = useCallback(async () => {
+      if (typeof removeItem !== 'function') {
+        console.warn('[Configurator] removeItem not available from useZakeke; cannot clear items on bottle change.');
+        return;
+      }
+      const live = (Array.isArray(items) ? items : []).filter((it: any) => !it?.deleted);
+      for (const it of live) {
+        try {
+          await removeItem(it.guid);
+        } catch (err) {
+          console.warn('[Configurator] Failed to remove item', it?.guid, err);
+        }
+      }
+      console.log('[Configurator] Cleared', live.length, 'items after bottle change');
+    }, [items, removeItem]);
+
+    useEffect(() => {
+      const currentBottleId = (bottleSel?.id ?? miniBottle?.id ?? null) as number | null;
+      const prev = prevBottleIdRef.current;
+
+      // Avoid clearing on first mount; only clear when actual bottle id changes
+      if (prev !== null && currentBottleId !== null && currentBottleId !== prev) {
+        clearAllItems(); // fire-and-forget
+      }
+      prevBottleIdRef.current = currentBottleId;
+    }, [bottleSel?.id, miniBottle?.id, clearAllItems]);
+
+    // Clear any previously attached label items on first entry to the Label/Design step
+    const didClearOnLabelRef = useRef(false);
+    useEffect(() => {
+      const name = (selectedStep?.name || '').toLowerCase();
+      const onLabelStepNow = name.includes('label') || name.includes('design');
+      if (onLabelStepNow && !didClearOnLabelRef.current) {
+        didClearOnLabelRef.current = true;
+        clearAllItems();
+      }
+    }, [selectedStep?.id, clearAllItems]);
 
 
 
@@ -1312,31 +590,50 @@ const Selector: FunctionComponent<{}> = () => {
         }
     }, [selectedAttribute, attributes]);
 
-    
-    // Guard camera updates to avoid infinite loops; normalise to string and use setCameraByName
-    const lastCameraLocationIdRef = useRef<string | null>(null);
     useEffect(() => {
-      const raw = (selectedGroup as any)?.cameraLocationId ?? null;
-      const cameraKey: string | null = raw == null ? null : String(raw);
-
-      if (cameraKey && lastCameraLocationIdRef.current !== cameraKey) {
-        lastCameraLocationIdRef.current = cameraKey;
-        try {
-          // set by name only; avoids numeric vs string overload/type issues
-          setCameraByName(cameraKey as unknown as string);
-        } catch (e) {
-          console.warn('[Configurator] Failed to set camera by name', cameraKey, e);
+        if (selectedGroup) {
+            const camera = selectedGroup.cameraLocationId;
+            if (camera) setCamera(camera);
         }
-      }
-    }, [selectedGroupId, selectedGroup?.cameraLocationId, setCameraByName]);
+    }, [selectedGroupId, selectedGroup, setCamera]);
 
-    // // === Camera animation: refs & helpers (top-level inside component) ===
+
+    // useEffect(() => {
+    //   const sendHeight = () => {
+    //     const h = Math.max(
+    //       document.documentElement.scrollHeight,
+    //       document.body?.scrollHeight || 0
+    //     );
+    //     window.parent.postMessage(
+    //       { customMessageType: 'CONFIG_IFRAME_HEIGHT', height: h },
+    //       '*'
+    //     );
+    //   };
+
+    //   // observe size changes
+    //   const ro = new ResizeObserver(() => sendHeight());
+    //   ro.observe(document.documentElement);
+
+    //   // initial + on load
+    //   sendHeight();
+    //   window.addEventListener('load', sendHeight);
+
+    //   // on orientation changes
+    //   window.addEventListener('orientationchange', () => setTimeout(sendHeight, 250));
+
+    //   return () => {
+    //     ro.disconnect();
+    //     window.removeEventListener('load', sendHeight);
+    //   };
+    // }, []);
+
+    // === Camera animation: refs & helpers (top-level inside component) ===
     const camAbort = useRef<AbortController | null>(null);
     const lastCamRef = useRef<string | null>(null);
     const isAnimatingCam = useRef(false);
     const prevTourKeyRef = useRef<string | null>(null);
 
-    const waitSceneIdle = useCallback(async (timeout = 1500, interval = 60) => {
+    const waitSceneIdle = async (timeout = 1500, interval = 60) => {
       const start = Date.now();
       let stable = 0;
       while (Date.now() - start < timeout) {
@@ -1349,16 +646,16 @@ const Selector: FunctionComponent<{}> = () => {
         await new Promise(r => setTimeout(r, interval));
       }
       await new Promise(r => requestAnimationFrame(() => r(null)));
-    }, [isSceneLoading]);
+    };
 
-    const moveCamera = useCallback(async (name: string) => {
+    const moveCamera = async (name: string) => {
       try {
         await setCameraByName(name);
         lastCamRef.current = name;
       } catch {}
-    }, [setCameraByName]);
+    };
 
-    const runCameraTour = useCallback(async (frames: string[], final: string, perFrameMs = 600) => {
+    const runCameraTour = async (frames: string[], final: string, perFrameMs = 600) => {
       // prevent concurrent tours
       if (isAnimatingCam.current) return;
       isAnimatingCam.current = true;
@@ -1385,22 +682,24 @@ const Selector: FunctionComponent<{}> = () => {
         if (camAbort.current === ctrl) camAbort.current = null;
         isAnimatingCam.current = false;
       }
-    }, [moveCamera]);
+    };
 
     // Fire tour on step / bottle change, but debounce identical requests
     useEffect(() => {
       if (!selectedStep) return;
 
+      // current step key
+      const s = (selectedStep.name || '').toLowerCase();
       const stepKey: 'bottle' | 'liquid' | 'closure' | 'label' =
-        selectedStepRole === 'bottle' ? 'bottle' :
-        selectedStepRole === 'liquid' ? 'liquid' :
-        selectedStepRole === 'closure' ? 'closure' : 'label';
+        s.includes('bottle') ? 'bottle' :
+        s.includes('closure') ? 'closure' :
+        s.includes('liquid')   ? 'liquid'   : 'label';
 
       // derive bottle key from current bottle selection (e.g. "Antica" -> "antica")
-      const bottleKey =
-        productObject.bottleSlug ||
-        bottleSlug ||
-        slugify(selections.bottle?.name || '');
+      const bottleKey = (bottleSel?.name || selections.bottle?.name || '')
+        .trim()
+        .toLowerCase()
+        .replace(/\s+/g, '_');
 
       // if no bottle yet, skip anim
       if (!bottleKey) return;
@@ -1426,7 +725,7 @@ const Selector: FunctionComponent<{}> = () => {
         final = cams.full_front;
       } else if (stepKey === 'closure') {
         frames = ['wide_high_front', 'wide_high_back'];
-        final = cams.closure;
+        final = cams.label_front;
       } else if (stepKey === 'label') {
         frames = ['wide_high_front'];
         const preferFront = !!labelAreas.front || !labelAreas.back;
@@ -1446,166 +745,276 @@ const Selector: FunctionComponent<{}> = () => {
 
       return () => camAbort.current?.abort();
     }, [
-      selectedStep,
       selectedStep?.id,
-      selectedStepRole,
-      productObject.bottleSlug,
-      bottleSlug,
-      labelAreas.front,
+      selections.bottle?.name,
+      bottleSel?.name,
       labelAreas.front?.id,
-      labelAreas.back,
       labelAreas.back?.id,
-      isSceneLoading,
-      runCameraTour,
-      waitSceneIdle,
-      selections.bottle?.name
+      isSceneLoading
     ]);
 
     // --- Helper: find an option by exact name across ALL attributes in the current step ---
-    const selectedOptionForNotes = useMemo(() => {
-      if (!selectedAttribute) return null;
-      const opts = Array.isArray((selectedAttribute as any).options) ? (selectedAttribute as any).options : [];
-      return opts.find((opt: any) => opt?.selected && opt?.name !== 'No Selection') || null;
-    }, [selectedAttribute]);
+    const findOptionInStepByName = useMemo(() => {
+      return (step: any, name: string): { attributeId: number | null; optionId: number | null } => {
+        if (!step) return { attributeId: null, optionId: null };
 
-    const notesAccent = useMemo(() => {
-      if (!selectedAttribute || !selectedOptionForNotes) return null;
-      const opts = Array.isArray((selectedAttribute as any).options) ? (selectedAttribute as any).options : [];
-      const filtered = opts.filter((opt: any) => opt?.name !== 'No Selection');
-      const index = filtered.findIndex((opt: any) => opt?.id === selectedOptionForNotes.id);
-      if (index < 0) return null;
-      const palette = [
-        '#f42492',
-        '#f9f02c',
-        '#24e2f3',
-        '#4e3fbb',
-        '#f1211b',
-        '#b2ef3e',
-        '#29c396',
-        '#f69027',
-        '#20a0de',
-      ];
-      return palette[index % palette.length];
-    }, [selectedAttribute, selectedOptionForNotes]);
+        const needle = (name || '').trim().toLowerCase();
+        const attrs: any[] = Array.isArray(step.attributes) ? step.attributes : [];
 
-    const onLabelStep = selectedStepRole === 'label';
+        // Search order: enabled attrs first, then the rest
+        const orderedAttrs = [
+          ...attrs.filter(a => !!a?.enabled),
+          ...attrs.filter(a => !a?.enabled),
+        ];
 
-    const buildSelectionsMessage = useCallback(() => ({
-      order: {
-        bottle: productObject.selections.bottle,
-        liquid: productObject.selections.liquid,
-        closure: productObject.selections.closure,
-        label: productObject.selections.label,
-      },
-      labels: productObject.labels,
-      labelSel: productObject.labelSel,
-      productSku: product?.sku ?? null,
-      price,
-    }), [productObject, product?.sku, price]);
+        for (const a of orderedAttrs) {
+          const opts: any[] = Array.isArray(a?.options) ? a.options : [];
+          // Prefer enabled options, but fall back if needed
+          const orderedOpts = [
+            ...opts.filter(o => !!o?.enabled),
+            ...opts.filter(o => !o?.enabled),
+          ];
+          const hit = orderedOpts.find(
+            o => (o?.name || '').trim().toLowerCase() === needle
+          );
+          if (hit) return { attributeId: a.id, optionId: hit.id };
+        }
 
-    const postSelectionsToParent = useCallback((customMessageType: string) => {
-      const message = buildSelectionsMessage();
-      window.parent.postMessage({ customMessageType, message }, '*');
-      console.log("Parent Message posted from Zakeke", { customMessageType, message });
-    }, [buildSelectionsMessage]);
+        return { attributeId: null, optionId: null };
+      };
+    }, []);
 
-    const handleDesignWithAi = useCallback(() => {
-      if (!canDesign) {
-        warnMissingSelections(' before designing with AI.');
+    // Utility: wait for a predicate to become true with timeout (helps with Zakeke async UI updates)
+    const waitFor = (predicate: () => boolean, timeout = 2500, interval = 50) =>
+      new Promise<boolean>((resolve) => {
+        const start = Date.now();
+        const tick = () => {
+          let ok = false;
+          try { ok = !!predicate(); } catch {}
+          if (ok) return resolve(true);
+          if (Date.now() - start >= timeout) return resolve(false);
+          setTimeout(tick, interval);
+        };
+        tick();
+      });
+
+    // --- Helper: ensure atomic update for closure selection ---
+    const selectOptionOnAttribute = async (
+      attributeId: number | null,
+      optionId: number | null
+    ) => {
+      if (!attributeId || !optionId || isSelecting) return;
+
+      setIsSelecting(true);
+      try {
+        const attrId = Number(attributeId);
+        const optId  = Number(optionId);
+        if (!Number.isFinite(attrId) || !Number.isFinite(optId)) return;
+
+        // Ensure we're on the Closure step (defensive)
+        const isClosure = /closure/i.test(selectedStep?.name || '');
+        if (!isClosure) {
+          const closureStep = selectedGroup?.steps?.find(s => /closure/i.test(s?.name || ''));
+          if (closureStep) {
+            selectStep(closureStep.id);
+            await waitFor(() => selectedStepId === closureStep.id, 2000, 40);
+          }
+        }
+
+        if (selectedAttributeId !== attrId) {
+          selectAttribute(attrId);
+          await waitFor(() => selectedAttributeId === attrId, 2000, 40);
+        }
+
+        // Select the option and confirm
+        selectOption(optId);
+        const ok = await waitFor(() => {
+          const activeAttr = attributes.find(a => a.id === (selectedAttributeId ?? -1));
+          const opts = activeAttr?.options || [];
+          return !!opts.find(o => o.id === optId && o.selected);
+        }, 1500, 40);
+
+        if (!ok) {
+          await new Promise(r => setTimeout(r, 60));
+          selectOption(optId);
+          await waitFor(() => {
+            const activeAttr = attributes.find(a => a.id === (selectedAttributeId ?? -1));
+            const opts = activeAttr?.options || [];
+            return !!opts.find(o => o.id === optId && o.selected);
+          }, 2000, 40);
+        }
+
+        // === Atomic commit to store ===
+        const step = steps[closureStepIdx];
+        let attr = Array.isArray(step?.attributes) ? step!.attributes.find((a: any) => !!a?.enabled) : null;
+        if (!attr && selectedAttributeId != null) {
+          attr = step?.attributes?.find((a: any) => a?.id === selectedAttributeId) || null;
+        }
+        if (!attr) {
+          const attrs: any[] = Array.isArray(step?.attributes) ? step!.attributes : [];
+          attr = (bottleIdx >= 0 ? attrs[bottleIdx] : null) || attrs[0] || null;
+        }
+        const latestClosureSel = Array.isArray(attr?.options) ? attr!.options.find((o: any) => !!o?.selected) || null : null;
+
+        const latestBottleSel = bottleSel;
+        const latestLiquidSel = liquidSel;
+        const latestLabelSel  = labelSel;
+
+        const latestSelections = {
+          bottleSel: latestBottleSel,
+          liquidSel: latestLiquidSel,
+          closureSel: latestClosureSel,
+          labelSel: latestLabelSel,
+          bottle: latestBottleSel ? { id: latestBottleSel.id, guid: latestBottleSel.guid, name: latestBottleSel.name, selected: !!latestBottleSel.selected } : null,
+          liquid: latestLiquidSel ? { id: latestLiquidSel.id, guid: latestLiquidSel.guid, name: latestLiquidSel.name, selected: !!latestLiquidSel.selected } : null,
+          closure: latestClosureSel ? { id: latestClosureSel.id, guid: latestClosureSel.guid, name: latestClosureSel.name, selected: !!latestClosureSel.selected } : null,
+          label: latestLabelSel ? { id: latestLabelSel.id, guid: latestLabelSel.guid, name: latestLabelSel.name, selected: !!latestLabelSel.selected } : null,
+        } as const;
+
+        setFromSelections({ selections: latestSelections as any, sku: product?.sku ?? null, price });
+      } finally {
+        // small delay to avoid rapid double-clicks
+        setTimeout(() => setIsSelecting(false), 120);
+      }
+    };
+
+    const onPickWood = async (name: string, hex: string) => {
+      setClosureWood({ name, hex });
+      const { attributeId, optionId } = findOptionInStepByName(selectedStep, name);
+      await selectOptionOnAttribute(attributeId, optionId);
+    };
+
+    const onPickWax = async (name: string, hex: string) => {
+      if (!hex) {
+        // No Wax Seal
+        setClosureWax(null);
+        const { attributeId, optionId } = findOptionInStepByName(selectedStep, 'No Wax Seal');
+        await selectOptionOnAttribute(attributeId, optionId);
         return;
       }
-      postSelectionsToParent('designWithAi');
-    }, [canDesign, postSelectionsToParent, warnMissingSelections]);
+      const full = `Wax Sealed in ${name}`; // matches option names
+      setClosureWax({ name: full, hex });
+      const { attributeId, optionId } = findOptionInStepByName(selectedStep, full);
+      await selectOptionOnAttribute(attributeId, optionId);
+    };
 
-    const handleUploadLabels = useCallback(() => {
-      if (!canDesign) {
-        warnMissingSelections(' before uploading labels.');
-        return;
-      }
-      postSelectionsToParent('uploadLabels');
-    }, [canDesign, postSelectionsToParent, warnMissingSelections]);
 
-    const handleEditLabel = useCallback(() => {
-      if (!canDesign) {
-        warnMissingSelections(' before uploading labels.');
-        return;
-      }
-      postSelectionsToParent('editLabels');
-    }, [canDesign, postSelectionsToParent, warnMissingSelections]);
+    const onLabelStep =
+      (selectedStep?.name || '').toLowerCase().includes('design') ||
+      (selectedStep?.name || '').toLowerCase().includes('label');
 
+
+    const frontVisible = !!labelAreas.front;
 
     // Step validation helpers
-    const isBottleStep  = selectedStepRole === 'bottle';
-    const isLiquidStep  = selectedStepRole === 'liquid';
-    const isClosureStep = selectedStepRole === 'closure';
+    const stepNameLc = (selectedStep?.name || '').toLowerCase();
+    const isBottleStep  = stepNameLc.includes('bottle');
+    const isLiquidStep  = stepNameLc.includes('gin') || stepNameLc.includes('liquid');
+    const isClosureStep = stepNameLc.includes('closure');
     const hasValidSelection = !!(selectedAttribute?.options?.some(o => o.selected && o.name !== 'No Selection'));
+
+    // Closure options can live on step or attribute depending on Zakeke setup
+    const closureOptions = useMemo(() => {
+      const stepOpts = (isClosureStep && selectedStep && Array.isArray((selectedStep as any).options))
+        ? ((selectedStep as any).options as any[])
+        : [];
+      const attrOpts = (selectedAttribute && Array.isArray((selectedAttribute as any).options))
+        ? ((selectedAttribute as any).options as any[])
+        : [];
+      // Prefer step-level options when present
+      return stepOpts.length ? stepOpts : attrOpts;
+    }, [isClosureStep, selectedStep, selectedAttribute]);
 
     // const getOptionIdByName = (name: string) => {
     //   const needle = (name || '').trim().toLowerCase();
     //   const hit = closureOptions.find(o => (o.name || '').trim().toLowerCase() === needle);
     //   return hit?.id ?? null;
     // };
+
+    const handleLabelClick = (side: 'front') => {
+      if (!canDesign) {
+        setWarning('Please select a bottle, liquid, and closure before designing labels.');
+        return;
+      }
+      const hasDesign = side === 'front' ? !!labelDesigns.front : !!labelDesigns.back;
+      const designType = hasDesign ? 'edit' : 'design';
+      const designId = side === 'front'
+        ? ((labelDesigns as any)?.front?.id ?? null)
+        : ((labelDesigns as any)?.back?.id  ?? null);
+
+      window.parent.postMessage({
+        customMessageType: 'callDesigner',
+        message: {
+          'order': {
+            'bottle': productObject.selections.bottle,
+            'liquid': productObject.selections.liquid,
+            'closure': productObject.selections.closure,
+            'label': productObject.selections.label,
+            'closureExtras': productObject.selections.closureExtras,
+          },
+          'designSide': side,
+          'designType': designType,
+          'designId': designId,
+          'productSku': product?.sku ?? null,
+        }
+      }, '*');
+
+      console.log("postMessage Content:", {
+        customMessageType: 'callDesigner',
+        message: {
+          'order': {
+            'bottle': productObject.selections.bottle,
+            'liquid': productObject.selections.liquid,
+            'closure': productObject.selections.closure,
+            'label': productObject.selections.label,
+            'closureExtras': productObject.selections.closureExtras,
+          },
+          'designSide': side,
+          'designType': designType,
+          'designId': designId,
+          'productSku': product?.sku ?? null,
+        }
+      });
+    };    
+
+    const handleLearnClick = (side?: 'front' | 'back') => {
+      window.parent.postMessage({
+        customMessageType: 'OpenDesignerHelp',
+        message: {
+          ...(side ? { side } : {}),
+          productSku: product?.sku ?? null,
+        }
+      }, '*');
+    };
     
 
-    const isConfiguratorLoading = isSceneLoading || !Array.isArray(groups) || !groups.length;
-
-    const moveCameraToFullFront = useCallback(async () => {
-      if (!Array.isArray(cameras) || !cameras.length) return;
-
-      const slugCandidate =
-        productObject.bottleSlug ||
-        bottleSlug ||
-        slugify(selections.bottle?.name || '');
-
-      const normalizedSlug = (slugCandidate || '').trim().toLowerCase();
-      if (!normalizedSlug) return;
-
-      const hyphenSlug = normalizedSlug.replace(/[_\s]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
-      const underscoreSlug = normalizedSlug.replace(/[-\s]+/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '');
-
-      const candidateNames = Array.from(new Set(
-        [
-          hyphenSlug && `${hyphenSlug}-full-front`,
-          hyphenSlug && `${hyphenSlug}_full_front`,
-          underscoreSlug && `${underscoreSlug}-full-front`,
-          underscoreSlug && `${underscoreSlug}_full_front`,
-          normalizedSlug && `${normalizedSlug}-full-front`,
-          normalizedSlug && `${normalizedSlug}_full_front`,
-        ].filter(Boolean) as string[]
-      ));
-
-      const namedCameras = cameras
-        .map((cam: any) => (typeof cam?.name === 'string' ? cam.name : ''))
-        .filter(Boolean)
-        .map(name => ({ original: name, normalized: name.toLowerCase() }));
-
-      if (!namedCameras.length) return;
-
-      const explicitMatch = namedCameras.find(entry =>
-        candidateNames.some(candidate => candidate.toLowerCase() === entry.normalized)
-      );
-
-      const fallbackMatch = namedCameras.find(entry =>
-        /full[-_]?front$/i.test(entry.normalized)
-      );
-
-      const targetCamera = (explicitMatch ?? fallbackMatch)?.original;
-      if (!targetCamera) return;
-
-      try {
-        setCameraByName(targetCamera, false, true);
-        await sleep(CAMERA_PREVIEW_SETTLE_MS);
-      } catch (err) {
-        console.warn('[Configurator] Failed to move camera before Add to Cart', targetCamera, err);
-      }
-    }, [cameras, productObject.bottleSlug, bottleSlug, selections.bottle?.name, setCameraByName]);
-
+    if (isSceneLoading || !groups || groups.length === 0)
+        return <LoadingSpinner />;
+    
     const handleAddToCart = async () => {
     try {
-        await moveCameraToFullFront();
         await addToCart(
             {},
             async (data) => {
+                console.log("data", data);
+
+                console.log("postMessage Content:", {
+                    customMessageType: "AddToCart",
+                    message: {
+                        preview: data.preview,
+                        quantity: data.quantity,
+                        compositionId: data.composition,
+                        zakekeAttributes: data.attributes,
+                        product_id: product?.sku || null,
+                        bottle: productObject.selections.bottle,
+                        liquid: productObject.selections.liquid,
+                        closure: productObject.selections.closure,
+                        label: productObject.selections.label,
+                        closureExtras: closureChoices,
+                    }
+                }
+                )
+
                 window.parent.postMessage({
                     customMessageType: "AddToCart",
                     message: {
@@ -1618,8 +1027,7 @@ const Selector: FunctionComponent<{}> = () => {
                         liquid: productObject.selections.liquid,
                         closure: productObject.selections.closure,
                         label: productObject.selections.label,
-                        labelSel: productObject.labelSel,
-                        labels: productObject.labels,
+                        closureExtras: closureChoices,
                     }
                 }, "*");
 
@@ -1632,14 +1040,12 @@ const Selector: FunctionComponent<{}> = () => {
     }
 };
 
-    if (isConfiguratorLoading)
-        return <LoadingSpinner />;
-
-    const showAddToCartButton = productObject.valid && labelsPopulated;
+    const frontLabelDesigned = Boolean(labelDesigns.front);
+    const showAddToCartButton = productObject.valid && frontLabelDesigned;
 
     return (
       <>
-        {/* <RotateNotice>Please rotate your device to landscape for the best experience.</RotateNotice> */}
+        <RotateNotice>Please rotate your device to landscape for the best experience.</RotateNotice>
         <ConfigWarning />
         <LayoutWrapper>
         <ContentWrapper>
@@ -1665,7 +1071,7 @@ const Selector: FunctionComponent<{}> = () => {
                     const nextStep = selectedGroup.steps[i + 1];
                     const isLabelish = /label|design/i.test(nextStep?.name || '');
                     if (isLabelish && !canDesign) {
-                      warnMissingSelections(' (not "No Selection") before designing labels.');
+                      setWarning('Please select a bottle, liquid, and closure (not "No Selection") before designing labels.');
                       return;
                     }
                     selectStep(nextStep.id);
@@ -1680,7 +1086,9 @@ const Selector: FunctionComponent<{}> = () => {
             )}
 
             {/* Options */}
-            {!onLabelStep && (
+            {/* Options (hidden on label step) */}
+            {/* Options / Custom rendering for Closure step */}
+            {!onLabelStep && !isClosureStep && (
               <OptionsWrap>
                 {selectedAttribute?.options
                   .filter(() => true)
@@ -1688,14 +1096,26 @@ const Selector: FunctionComponent<{}> = () => {
                     option.name !== "No Selection" && (
                       <OptionListItem
                         key={option.id}
-                        onClick={() => selectOption(option.id)}
+                        onClick={() => {
+                          if (isSelecting) return;
+                          console.log('User selected option:', {
+                            name: option.name,
+                            attribute: selectedAttribute.name,
+                            enabled: option.enabled,
+                            selected: option.selected
+                          });
+                          selectOption(option.id);
+                        }}
                         $selected={option.selected}
+                        $disabled={isSelecting}
                         $width="200px"
+                        className={isSelecting ? 'is-selecting' : undefined}
+                        aria-busy={isSelecting ? true : undefined}
                         tabIndex={0}
                       >
                         <OptionText>
                           <OptionTitle $selected={!!option.selected}>{option.name}</OptionTitle>
-                          {selectedStepRole === 'liquid' && option.description && (
+                          {selectedStep?.name === 'Select your Gin' && option.description && (
                             <OptionDescription>{option.description}</OptionDescription>
                           )}
                         </OptionText>
@@ -1705,51 +1125,127 @@ const Selector: FunctionComponent<{}> = () => {
               </OptionsWrap>
             )}
 
-            {onLabelStep && (
-              <ActionsCenter>
-                {labelsPopulated ? (
-                  <button
-                      className="configurator-button"
-                      disabled={!canDesign}
-                      title={!canDesign ? 'Select liquid, and closure first' : undefined}
-                      onClick={handleEditLabel}
-                    >
-                      Edit Your Label
-                    </button>
-                ) : (
-                  <>
-                    <button
-                      className="configurator-button"
-                      disabled={!canDesign}
-                      title={!canDesign ? 'Select liquid, and closure first' : undefined}
-                      onClick={handleDesignWithAi}
-                    >
-                      Design with AI
-                    </button>
-                    {/* <button
-                      className="configurator-button"
-                      disabled={!canDesign}
-                      title={!canDesign ? 'Select liquid, and closure first' : undefined}
-                      onClick={handleUploadLabels}
-                    >
-                      Upload Your Label
-                    </button> */}
-                  </>
-                )}
-              </ActionsCenter>
+            {(!onLabelStep && isClosureStep) && (
+              <ClosureSections>
+                {/* Wood section */}
+                <div>
+                  <SectionTitle>Choose Your Wood</SectionTitle>
+                  <SwatchGrid>
+                    {WOOD_SWATCHES.map(s => {
+                      const selected = closureChoices?.wood?.hex === s.hex;
+                      return (
+                        <SwatchButton
+                          key={s.key}
+                          aria-label={s.key}
+                          onClick={() => onPickWood(s.key, s.hex)}
+                          $disabled={isSelecting}
+                          className={isSelecting ? 'is-selecting' : undefined}
+                          $selected={selected}
+                          $hex={s.hex}
+                          title={s.key}
+                        />
+                      );
+                    })}
+                  </SwatchGrid>
+                </div>
+
+                {/* Wax section */}
+                <div>
+                  <SectionTitle>Choose a Wax Colour</SectionTitle>
+                  <SwatchGrid>
+                    {WAX_SWATCHES.map(s => {
+                      const isNone = s.key === 'No Wax Seal';
+                      const selected = isNone ? !closureChoices?.wax : closureChoices?.wax?.hex === s.hex;
+                      return (
+                        <SwatchButton
+                          key={s.key}
+                          aria-label={s.key}
+                          onClick={() => onPickWax(s.key, s.hex)}
+                          $disabled={isSelecting}
+                          className={isSelecting ? 'is-selecting' : undefined}
+                          $selected={selected}
+                          $hex={s.hex}
+                          $isNone={isNone}
+                          title={s.key}
+                        >
+                          {isNone && (<SwatchNoneLabel>None</SwatchNoneLabel>)}
+                        </SwatchButton>
+                      );
+                    })}
+                  </SwatchGrid>
+                </div>
+              </ClosureSections>
             )}
 
-            {notesCategory && selectedOptionForNotes && (
-              <NotesWrapper $accent={notesAccent || undefined}>
-                <strong>{notesTitle}</strong>
+            {onLabelStep && frontVisible && (
+              <>
+                <LabelGrid>
+                  {frontVisible && (
+                    <LabelCard>
+                      <LabelCardTitle>Front Label</LabelCardTitle>
+                      <button
+                        className="configurator-button"
+                        disabled={!canDesign}
+                        title={!canDesign ? 'Select bottle, liquid, and closure first' : undefined}
+                        onClick={() => handleLabelClick('front')}
+                      >
+                        {labelDesigns.front ? 'Edit Front Label' : 'Design Front Label'}
+                      </button>
+                    </LabelCard>
+                  )}
+                </LabelGrid>
+                <ActionsCenter>
+                  <button className="configurator-button" onClick={() => handleLearnClick()}>
+                    Learn How to Use Our Designer
+                  </button>
+                </ActionsCenter>
+              </>
+            )}
+
+            {(() => {
+              const stepName = (selectedStep?.name || '').toLowerCase();
+              const notesAllowed = /bottle|gin|liquid/.test(stepName);
+              return notesAllowed && selectedStep?.name && selectedAttribute && selectedAttribute.options.find(opt => opt.selected && opt.name !== "No Selection");
+            })() && (
+              <NotesWrapper>
+                <strong>
+                  {(() => {
+                    const stepName = (selectedStep?.name || '').toLowerCase();
+
+                    if (stepName.includes('bottle')) return 'Bottle Style';
+                    if (
+                      stepName.includes('gin') || 
+                      stepName.includes('vodka') ||
+                      stepName.includes('whiskey') ||
+                      stepName.includes('rum')
+                    ) return 'Tasting Notes';
+                    if (stepName.includes('closure')) return 'Closure';
+
+                    return 'Notes';
+                  })()}
+                </strong>
                 <p>
-                  {(optionNotes as any)[notesCategory]?.[selectedOptionForNotes.name] || ''}
+                  {(() => {
+                    const selectedOption = selectedAttribute?.options?.find(opt => opt.selected) || null;
+                    if (!selectedOption) return 'Select an option to see notes.';
+
+                    const stepName = (selectedStep?.name || '').toLowerCase();
+                    const category =
+                      stepName.includes('bottle') ? 'bottles' :
+                        stepName.includes('gin') || stepName.includes('liquid') ? 'liquids' :
+                          stepName.includes('closure') ? 'closures' :
+                            null as 'bottles' | 'liquids' | 'closures' | null;
+
+                    if (!category || !(optionNotes as any)[category]) return null;
+
+                    return ((optionNotes as any)[category][selectedOption.name]) || '';
+                  })()}
                 </p>
               </NotesWrapper>
             )}
           </Container>
         </ContentWrapper>
-        {/* <ViewportSpacer /> */}
+        <ViewportSpacer />
         <CartBar
           price={price}
           showButton={showAddToCartButton}
