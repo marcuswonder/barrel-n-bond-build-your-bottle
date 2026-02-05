@@ -1284,6 +1284,11 @@ const Selector: FunctionComponent<{}> = () => {
         },
         '*'
       );
+
+      console.log("postMessage Content:", {
+        messageContent: 'generateLabelPrompt',
+        message: payload,
+      });
     };
 
     const handleLabelClick = (side: 'front') => {
