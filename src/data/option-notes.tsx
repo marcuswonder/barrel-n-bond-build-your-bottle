@@ -7,7 +7,8 @@ export const optionNotes: Record<string, Record<string, string>> = {
         "Triple Distilled Vodka": "A nose of sweet, sun-kissed grass gives way to a bright, sparkling citrus palate with a crisp finish. It's exceptionally smooth for chilled sipping and versatile enough for any cocktail.",
     },
     closures: {
-        "Natural Wood": "A natural beech stopper with a synthetic stem.",
-        "Stained Wood": "A black wood stopper with a synthetic stem.",
+        "Light Wood": "A natural beech stopper with a synthetic stem.",
+        "Medium Wood": "A stained beech stopper with a synthetic stem.",
+        "Dark Wood": "A black wood stopper with a synthetic stem.",
     }
     };
