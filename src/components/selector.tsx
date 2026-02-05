@@ -366,7 +366,7 @@ const Selector: FunctionComponent<{}> = () => {
       closureChoices,
     ]);
 
-    console.log("selections", selections)
+    // console.log("selections", selections)
 
     // Key that only changes when meaningful order fields change, closure id excluded to avoid transient updates during attribute switch
     const orderKey = [
@@ -488,8 +488,8 @@ const Selector: FunctionComponent<{}> = () => {
 
 
     // (Optional debug) Log selected group/step
-    console.log('UI selectedGroupId', selectedGroupId, '->', selectedGroup?.name);
-    console.log('UI selectedStepId', selectedStepId, '->', selectedStep?.name);
+    // console.log('UI selectedGroupId', selectedGroupId, '->', selectedGroup?.name);
+    // console.log('UI selectedStepId', selectedStepId, '->', selectedStep?.name);
 
     const attributes = useMemo(() => (selectedStep || selectedGroup)?.attributes ?? [], [selectedGroup, selectedStep]);
     const selectedAttribute = attributes.find(attribute => attribute.id === selectedAttributeId);
