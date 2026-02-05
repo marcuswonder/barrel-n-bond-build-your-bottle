@@ -1,7 +1,7 @@
 import React, { FunctionComponent, useEffect, useMemo, useRef, useState, useCallback, useLayoutEffect } from 'react';
 // import styled from 'styled-components';
 import { useZakeke } from 'zakeke-configurator-react';
-import { LayoutWrapper, ContentWrapper, Container,  OptionListItem, RotateNotice, NavButton, LoadingSpinner, NotesWrapper, CartBar, StepNav, OptionsWrap, OptionText, OptionTitle, OptionDescription, ClosureSections, SectionTitle, SwatchGrid, SwatchButton, SwatchNoneLabel, ActionsCenter, LabelDesignWrap, LabelTabs, LabelTabButton, LabelForm, LabelDetails, LabelSummary, LabelSummaryMeta, LabelRow, LabelField, LabelInput, LabelTextarea, LabelDescription, LabelHelperText, LabelCheckboxRow, WizardWrap, WizardStepTitle, WizardOptions, WizardOptionButton, WizardNav, ConfigWarning, ViewportSpacer } from './list';
+import { LayoutWrapper, ContentWrapper, Container,  OptionListItem, RotateNotice, NavButton, LoadingSpinner, NotesWrapper, CartBar, StepNav, OptionsWrap, OptionText, OptionTitle, OptionDescription, ClosureSections, SectionTitle, SwatchGrid, SwatchButton, SwatchNoneLabel, ActionsCenter, LabelDesignWrap, LabelTabs, LabelTabButton, LabelForm, LabelDetails, LabelSummary, LabelSummaryMeta, LabelRow, LabelField, LabelInput, LabelTextarea, LabelDescription, LabelHelperText, FileNameRow, FileRemoveButton, LabelCheckboxRow, WizardWrap, WizardStepTitle, WizardOptions, WizardOptionButton, WizardNav, PromptLoading, PromptSpinner, ConfigWarning, ViewportSpacer } from './list';
 // import { List, StepListItem, , ListItemImage } from './list';
 import { optionNotes } from '../data/option-notes';
 import ClipLoader from 'react-spinners/ClipLoader';
@@ -222,6 +222,8 @@ const Selector: FunctionComponent<{}> = () => {
     const [wizardStarted, setWizardStarted] = useState(false);
     const [guidedPromptConfirmed, setGuidedPromptConfirmed] = useState(false);
     const [guidedGenerating, setGuidedGenerating] = useState(false);
+    const [reviewImagesVisible, setReviewImagesVisible] = useState(false);
+    const [isPromptGenerating, setIsPromptGenerating] = useState(false);
     const [promptOverride, setPromptOverride] = useState('');
     const [labelWizard, setLabelWizard] = useState<LabelWizardState>({
       outputGoal: '',
@@ -263,6 +265,7 @@ const Selector: FunctionComponent<{}> = () => {
         setWizardStepIndex(0);
         setGuidedPromptConfirmed(false);
         setGuidedGenerating(false);
+        setReviewImagesVisible(false);
       }
     }, [labelForm.title]);
 
@@ -636,6 +639,16 @@ const Selector: FunctionComponent<{}> = () => {
               });
             }
           }
+        }
+        if (e.data?.customMessageType === 'generateLabelPromptResult') {
+          const prompt = e.data?.message?.prompt || '';
+          if (prompt) {
+            setPromptOverride(prompt);
+          }
+          setIsPromptGenerating(false);
+        }
+        if (e.data?.customMessageType === 'generateLabelPromptError') {
+          setIsPromptGenerating(false);
         }
       };
       window.addEventListener('message', onMsg);
@@ -1066,6 +1079,15 @@ const Selector: FunctionComponent<{}> = () => {
       setLabelForm((prev) => ({ ...prev, [key]: file }));
     };
 
+    const clearLabelFile = (key: 'characterFile' | 'logoFile') => {
+      setLabelForm((prev) => ({
+        ...prev,
+        [key]: null,
+        ...(key === 'characterFile' ? { hasCharacterPermission: false } : {}),
+      }));
+      setReviewImagesVisible(true);
+    };
+
     const handleUploadLabelFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
       const file = event.target.files?.[0] ?? null;
       setUploadLabelFile(file);
@@ -1112,74 +1134,35 @@ const Selector: FunctionComponent<{}> = () => {
     };
 
     const assemblePrompt = () => {
-      const subtitle = (miniLiquid?.name || '').trim();
+      const resolvedTheme = resolveOther(labelWizard.theme, labelWizard.themeOther);
+      const resolvedSubTheme = labelWizard.subTheme || '';
       const resolvedMainType = resolveOther(labelWizard.mainSubjectType, labelWizard.mainSubjectTypeOther);
+      const resolvedMainSubject = resolveOther(labelWizard.mainSubject, labelWizard.mainSubjectOther);
       const resolvedAction = resolveOther(labelWizard.action, labelWizard.actionOther);
       const resolvedStyle = resolveOther(labelWizard.styleFamily, labelWizard.styleFamilyOther);
-      const resolvedTheme = resolveOther(labelWizard.theme, labelWizard.themeOther);
       const resolvedPalette = resolveOther(labelWizard.paletteVibe, labelWizard.paletteVibeOther, 'Pick my own');
 
-      const resolvedMainSubject = resolveOther(labelWizard.mainSubject, labelWizard.mainSubjectOther);
-      const subjectBase = resolvedMainSubject && resolvedMainSubject !== 'Upload my own'
+      const subject = resolvedMainSubject && resolvedMainSubject !== 'Upload my own'
         ? resolvedMainSubject
-        : (resolvedMainType ? `${resolvedMainType.toLowerCase()}` : 'subject');
+        : (resolvedMainType ? resolvedMainType.toLowerCase() : 'subject');
 
-      const styling = labelWizard.mainStyling.length
-        ? `, ${labelWizard.mainStyling.join(', ')}`
-        : '';
+      const action = resolvedAction ? resolvedAction : '';
+      const themePart = resolvedTheme ? `in ${resolvedTheme}` : '';
+      const subThemePart = resolvedSubTheme ? `in a ${resolvedSubTheme}` : '';
+      const locationPart = [subThemePart, themePart].filter(Boolean).join(', ');
 
-      const supporting = labelWizard.supportingCount
-        ? `, with ${labelWizard.supportingCount} ${labelWizard.supportingType || 'supporting elements'}`
-        : '';
+      const stylePart = resolvedStyle ? `Style should be ${resolvedStyle}` : '';
+      const palettePart = resolvedPalette ? `with a ${resolvedPalette} palette` : '';
+      const stylePalette = [stylePart, palettePart].filter(Boolean).join(', ');
 
-      const subjectBlock = `${subjectBase}${styling}${supporting}`;
-      const actionBlock = resolvedAction
-        ? `${resolvedAction}${labelWizard.energy ? `, ${labelWizard.energy} mood` : ''}`
-        : '';
+      const core = [
+        `A ${subject}`,
+        action ? `${action}` : '',
+        locationPart ? `${locationPart}` : '',
+      ].filter(Boolean).join(' ');
 
-      const sceneBlockParts = [
-        labelWizard.settingSpecific,
-        labelWizard.settingType ? `(${labelWizard.settingType})` : '',
-        labelWizard.backgroundDepth ? `background ${labelWizard.backgroundDepth}` : '',
-      ].filter(Boolean);
-      const sceneBlock = sceneBlockParts.join(', ');
-
-      const compositionBlockParts = [
-        labelWizard.compositionLayout,
-        labelWizard.framing,
-        labelWizard.labelTextSpace,
-      ].filter(Boolean);
-      const compositionBlock = compositionBlockParts.join(', ');
-
-      const styleBlockParts = [
-        resolvedStyle,
-        labelWizard.styleSubtype,
-        labelWizard.texture,
-        labelWizard.lighting,
-      ].filter(Boolean);
-      const styleBlock = styleBlockParts.join(', ');
-
-      const colourBlockParts = [
-        labelWizard.paletteMode ? `palette: ${labelWizard.paletteMode}` : '',
-        resolvedPalette,
-        labelWizard.accentCount ? `accents: ${labelWizard.accentCount}${labelWizard.accents.length ? ` (${labelWizard.accents.join(', ')})` : ''}` : '',
-      ].filter(Boolean);
-      const colourBlock = colourBlockParts.join(', ');
-
-      const constraints = [
-        labelWizard.complexity,
-      ].filter(Boolean).join(', ');
-
-      const promptParts = [
-        styleBlock ? `${styleBlock} illustration of ${subjectBlock}` : `Illustration of ${subjectBlock}`,
-        actionBlock ? `Action: ${actionBlock}.` : '',
-        sceneBlock ? `Scene: ${sceneBlock}.` : '',
-        compositionBlock ? `Composition: ${compositionBlock}.` : '',
-        colourBlock ? `Colour: ${colourBlock}.` : '',
-        constraints ? `Constraints: ${constraints}.` : '',
-      ].filter(Boolean);
-
-      return promptParts.join(' ').replace(/\s+/g, ' ').trim();
+      const sentence = [core, stylePalette].filter(Boolean).join('. ');
+      return sentence.replace(/\s+/g, ' ').trim();
     };
 
     const handleGenerateLabel = async () => {
@@ -1196,8 +1179,8 @@ const Selector: FunctionComponent<{}> = () => {
         setWarning('Please provide both a Title and a label description.');
         return;
       }
-      if (labelForm.characterFile && !labelForm.hasCharacterPermission) {
-        setWarning('Please confirm you have permission to use the uploaded character.');
+      if ((labelForm.characterFile || labelForm.logoFile) && !labelForm.hasCharacterPermission) {
+        setWarning('Please confirm you have permission to use the uploaded files.');
         return;
       }
 
@@ -1250,6 +1233,32 @@ const Selector: FunctionComponent<{}> = () => {
       );
 
       console.log('postMessage handleConfiguratorLabel', payload);
+    };
+
+    const handleGeneratePromptViaShopify = () => {
+      setIsPromptGenerating(true);
+      const payload = {
+        title: labelForm.title.trim(),
+        subtitle: (miniLiquid?.name || '').trim(),
+        theme: resolveOther(labelWizard.theme, labelWizard.themeOther),
+        subTheme: labelWizard.subTheme || '',
+        mainSubjectType: labelWizard.mainSubjectType || '',
+        mainSubject: resolveOther(labelWizard.mainSubject, labelWizard.mainSubjectOther),
+        action: resolveOther(labelWizard.action, labelWizard.actionOther),
+        styleFamily: resolveOther(labelWizard.styleFamily, labelWizard.styleFamilyOther),
+        paletteVibe: resolveOther(labelWizard.paletteVibe, labelWizard.paletteVibeOther, 'Pick my own'),
+        primaryColor: labelForm.primaryColor,
+        secondaryColor: labelForm.secondaryColor,
+        hasCharacterPermission: labelForm.hasCharacterPermission,
+      };
+
+      window.parent.postMessage(
+        {
+          messageContent: 'generateLabelPrompt',
+          message: payload,
+        },
+        '*'
+      );
     };
 
     const handleLabelClick = (side: 'front') => {
@@ -1658,6 +1667,11 @@ const Selector: FunctionComponent<{}> = () => {
                               options: paletteVibes,
                             },
                             {
+                              key: 'logo',
+                              title: 'Include a logo',
+                              options: [],
+                            },
+                            {
                               key: 'review',
                               title: 'Review prompt',
                               options: [],
@@ -1676,6 +1690,9 @@ const Selector: FunctionComponent<{}> = () => {
                               if (nextStep?.key === 'subTheme' && (!labelWizard.theme || labelWizard.theme === 'Other')) {
                                 next = Math.min(next + 1, steps.length - 1);
                               }
+                              if (nextStep?.key === 'review' && (labelForm.logoFile || labelForm.characterFile)) {
+                                setReviewImagesVisible(true);
+                              }
                               return next;
                             });
                           };
@@ -1693,7 +1710,12 @@ const Selector: FunctionComponent<{}> = () => {
                           const promptValue = promptOverride || assemblePrompt();
                           const otherKey = currentStep.otherKey as keyof LabelWizardState | undefined;
                           const showOtherInput = currentStep.allowOther && (labelWizard as any)[currentStep.key] === 'Other';
-                          const hasSelection = Boolean((labelWizard as any)[currentStep.key]);
+                          const hasSelection =
+                            currentStep.key === 'logo'
+                              ? !!labelForm.logoFile
+                              : Boolean((labelWizard as any)[currentStep.key]);
+                          const showReviewColours = !!labelForm.primaryColor || !!labelForm.secondaryColor;
+                          const showReviewImages = reviewImagesVisible || !!labelForm.logoFile || !!labelForm.characterFile;
 
                           if (currentStep.review && guidedPromptConfirmed) {
                             return null;
@@ -1702,13 +1724,13 @@ const Selector: FunctionComponent<{}> = () => {
                           return (
                             <>
                               <WizardStepTitle>{currentStep.title}</WizardStepTitle>
-                              {!currentStep.review && (
-                                <>
-                                  {mergedOptions.length === 0 ? (
-                                    <LabelHelperText>
-                                      Make a selection in the previous step to see options here, or skip.
-                                    </LabelHelperText>
-                                  ) : (
+                            {!currentStep.review && currentStep.key !== 'logo' && (
+                              <>
+                                {mergedOptions.length === 0 ? (
+                                  <LabelHelperText>
+                                    Make a selection in the previous step to see options here, or skip.
+                                  </LabelHelperText>
+                                ) : (
                                     <WizardOptions>
                                       {mergedOptions.map((opt: string) => {
                                         const active = (labelWizard as any)[currentStep.key] === opt;
@@ -1718,6 +1740,10 @@ const Selector: FunctionComponent<{}> = () => {
                                             type="button"
                                             $active={active}
                                             onClick={() => {
+                                              if (active) {
+                                                setWizardField(currentStep.key as keyof LabelWizardState, '' as any);
+                                                return;
+                                              }
                                               setWizardField(currentStep.key as keyof LabelWizardState, opt as any);
                                             }}
                                           >
@@ -1740,8 +1766,30 @@ const Selector: FunctionComponent<{}> = () => {
                                   )}
                                 </>
                               )}
+                            {currentStep.key === 'logo' && (
+                              <LabelField>
+                                Optional
+                                <LabelInput
+                                  type="file"
+                                  accept="image/*"
+                                  onChange={handleLabelFileChange('logoFile')}
+                                />
+                                <LabelHelperText>
+                                  {labelForm.logoFile?.name || 'No logo selected.'}
+                                </LabelHelperText>
+                              </LabelField>
+                            )}
                             {currentStep.review && !guidedPromptConfirmed && (
                               <>
+                                <LabelField>
+                                  Title
+                                  <LabelInput
+                                    type="text"
+                                    value={labelForm.title}
+                                    onChange={handleLabelFieldChange('title')}
+                                    placeholder="e.g. Barrel & Bond"
+                                  />
+                                </LabelField>
                                 <LabelField>
                                   Editable prompt
                                   <LabelTextarea
@@ -1752,17 +1800,87 @@ const Selector: FunctionComponent<{}> = () => {
                                     placeholder="Your generated prompt will appear here."
                                   />
                                 </LabelField>
-                                <LabelField>
-                                  Include a logo
-                                  <LabelInput
-                                    type="file"
-                                    accept="image/*"
-                                    onChange={handleLabelFileChange('logoFile')}
-                                  />
-                                  <LabelHelperText>
-                                    {labelForm.logoFile?.name || 'No logo selected.'}
-                                  </LabelHelperText>
-                                </LabelField>
+                                {isPromptGenerating && (
+                                  <PromptLoading>
+                                    <PromptSpinner />
+                                    Generating prompt…
+                                  </PromptLoading>
+                                )}
+                                {showReviewColours && (
+                                  <LabelRow>
+                                    {labelForm.primaryColor && (
+                                      <LabelField>
+                                        Primary colour
+                                        <LabelInput
+                                          type="color"
+                                          value={labelForm.primaryColor}
+                                          onChange={handleLabelFieldChange('primaryColor')}
+                                        />
+                                      </LabelField>
+                                    )}
+                                    {labelForm.secondaryColor && (
+                                      <LabelField>
+                                        Secondary colour
+                                        <LabelInput
+                                          type="color"
+                                          value={labelForm.secondaryColor}
+                                          onChange={handleLabelFieldChange('secondaryColor')}
+                                        />
+                                      </LabelField>
+                                    )}
+                                  </LabelRow>
+                                )}
+                                {showReviewImages && (
+                                  <LabelRow>
+                                    {(labelForm.logoFile || reviewImagesVisible) && (
+                                      <LabelField>
+                                        Include a logo
+                                        {labelForm.logoFile ? (
+                                          <FileNameRow>
+                                            <span>{labelForm.logoFile.name}</span>
+                                            <FileRemoveButton type="button" onClick={() => clearLabelFile('logoFile')}>×</FileRemoveButton>
+                                          </FileNameRow>
+                                        ) : (
+                                          <LabelInput
+                                            type="file"
+                                            accept="image/*"
+                                            onChange={handleLabelFileChange('logoFile')}
+                                          />
+                                        )}
+                                      </LabelField>
+                                    )}
+                                    {(labelForm.characterFile || reviewImagesVisible) && (
+                                      <LabelField>
+                                        Include a character
+                                        {labelForm.characterFile ? (
+                                          <FileNameRow>
+                                            <span>{labelForm.characterFile.name}</span>
+                                            <FileRemoveButton type="button" onClick={() => clearLabelFile('characterFile')}>×</FileRemoveButton>
+                                          </FileNameRow>
+                                        ) : (
+                                          <LabelInput
+                                            type="file"
+                                            accept="image/*"
+                                            onChange={(event) => {
+                                              handleLabelFileChange('characterFile')(event);
+                                              setReviewImagesVisible(true);
+                                            }}
+                                          />
+                                        )}
+                                      </LabelField>
+                                    )}
+                                  </LabelRow>
+                                )}
+                                {(labelForm.logoFile || labelForm.characterFile) && (
+                                  <LabelCheckboxRow>
+                                    <input
+                                      type="checkbox"
+                                      checked={labelForm.hasCharacterPermission}
+                                      onChange={handleLabelCheckboxChange}
+                                    />
+                                    I have the express permission/right to use any logo, or any image with the likeness of a person/character being uploaded for commercial purposes
+                                  </LabelCheckboxRow>
+                                )}
                               </>
                             )}
                             {currentStep.key === 'paletteVibe' && labelWizard.paletteVibe === 'Pick my own' && (
@@ -1818,6 +1936,7 @@ const Selector: FunctionComponent<{}> = () => {
                                   <button
                                     className="configurator-button"
                                     type="button"
+                                    disabled={!!(labelForm.logoFile || labelForm.characterFile) && !labelForm.hasCharacterPermission}
                                     onClick={async () => {
                                       setGuidedPromptConfirmed(true);
                                       setGuidedGenerating(true);
@@ -1827,25 +1946,37 @@ const Selector: FunctionComponent<{}> = () => {
                                     Confirm &amp; Generate
                                   </button>
                                 ) : (
-                                  <>
-                                    {!hasSelection && (
-                                      <button
-                                        className="configurator-button"
-                                        type="button"
-                                        onClick={goNext}
-                                      >
-                                        Skip
-                                      </button>
-                                    )}
+                                  !hasSelection ? (
                                     <button
                                       className="configurator-button"
                                       type="button"
-                                      onClick={goNext}
-                                      disabled={!hasSelection}
+                                      onClick={() => {
+                                        if (currentStep.key === 'logo') {
+                                          handleGeneratePromptViaShopify();
+                                          goNext();
+                                          return;
+                                        }
+                                        goNext();
+                                      }}
                                     >
-                                      Next
+                                      {currentStep.key === 'logo' ? 'Skip and Generate Prompt' : 'Skip'}
                                     </button>
-                                  </>
+                                  ) : (
+                                    <button
+                                      className="configurator-button"
+                                      type="button"
+                                      onClick={() => {
+                                        if (currentStep.key === 'logo') {
+                                          handleGeneratePromptViaShopify();
+                                          goNext();
+                                          return;
+                                        }
+                                        goNext();
+                                      }}
+                                    >
+                                      {currentStep.key === 'logo' ? 'Generate Prompt' : 'Next'}
+                                    </button>
+                                  )
                                 )}
                               </WizardNav>
                             )}
@@ -1966,27 +2097,16 @@ const Selector: FunctionComponent<{}> = () => {
                   )}
 
 
-                  {labelForm.characterFile && (
-                    <LabelCheckboxRow>
-                      <input
-                        type="checkbox"
-                        checked={labelForm.hasCharacterPermission}
-                        onChange={handleLabelCheckboxChange}
-                      />
-                      I have the express permission/right to use the likeness of the person/character being uploaded
-                    </LabelCheckboxRow>
-                  )}
-
                   {labelMode === 'form' && (
                     <ActionsCenter>
                       <button
                         className="configurator-button"
-                        disabled={!canDesign || (!!labelForm.characterFile && !labelForm.hasCharacterPermission)}
+                        disabled={!canDesign || (!!(labelForm.logoFile || labelForm.characterFile) && !labelForm.hasCharacterPermission)}
                         title={
                           !canDesign
                             ? 'Select bottle, liquid, and closure first'
-                            : (labelForm.characterFile && !labelForm.hasCharacterPermission)
-                              ? 'Confirm you have permission to use the uploaded character'
+                            : ((labelForm.logoFile || labelForm.characterFile) && !labelForm.hasCharacterPermission)
+                              ? 'Confirm you have permission to use the uploaded files'
                               : undefined
                         }
                         type="button"

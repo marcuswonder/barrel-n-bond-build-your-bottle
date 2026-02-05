@@ -637,6 +637,25 @@ export const LabelHelperText = styled.span`
   color: #aaa;
 `;
 
+export const FileNameRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #bbb;
+`;
+
+export const FileRemoveButton = styled.button`
+  background: transparent;
+  border: 1px solid #444;
+  color: #fff;
+  width: 22px;
+  height: 22px;
+  line-height: 20px;
+  text-align: center;
+  cursor: pointer;
+`;
+
 export const LabelCheckboxRow = styled.label`
   display: flex;
   gap: 8px;
@@ -686,6 +705,27 @@ export const WizardNav = styled.div`
   justify-content: space-between;
   gap: 8px;
   flex-wrap: wrap;
+`;
+
+export const PromptLoading = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 14px;
+  color: #fff;
+`;
+
+export const PromptSpinner = styled.div`
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  border-top-color: #ff4fb3;
+  animation: spin 1s linear infinite;
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
 `;
 
 // Accessible live region for config warnings
