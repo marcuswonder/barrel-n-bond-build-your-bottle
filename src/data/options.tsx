@@ -12,7 +12,7 @@ const WAX_SWATCHES = [
   { key: 'Steel Blue',       hex: '#165C7D' },
   { key: 'Midnight Blue',    hex: '#00263E' },
   { key: 'Royal Purple',     hex: '#563D82' },
-  { key: 'Pink Rose',        hex: '#030102' },
+  { key: 'Pink Rose',        hex: '#F99FC9' },
   { key: 'Violet',           hex: '#51284F' },
   { key: 'Burgundy',         hex: '#651D32' },
   { key: 'Tangerine',        hex: '#FF9F1A' },
