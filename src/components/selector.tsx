@@ -648,6 +648,10 @@ const Selector: FunctionComponent<{}> = () => {
           setIsPromptGenerating(false);
         }
         if (e.data?.customMessageType === 'generateLabelPromptError') {
+          const fallback = assemblePrompt();
+          if (fallback) {
+            setPromptOverride(fallback);
+          }
           setIsPromptGenerating(false);
         }
       };
@@ -1186,26 +1190,21 @@ const Selector: FunctionComponent<{}> = () => {
 
       const includeHexes = !!(labelForm.primaryColor || labelForm.secondaryColor);
       const subtitle = (miniLiquid?.name || '').trim();
-      const payload = {
-        bottleName: (miniBottle?.name || '').trim(),
+      const payload: any = {
+        designSide: 'front',
         alcoholName: subtitle,
+        bottleName: (miniBottle?.name || '').trim(),
+        liquidName: (miniLiquid?.name || '').trim(),
+        closureName: (miniClosure?.name || '').trim(),
         title: labelForm.title.trim(),
         subtitle,
         prompt: finalPrompt,
         primaryColor: includeHexes ? labelForm.primaryColor.trim() : '',
         secondaryColor: includeHexes ? labelForm.secondaryColor.trim() : '',
         includeHexes,
-        hasCharacterPermission: !!labelForm.hasCharacterPermission,
+        sessionId: sessionStorage.getItem('ss_session_id') || (window as any).SS?.getSessionId?.() || String(Date.now()),
         logoDataUrl: '',
         characterDataUrl: '',
-        wizard: labelWizard,
-        order: {
-          bottle: productObject.selections.bottle,
-          liquid: productObject.selections.liquid,
-          closure: productObject.selections.closure,
-          label: productObject.selections.label,
-          closureExtras: productObject.selections.closureExtras,
-        },
       };
 
       try {
@@ -1226,19 +1225,45 @@ const Selector: FunctionComponent<{}> = () => {
 
       window.parent.postMessage(
         {
-          customMessageType: 'handleConfiguratorLabel',
+          messageContent: 'generateLabelImage',
           message: payload,
         },
         '*'
       );
+    };
 
-      console.log('postMessage handleConfiguratorLabel', payload);
+    const handleSendRevision = (critique: string) => {
+      const trimmed = (critique || '').trim();
+      if (!trimmed) {
+        setWarning('Please enter revision notes.');
+        return;
+      }
+      const prev = labelDesigns?.front || null;
+      const previousImage =
+        prev?.frontS3Url || prev?.s3url || prev?.url || (Array.isArray(prev?.images) ? prev.images[0] : '') || '';
+      if (!previousImage) {
+        setWarning('No previous label image found to revise.');
+        return;
+      }
+      const payload = {
+        designSide: 'front',
+        alcoholName: (miniLiquid?.name || '').trim(),
+        bottleName: (miniBottle?.name || '').trim(),
+        liquidName: (miniLiquid?.name || '').trim(),
+        closureName: (miniClosure?.name || '').trim(),
+        previousImage,
+        critique: trimmed,
+        sessionId: sessionStorage.getItem('ss_session_id') || (window as any).SS?.getSessionId?.() || String(Date.now()),
+      };
+      window.parent.postMessage(
+        { messageContent: 'generateLabelRevision', message: payload },
+        '*'
+      );
     };
 
     const handleGeneratePromptViaShopify = () => {
       setIsPromptGenerating(true);
       const payload = {
-        title: labelForm.title.trim(),
         subtitle: (miniLiquid?.name || '').trim(),
         theme: resolveOther(labelWizard.theme, labelWizard.themeOther),
         subTheme: labelWizard.subTheme || '',
@@ -1707,7 +1732,7 @@ const Selector: FunctionComponent<{}> = () => {
                             });
                           };
 
-                          const promptValue = promptOverride || assemblePrompt();
+                          const promptValue = promptOverride || (isPromptGenerating ? '' : assemblePrompt());
                           const otherKey = currentStep.otherKey as keyof LabelWizardState | undefined;
                           const showOtherInput = currentStep.allowOther && (labelWizard as any)[currentStep.key] === 'Other';
                           const hasSelection =
@@ -1780,108 +1805,109 @@ const Selector: FunctionComponent<{}> = () => {
                               </LabelField>
                             )}
                             {currentStep.review && !guidedPromptConfirmed && (
-                              <>
-                                <LabelField>
-                                  Title
-                                  <LabelInput
-                                    type="text"
-                                    value={labelForm.title}
-                                    onChange={handleLabelFieldChange('title')}
-                                    placeholder="e.g. Barrel & Bond"
-                                  />
-                                </LabelField>
-                                <LabelField>
-                                  Editable prompt
-                                  <LabelTextarea
-                                    value={promptValue}
-                                    onChange={(event) => {
-                                      setPromptOverride(event.target.value);
-                                    }}
-                                    placeholder="Your generated prompt will appear here."
-                                  />
-                                </LabelField>
-                                {isPromptGenerating && (
-                                  <PromptLoading>
-                                    <PromptSpinner />
-                                    Generating prompt…
-                                  </PromptLoading>
-                                )}
-                                {showReviewColours && (
-                                  <LabelRow>
-                                    {labelForm.primaryColor && (
-                                      <LabelField>
-                                        Primary colour
-                                        <LabelInput
-                                          type="color"
-                                          value={labelForm.primaryColor}
-                                          onChange={handleLabelFieldChange('primaryColor')}
-                                        />
-                                      </LabelField>
-                                    )}
-                                    {labelForm.secondaryColor && (
-                                      <LabelField>
-                                        Secondary colour
-                                        <LabelInput
-                                          type="color"
-                                          value={labelForm.secondaryColor}
-                                          onChange={handleLabelFieldChange('secondaryColor')}
-                                        />
-                                      </LabelField>
-                                    )}
-                                  </LabelRow>
-                                )}
-                                {showReviewImages && (
-                                  <LabelRow>
-                                    {(labelForm.logoFile || reviewImagesVisible) && (
-                                      <LabelField>
-                                        Include a logo
-                                        {labelForm.logoFile ? (
-                                          <FileNameRow>
-                                            <span>{labelForm.logoFile.name}</span>
-                                            <FileRemoveButton type="button" onClick={() => clearLabelFile('logoFile')}>×</FileRemoveButton>
-                                          </FileNameRow>
-                                        ) : (
-                                          <LabelInput
-                                            type="file"
-                                            accept="image/*"
-                                            onChange={handleLabelFileChange('logoFile')}
-                                          />
-                                        )}
-                                      </LabelField>
-                                    )}
-                                    {(labelForm.characterFile || reviewImagesVisible) && (
-                                      <LabelField>
-                                        Include a character
-                                        {labelForm.characterFile ? (
-                                          <FileNameRow>
-                                            <span>{labelForm.characterFile.name}</span>
-                                            <FileRemoveButton type="button" onClick={() => clearLabelFile('characterFile')}>×</FileRemoveButton>
-                                          </FileNameRow>
-                                        ) : (
-                                          <LabelInput
-                                            type="file"
-                                            accept="image/*"
-                                            onChange={(event) => {
-                                              handleLabelFileChange('characterFile')(event);
-                                              setReviewImagesVisible(true);
-                                            }}
-                                          />
-                                        )}
-                                      </LabelField>
-                                    )}
-                                  </LabelRow>
-                                )}
-                                {(labelForm.logoFile || labelForm.characterFile) && (
-                                  <LabelCheckboxRow>
-                                    <input
-                                      type="checkbox"
-                                      checked={labelForm.hasCharacterPermission}
-                                      onChange={handleLabelCheckboxChange}
+                              isPromptGenerating ? (
+                                <PromptLoading>
+                                  <PromptSpinner />
+                                  Generating prompt…
+                                </PromptLoading>
+                              ) : (
+                                <>
+                                  <LabelField>
+                                    Title
+                                    <LabelInput
+                                      type="text"
+                                      value={labelForm.title}
+                                      onChange={handleLabelFieldChange('title')}
+                                      placeholder="e.g. Barrel & Bond"
                                     />
-                                    I have the express permission/right to use any logo, or any image with the likeness of a person/character being uploaded for commercial purposes
-                                  </LabelCheckboxRow>
-                                )}
-                              </>
+                                  </LabelField>
+                                  <LabelField>
+                                    Editable prompt
+                                    <LabelTextarea
+                                      value={promptValue}
+                                      onChange={(event) => {
+                                        setPromptOverride(event.target.value);
+                                      }}
+                                      placeholder="Your generated prompt will appear here."
+                                    />
+                                  </LabelField>
+                                  {showReviewColours && (
+                                    <LabelRow>
+                                      {labelForm.primaryColor && (
+                                        <LabelField>
+                                          Primary colour
+                                          <LabelInput
+                                            type="color"
+                                            value={labelForm.primaryColor}
+                                            onChange={handleLabelFieldChange('primaryColor')}
+                                          />
+                                        </LabelField>
+                                      )}
+                                      {labelForm.secondaryColor && (
+                                        <LabelField>
+                                          Secondary colour
+                                          <LabelInput
+                                            type="color"
+                                            value={labelForm.secondaryColor}
+                                            onChange={handleLabelFieldChange('secondaryColor')}
+                                          />
+                                        </LabelField>
+                                      )}
+                                    </LabelRow>
+                                  )}
+                                  {showReviewImages && (
+                                    <LabelRow>
+                                      {(labelForm.logoFile || reviewImagesVisible) && (
+                                        <LabelField>
+                                          Include a logo
+                                          {labelForm.logoFile ? (
+                                            <FileNameRow>
+                                              <span>{labelForm.logoFile.name}</span>
+                                              <FileRemoveButton type="button" onClick={() => clearLabelFile('logoFile')}>×</FileRemoveButton>
+                                            </FileNameRow>
+                                          ) : (
+                                            <LabelInput
+                                              type="file"
+                                              accept="image/*"
+                                              onChange={handleLabelFileChange('logoFile')}
+                                            />
+                                          )}
+                                        </LabelField>
+                                      )}
+                                      {(labelForm.characterFile || reviewImagesVisible) && (
+                                        <LabelField>
+                                          Include a character
+                                          {labelForm.characterFile ? (
+                                            <FileNameRow>
+                                              <span>{labelForm.characterFile.name}</span>
+                                              <FileRemoveButton type="button" onClick={() => clearLabelFile('characterFile')}>×</FileRemoveButton>
+                                            </FileNameRow>
+                                          ) : (
+                                            <LabelInput
+                                              type="file"
+                                              accept="image/*"
+                                              onChange={(event) => {
+                                                handleLabelFileChange('characterFile')(event);
+                                                setReviewImagesVisible(true);
+                                              }}
+                                            />
+                                          )}
+                                        </LabelField>
+                                      )}
+                                    </LabelRow>
+                                  )}
+                                  {(labelForm.logoFile || labelForm.characterFile) && (
+                                    <LabelCheckboxRow>
+                                      <input
+                                        type="checkbox"
+                                        checked={labelForm.hasCharacterPermission}
+                                        onChange={handleLabelCheckboxChange}
+                                      />
+                                      I have the express permission/right to use any logo, or any image with the likeness of a person/character being uploaded for commercial purposes
+                                    </LabelCheckboxRow>
+                                  )}
+                                </>
+                              )
                             )}
                             {currentStep.key === 'paletteVibe' && labelWizard.paletteVibe === 'Pick my own' && (
                               <LabelRow>
