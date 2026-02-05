@@ -1,7 +1,7 @@
 import React, { FunctionComponent, useEffect, useMemo, useRef, useState, useCallback, useLayoutEffect } from 'react';
 // import styled from 'styled-components';
 import { useZakeke } from 'zakeke-configurator-react';
-import { LayoutWrapper, ContentWrapper, Container,  OptionListItem, RotateNotice, NavButton, LoadingSpinner, NotesWrapper, CartBar, StepNav, OptionsWrap, OptionText, OptionTitle, OptionDescription, ClosureSections, SectionTitle, SwatchGrid, SwatchButton, SwatchNoneLabel, ActionsCenter, LabelDesignWrap, LabelTabs, LabelTabButton, LabelForm, LabelDetails, LabelSummary, LabelRow, LabelField, LabelInput, LabelTextarea, LabelDescription, LabelHelperText, LabelCheckboxRow, ConfigWarning, ViewportSpacer } from './list';
+import { LayoutWrapper, ContentWrapper, Container,  OptionListItem, RotateNotice, NavButton, LoadingSpinner, NotesWrapper, CartBar, StepNav, OptionsWrap, OptionText, OptionTitle, OptionDescription, ClosureSections, SectionTitle, SwatchGrid, SwatchButton, SwatchNoneLabel, ActionsCenter, LabelDesignWrap, LabelTabs, LabelTabButton, LabelForm, LabelDetails, LabelSummary, LabelSummaryMeta, LabelRow, LabelField, LabelInput, LabelTextarea, LabelDescription, LabelHelperText, LabelCheckboxRow, WizardWrap, WizardStepTitle, WizardOptions, WizardOptionButton, WizardNav, ConfigWarning, ViewportSpacer } from './list';
 // import { List, StepListItem, , ListItemImage } from './list';
 import { optionNotes } from '../data/option-notes';
 import ClipLoader from 'react-spinners/ClipLoader';
@@ -161,7 +161,7 @@ const Selector: FunctionComponent<{}> = () => {
     const [selectedAttributeId, selectAttribute] = useState<number | null>(null);
 
     const [isSelecting, setIsSelecting] = useState(false);
-    const [labelMode, setLabelMode] = useState<'form' | 'guided'>('form');
+    const [labelMode, setLabelMode] = useState<'form' | 'guided' | 'upload'>('form');
 
     type LabelFormState = {
       title: string;
@@ -182,6 +182,89 @@ const Selector: FunctionComponent<{}> = () => {
       logoFile: null,
       hasCharacterPermission: false,
     });
+    const [uploadLabelFile, setUploadLabelFile] = useState<File | null>(null);
+
+    type LabelWizardState = {
+      outputGoal: string;
+      theme: string;
+      themeOther: string;
+      subTheme: string;
+      settingType: string;
+      settingSpecific: string;
+      backgroundDepth: string;
+      compositionLayout: string;
+      framing: string;
+      mainSubjectType: string;
+      mainSubjectTypeOther: string;
+      mainSubject: string;
+      mainSubjectOther: string;
+      mainStyling: string[];
+      supportingCount: string;
+      supportingType: string;
+      action: string;
+      actionOther: string;
+      energy: string;
+      styleFamily: string;
+      styleFamilyOther: string;
+      styleSubtype: string;
+      texture: string;
+      lighting: string;
+      paletteMode: string;
+      paletteVibe: string;
+      paletteVibeOther: string;
+      accentCount: string;
+      accents: string[];
+      labelTextSpace: string;
+      complexity: string;
+    };
+
+    const [wizardStepIndex, setWizardStepIndex] = useState(0);
+    const [wizardStarted, setWizardStarted] = useState(false);
+    const [guidedPromptConfirmed, setGuidedPromptConfirmed] = useState(false);
+    const [guidedGenerating, setGuidedGenerating] = useState(false);
+    const [promptOverride, setPromptOverride] = useState('');
+    const [labelWizard, setLabelWizard] = useState<LabelWizardState>({
+      outputGoal: '',
+      theme: '',
+      themeOther: '',
+      subTheme: '',
+      settingType: '',
+      settingSpecific: '',
+      backgroundDepth: '',
+      compositionLayout: '',
+      framing: '',
+      mainSubjectType: '',
+      mainSubjectTypeOther: '',
+      mainSubject: '',
+      mainSubjectOther: '',
+      mainStyling: [],
+      supportingCount: '',
+      supportingType: '',
+      action: '',
+      actionOther: '',
+      energy: '',
+      styleFamily: '',
+      styleFamilyOther: '',
+      styleSubtype: '',
+      texture: '',
+      lighting: '',
+      paletteMode: '',
+      paletteVibe: '',
+      paletteVibeOther: '',
+      accentCount: '',
+      accents: [],
+      labelTextSpace: '',
+      complexity: '',
+    });
+
+    useEffect(() => {
+      if (!labelForm.title.trim()) {
+        setWizardStarted(false);
+        setWizardStepIndex(0);
+        setGuidedPromptConfirmed(false);
+        setGuidedGenerating(false);
+      }
+    }, [labelForm.title]);
 
     const selectedGroup = groups.find(group => group.id === selectedGroupId);
     const selectedStep = selectedGroup?.steps.find(step => step.id === selectedStepId) ?? null;
@@ -442,6 +525,7 @@ const Selector: FunctionComponent<{}> = () => {
               designSide,
               designExport,
             });
+            setGuidedGenerating(false);
           }
 
           // items.forEach(item => {
@@ -962,11 +1046,56 @@ const Selector: FunctionComponent<{}> = () => {
       setLabelForm((prev) => ({ ...prev, hasCharacterPermission: checked }));
     };
 
+    const setWizardField = <K extends keyof LabelWizardState>(key: K, value: LabelWizardState[K]) => {
+      setLabelWizard((prev) => ({ ...prev, [key]: value }));
+    };
+
+    const toggleWizardMulti = (key: 'mainStyling' | 'accents', value: string, cap = 4) => {
+      setLabelWizard((prev) => {
+        const existing = prev[key];
+        const has = existing.includes(value);
+        const next = has ? existing.filter((v) => v !== value) : [...existing, value].slice(0, cap);
+        return { ...prev, [key]: next };
+      });
+    };
+
     const handleLabelFileChange = (
       key: 'characterFile' | 'logoFile'
     ) => (event: React.ChangeEvent<HTMLInputElement>) => {
       const file = event.target.files?.[0] ?? null;
       setLabelForm((prev) => ({ ...prev, [key]: file }));
+    };
+
+    const handleUploadLabelFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0] ?? null;
+      setUploadLabelFile(file);
+    };
+
+    const handleUploadLabelLater = () => {
+      window.parent.postMessage(
+        {
+          customMessageType: 'uploadLabelLater',
+          message: { designSide: 'front' },
+        },
+        '*'
+      );
+    };
+
+    const handleUploadLabelSubmit = async () => {
+      if (!uploadLabelFile) return;
+      let dataUrl = '';
+      try {
+        dataUrl = await fileToDataUrl(uploadLabelFile);
+      } catch (error) {
+        console.warn('Failed to read upload label file', error);
+      }
+      window.parent.postMessage(
+        {
+          customMessageType: 'customLabelUploaded',
+          message: { designSide: 'front', file: uploadLabelFile, dataUrl },
+        },
+        '*'
+      );
     };
 
     const fileToDataUrl = (file: File) =>
@@ -977,12 +1106,93 @@ const Selector: FunctionComponent<{}> = () => {
         reader.readAsDataURL(file);
       });
 
+    const resolveOther = (value: string, other: string, otherToken = 'Other') => {
+      if (value !== otherToken) return value;
+      return other.trim();
+    };
+
+    const assemblePrompt = () => {
+      const subtitle = (miniLiquid?.name || '').trim();
+      const resolvedMainType = resolveOther(labelWizard.mainSubjectType, labelWizard.mainSubjectTypeOther);
+      const resolvedAction = resolveOther(labelWizard.action, labelWizard.actionOther);
+      const resolvedStyle = resolveOther(labelWizard.styleFamily, labelWizard.styleFamilyOther);
+      const resolvedTheme = resolveOther(labelWizard.theme, labelWizard.themeOther);
+      const resolvedPalette = resolveOther(labelWizard.paletteVibe, labelWizard.paletteVibeOther, 'Pick my own');
+
+      const resolvedMainSubject = resolveOther(labelWizard.mainSubject, labelWizard.mainSubjectOther);
+      const subjectBase = resolvedMainSubject && resolvedMainSubject !== 'Upload my own'
+        ? resolvedMainSubject
+        : (resolvedMainType ? `${resolvedMainType.toLowerCase()}` : 'subject');
+
+      const styling = labelWizard.mainStyling.length
+        ? `, ${labelWizard.mainStyling.join(', ')}`
+        : '';
+
+      const supporting = labelWizard.supportingCount
+        ? `, with ${labelWizard.supportingCount} ${labelWizard.supportingType || 'supporting elements'}`
+        : '';
+
+      const subjectBlock = `${subjectBase}${styling}${supporting}`;
+      const actionBlock = resolvedAction
+        ? `${resolvedAction}${labelWizard.energy ? `, ${labelWizard.energy} mood` : ''}`
+        : '';
+
+      const sceneBlockParts = [
+        labelWizard.settingSpecific,
+        labelWizard.settingType ? `(${labelWizard.settingType})` : '',
+        labelWizard.backgroundDepth ? `background ${labelWizard.backgroundDepth}` : '',
+      ].filter(Boolean);
+      const sceneBlock = sceneBlockParts.join(', ');
+
+      const compositionBlockParts = [
+        labelWizard.compositionLayout,
+        labelWizard.framing,
+        labelWizard.labelTextSpace,
+      ].filter(Boolean);
+      const compositionBlock = compositionBlockParts.join(', ');
+
+      const styleBlockParts = [
+        resolvedStyle,
+        labelWizard.styleSubtype,
+        labelWizard.texture,
+        labelWizard.lighting,
+      ].filter(Boolean);
+      const styleBlock = styleBlockParts.join(', ');
+
+      const colourBlockParts = [
+        labelWizard.paletteMode ? `palette: ${labelWizard.paletteMode}` : '',
+        resolvedPalette,
+        labelWizard.accentCount ? `accents: ${labelWizard.accentCount}${labelWizard.accents.length ? ` (${labelWizard.accents.join(', ')})` : ''}` : '',
+      ].filter(Boolean);
+      const colourBlock = colourBlockParts.join(', ');
+
+      const constraints = [
+        labelWizard.complexity,
+      ].filter(Boolean).join(', ');
+
+      const promptParts = [
+        styleBlock ? `${styleBlock} illustration of ${subjectBlock}` : `Illustration of ${subjectBlock}`,
+        actionBlock ? `Action: ${actionBlock}.` : '',
+        sceneBlock ? `Scene: ${sceneBlock}.` : '',
+        compositionBlock ? `Composition: ${compositionBlock}.` : '',
+        colourBlock ? `Colour: ${colourBlock}.` : '',
+        constraints ? `Constraints: ${constraints}.` : '',
+      ].filter(Boolean);
+
+      return promptParts.join(' ').replace(/\s+/g, ' ').trim();
+    };
+
     const handleGenerateLabel = async () => {
       if (!canDesign) {
         setWarning('Please select a bottle, liquid, and closure before designing labels.');
         return;
       }
-      if (!labelForm.title.trim() || !labelForm.prompt.trim()) {
+      const assembledPrompt = assemblePrompt();
+      const finalPrompt =
+        labelMode === 'form'
+          ? labelForm.prompt.trim()
+          : (promptOverride.trim() || assembledPrompt);
+      if (!labelForm.title.trim() || !finalPrompt) {
         setWarning('Please provide both a Title and a label description.');
         return;
       }
@@ -998,13 +1208,14 @@ const Selector: FunctionComponent<{}> = () => {
         alcoholName: subtitle,
         title: labelForm.title.trim(),
         subtitle,
-        prompt: labelForm.prompt.trim(),
+        prompt: finalPrompt,
         primaryColor: includeHexes ? labelForm.primaryColor.trim() : '',
         secondaryColor: includeHexes ? labelForm.secondaryColor.trim() : '',
         includeHexes,
         hasCharacterPermission: !!labelForm.hasCharacterPermission,
         logoDataUrl: '',
         characterDataUrl: '',
+        wizard: labelWizard,
         order: {
           bottle: productObject.selections.bottle,
           liquid: productObject.selections.liquid,
@@ -1295,19 +1506,26 @@ const Selector: FunctionComponent<{}> = () => {
                     $active={labelMode === 'form'}
                     onClick={() => setLabelMode('form')}
                   >
-                    AI Label Form
+                    Prompt AI
                   </LabelTabButton>
                   <LabelTabButton
                     type="button"
                     $active={labelMode === 'guided'}
                     onClick={() => setLabelMode('guided')}
                   >
-                    Guided Form (Coming Soon)
+                    Guided AI Prompt
+                  </LabelTabButton>
+                  <LabelTabButton
+                    type="button"
+                    $active={labelMode === 'upload'}
+                    onClick={() => setLabelMode('upload')}
+                  >
+                    Upload Label
                   </LabelTabButton>
                 </LabelTabs>
 
-                {labelMode === 'form' && (
-                  <LabelForm onSubmit={(event) => event.preventDefault()}>
+                <LabelForm onSubmit={(event) => event.preventDefault()}>
+                  {labelMode === 'form' ? (
                     <LabelField>
                       Title
                       <LabelInput
@@ -1317,7 +1535,9 @@ const Selector: FunctionComponent<{}> = () => {
                         placeholder="e.g. Barrel & Bond"
                       />
                     </LabelField>
+                  ) : null}
 
+                  {labelMode === 'form' && (
                     <LabelField>
                       Describe your label
                       <LabelTextarea
@@ -1326,37 +1546,395 @@ const Selector: FunctionComponent<{}> = () => {
                         placeholder="Describe the mood, style, and motifs you want."
                       />
                     </LabelField>
+                  )}
 
+                  {labelMode === 'guided' && guidedGenerating && (
+                    <ActionsCenter>
+                      <div>
+                        <div style={{ textAlign: 'center', marginBottom: 12 }}>Designing Your Label</div>
+                        <LoadingSpinner />
+                      </div>
+                    </ActionsCenter>
+                  )}
+
+                  {labelMode === 'guided' && !guidedGenerating && (
+                    <WizardWrap>
+                      {!wizardStarted ? (
+                        <>
+                          <LabelField>
+                            Title
+                            <LabelInput
+                              type="text"
+                              value={labelForm.title}
+                              onChange={handleLabelFieldChange('title')}
+                              placeholder="e.g. Barrel & Bond"
+                            />
+                          </LabelField>
+                          <WizardNav>
+                            <button
+                              className="configurator-button"
+                              type="button"
+                              disabled={!labelForm.title.trim()}
+                              onClick={() => {
+                                setWizardStarted(true);
+                                setWizardStepIndex(0);
+                              }}
+                            >
+                              Next
+                            </button>
+                          </WizardNav>
+                        </>
+                      ) : (
+                        (() => {
+                          const themeMap: Record<string, string[]> = {
+                            'Nature and outdoors': ['Alpine', 'Tropical', 'Desert', 'Coastal', 'Forest', 'Arctic'],
+                            'City and nightlife': ['Neon market', 'Rooftop', 'Alleyway', 'Skyline', 'Metro', 'Canal'],
+                            'Fantasy and magic': ['Ancient ruins', 'Enchanted forest', 'Arcane library', 'Crystal cave'],
+                            'Sci-fi and cyber': ['Neon grid', 'Orbital station', 'Mech yard', 'Holo city'],
+                            'Retro and nostalgia': ['70s lounge', '80s arcade', 'Vintage diner', 'Analog lab'],
+                            'Luxury and minimal': ['Marble hall', 'Monochrome studio', 'Gold leaf', 'Velvet lounge'],
+                            'Pop and playful': ['Candy world', 'Toybox', 'Bubble city', 'Sticker bomb'],
+                            'Dark and moody': ['Foggy alley', 'Moonlit dock', 'Stormy coast', 'Shadowed hall'],
+                            'Mythology and folklore': ['Greek temple', 'Nordic fjord', 'Desert shrine', 'Celtic grove'],
+                            'Food and craft': ['Distillery', 'Bakery', 'Spice market', 'Botanical lab'],
+                          };
+
+                          const mainSubjectMap: Record<string, string[]> = {
+                            Person: ['Sailor', 'Botanist', 'Bartender', 'Astronaut', 'Punk', 'Monk', 'Detective', 'Farmer', 'Dancer'],
+                            Animal: ['Fox', 'Stag', 'Raven', 'Octopus', 'Tiger', 'Whale', 'Snake', 'Bee'],
+                            Creature: ['Dragon', 'Golem', 'Phoenix', 'Griffin', 'Spirit', 'Leviathan'],
+                            Object: ['Bottle', 'Sword', 'Lantern', 'Car', 'Flower', 'Compass'],
+                            Place: ['Lighthouse', 'Temple', 'Castle', 'Observatory', 'Bridge'],
+                            Symbol: ['Skull', 'Sun', 'Compass rose', 'Moon', 'Eye'],
+                          };
+
+                          const paletteVibes = ['Warm earthy', 'Cold icy', 'Neon cyber', 'Pastel', 'Luxury dark', 'Tropical bright', 'Autumnal', 'High-contrast comic', 'Monochrome', 'Pick my own'];
+
+                          const steps = [
+                            {
+                              key: 'theme',
+                              title: 'Pick a concept theme',
+                              options: [...Object.keys(themeMap), 'Other'],
+                              allowOther: true,
+                              otherKey: 'themeOther',
+                            },
+                            {
+                              key: 'subTheme',
+                              title: 'Pick a sub-theme',
+                              options: labelWizard.theme && labelWizard.theme !== 'Other' ? themeMap[labelWizard.theme] : [],
+                            },
+                            {
+                              key: 'mainSubjectType',
+                              title: 'Main subject type',
+                              options: [...Object.keys(mainSubjectMap)],
+                            },
+                            {
+                              key: 'mainSubject',
+                              title: 'Main subject',
+                              options: labelWizard.mainSubjectType && labelWizard.mainSubjectType !== 'Other'
+                                ? mainSubjectMap[labelWizard.mainSubjectType]
+                                : [],
+                              extraOptions: ['Other', 'Upload my own'],
+                              allowOther: true,
+                              otherKey: 'mainSubjectOther',
+                            },
+                            {
+                              key: 'action',
+                              title: 'What’s the subject doing?',
+                              options: ['Standing / posing', 'Walking / running', 'Working (crafting, distilling, painting)', 'Fighting / chasing', 'Celebrating / dancing', 'Exploring / searching', 'Transforming (magic, morphing)', 'Floating / falling', 'Looking back / dramatic stare', 'Other'],
+                              allowOther: true,
+                              otherKey: 'actionOther',
+                            },
+                            {
+                              key: 'styleFamily',
+                              title: 'Style family',
+                              options: ['Illustration', 'Painterly', 'Graphic poster', 'Vintage print', 'Photoreal / cinematic', '3D / render', 'Anime / manga', 'Pixel / low-fi', 'Minimal / abstract', 'Other'],
+                              allowOther: true,
+                              otherKey: 'styleFamilyOther',
+                            },
+                            {
+                              key: 'paletteVibe',
+                              title: 'Palette vibe',
+                              options: paletteVibes,
+                            },
+                            {
+                              key: 'review',
+                              title: 'Review prompt',
+                              options: [],
+                              review: true,
+                            },
+                          ];
+
+                          const currentStep = steps[wizardStepIndex] || steps[0];
+                          const options = currentStep.options || [];
+                          const mergedOptions = currentStep.extraOptions ? [...options, ...currentStep.extraOptions] : options;
+
+                          const goNext = () => {
+                            setWizardStepIndex((prev) => {
+                              let next = Math.min(prev + 1, steps.length - 1);
+                              const nextStep = steps[next];
+                              if (nextStep?.key === 'subTheme' && (!labelWizard.theme || labelWizard.theme === 'Other')) {
+                                next = Math.min(next + 1, steps.length - 1);
+                              }
+                              return next;
+                            });
+                          };
+                          const goPrev = () => {
+                            setWizardStepIndex((prev) => {
+                              let next = Math.max(prev - 1, 0);
+                              const nextStep = steps[next];
+                              if (nextStep?.key === 'subTheme' && (!labelWizard.theme || labelWizard.theme === 'Other')) {
+                                next = Math.max(next - 1, 0);
+                              }
+                              return next;
+                            });
+                          };
+
+                          const promptValue = promptOverride || assemblePrompt();
+                          const otherKey = currentStep.otherKey as keyof LabelWizardState | undefined;
+                          const showOtherInput = currentStep.allowOther && (labelWizard as any)[currentStep.key] === 'Other';
+                          const hasSelection = Boolean((labelWizard as any)[currentStep.key]);
+
+                          if (currentStep.review && guidedPromptConfirmed) {
+                            return null;
+                          }
+
+                          return (
+                            <>
+                              <WizardStepTitle>{currentStep.title}</WizardStepTitle>
+                              {!currentStep.review && (
+                                <>
+                                  {mergedOptions.length === 0 ? (
+                                    <LabelHelperText>
+                                      Make a selection in the previous step to see options here, or skip.
+                                    </LabelHelperText>
+                                  ) : (
+                                    <WizardOptions>
+                                      {mergedOptions.map((opt: string) => {
+                                        const active = (labelWizard as any)[currentStep.key] === opt;
+                                        return (
+                                          <WizardOptionButton
+                                            key={opt}
+                                            type="button"
+                                            $active={active}
+                                            onClick={() => {
+                                              setWizardField(currentStep.key as keyof LabelWizardState, opt as any);
+                                            }}
+                                          >
+                                            {opt}
+                                          </WizardOptionButton>
+                                        );
+                                      })}
+                                    </WizardOptions>
+                                  )}
+                                  {showOtherInput && otherKey && (
+                                    <LabelField>
+                                      Other
+                                      <LabelInput
+                                        type="text"
+                                        value={(labelWizard as any)[otherKey] as string}
+                                        onChange={(event) => setWizardField(otherKey, event.target.value)}
+                                        placeholder="Type your option"
+                                      />
+                                    </LabelField>
+                                  )}
+                                </>
+                              )}
+                            {currentStep.review && !guidedPromptConfirmed && (
+                              <>
+                                <LabelField>
+                                  Editable prompt
+                                  <LabelTextarea
+                                    value={promptValue}
+                                    onChange={(event) => {
+                                      setPromptOverride(event.target.value);
+                                    }}
+                                    placeholder="Your generated prompt will appear here."
+                                  />
+                                </LabelField>
+                                <LabelField>
+                                  Include a logo
+                                  <LabelInput
+                                    type="file"
+                                    accept="image/*"
+                                    onChange={handleLabelFileChange('logoFile')}
+                                  />
+                                  <LabelHelperText>
+                                    {labelForm.logoFile?.name || 'No logo selected.'}
+                                  </LabelHelperText>
+                                </LabelField>
+                              </>
+                            )}
+                            {currentStep.key === 'paletteVibe' && labelWizard.paletteVibe === 'Pick my own' && (
+                              <LabelRow>
+                                <LabelField>
+                                  Primary colour
+                                  <LabelInput
+                                    type="color"
+                                    value={labelForm.primaryColor || '#f42492'}
+                                    onChange={(event) => {
+                                      handleLabelFieldChange('primaryColor')(event);
+                                      setWizardField('paletteVibeOther', event.target.value);
+                                    }}
+                                  />
+                                </LabelField>
+                                <LabelField>
+                                  Secondary colour
+                                  <LabelInput
+                                    type="color"
+                                    value={labelForm.secondaryColor || '#111111'}
+                                    onChange={handleLabelFieldChange('secondaryColor')}
+                                  />
+                                </LabelField>
+                              </LabelRow>
+                            )}
+                            {currentStep.key === 'mainSubject' && labelWizard.mainSubject === 'Upload my own' && (
+                              <LabelField>
+                                Upload a character
+                                <LabelInput
+                                  type="file"
+                                  accept="image/*"
+                                  onChange={handleLabelFileChange('characterFile')}
+                                />
+                                <LabelDescription>
+                                  Upload a photo of a person/character to include in your label design.
+                                </LabelDescription>
+                                <LabelHelperText>
+                                  {labelForm.characterFile?.name || 'No character uploaded.'}
+                                </LabelHelperText>
+                              </LabelField>
+                            )}
+                            {!guidedPromptConfirmed && (
+                              <WizardNav>
+                                <button
+                                  className="configurator-button"
+                                  type="button"
+                                  onClick={goPrev}
+                                  disabled={wizardStepIndex === 0}
+                                >
+                                  Back
+                                </button>
+                                {currentStep.review ? (
+                                  <button
+                                    className="configurator-button"
+                                    type="button"
+                                    onClick={async () => {
+                                      setGuidedPromptConfirmed(true);
+                                      setGuidedGenerating(true);
+                                      await handleGenerateLabel();
+                                    }}
+                                  >
+                                    Confirm &amp; Generate
+                                  </button>
+                                ) : (
+                                  <>
+                                    {!hasSelection && (
+                                      <button
+                                        className="configurator-button"
+                                        type="button"
+                                        onClick={goNext}
+                                      >
+                                        Skip
+                                      </button>
+                                    )}
+                                    <button
+                                      className="configurator-button"
+                                      type="button"
+                                      onClick={goNext}
+                                      disabled={!hasSelection}
+                                    >
+                                      Next
+                                    </button>
+                                  </>
+                                )}
+                              </WizardNav>
+                            )}
+                          </>
+                        );
+                      })()
+                      )}
+                    </WizardWrap>
+                  )}
+
+                  {labelMode === 'upload' && (
+                    <WizardWrap>
+                      <LabelHelperText>
+                        <a href="#" onClick={(event) => event.preventDefault()}>
+                          Download design template
+                        </a>
+                      </LabelHelperText>
+                      <LabelField>
+                        Upload your label file
+                        <LabelInput
+                          type="file"
+                          accept="image/*,.pdf"
+                          onChange={handleUploadLabelFileChange}
+                        />
+                        <LabelHelperText>
+                          Upload a PNG, JPG, or PDF label file.
+                        </LabelHelperText>
+                      </LabelField>
+                      <WizardNav>
+                        <button
+                          className="configurator-button"
+                          type="button"
+                          onClick={handleUploadLabelLater}
+                        >
+                          Upload Label Later
+                        </button>
+                        <button
+                          className="configurator-button"
+                          type="button"
+                          disabled={!uploadLabelFile}
+                          onClick={handleUploadLabelSubmit}
+                        >
+                          Upload Label
+                        </button>
+                      </WizardNav>
+                    </WizardWrap>
+                  )}
+
+                  {labelMode === 'form' && (
                     <LabelDetails>
-                      <LabelSummary>Select colours</LabelSummary>
+                      <LabelSummary>
+                        Select colours
+                        <LabelSummaryMeta>Optional</LabelSummaryMeta>
+                      </LabelSummary>
                       <LabelRow>
                         <LabelField>
-                          Primary Colour (Optional)
+                          Primary colour
                           <LabelInput
-                            type="text"
-                            value={labelForm.primaryColor}
-                            onChange={handleLabelFieldChange('primaryColor')}
-                            placeholder="e.g. #F42492"
+                            type="color"
+                            value={labelForm.primaryColor || '#f42492'}
+                                    onChange={(event) => {
+                                      handleLabelFieldChange('primaryColor')(event);
+                                      if (labelWizard.paletteVibe === 'Pick my own') {
+                                        setWizardField('paletteVibeOther', event.target.value);
+                                      }
+                                    }}
                           />
                         </LabelField>
                         <LabelField>
-                          Secondary Colour (Optional)
+                          Secondary colour
                           <LabelInput
-                            type="text"
-                            value={labelForm.secondaryColor}
+                            type="color"
+                            value={labelForm.secondaryColor || '#111111'}
                             onChange={handleLabelFieldChange('secondaryColor')}
-                            placeholder="e.g. #111111"
                           />
                         </LabelField>
                       </LabelRow>
                     </LabelDetails>
+                  )}
 
+                  {labelMode === 'form' && (
                     <LabelDetails>
-                      <LabelSummary>Include images</LabelSummary>
+                      <LabelSummary>
+                        Include images
+                        <LabelSummaryMeta>Optional</LabelSummaryMeta>
+                      </LabelSummary>
                       <LabelRow>
                         <LabelField>
                           Include a logo
-                          <LabelDescription>Optional</LabelDescription>
                           <LabelInput
                             type="file"
                             accept="image/*"
@@ -1370,8 +1948,7 @@ const Selector: FunctionComponent<{}> = () => {
                           </LabelHelperText>
                         </LabelField>
                         <LabelField>
-                          Include a logo
-                          <LabelDescription>Optional</LabelDescription>
+                          Include a character
                           <LabelInput
                             type="file"
                             accept="image/*"
@@ -1386,18 +1963,21 @@ const Selector: FunctionComponent<{}> = () => {
                         </LabelField>
                       </LabelRow>
                     </LabelDetails>
+                  )}
 
-                    {labelForm.characterFile && (
-                      <LabelCheckboxRow>
-                        <input
-                          type="checkbox"
-                          checked={labelForm.hasCharacterPermission}
-                          onChange={handleLabelCheckboxChange}
-                        />
-                        I have the express permission/right to use the likeness of the person/character being uploaded
-                      </LabelCheckboxRow>
-                    )}
 
+                  {labelForm.characterFile && (
+                    <LabelCheckboxRow>
+                      <input
+                        type="checkbox"
+                        checked={labelForm.hasCharacterPermission}
+                        onChange={handleLabelCheckboxChange}
+                      />
+                      I have the express permission/right to use the likeness of the person/character being uploaded
+                    </LabelCheckboxRow>
+                  )}
+
+                  {labelMode === 'form' && (
                     <ActionsCenter>
                       <button
                         className="configurator-button"
@@ -1415,21 +1995,8 @@ const Selector: FunctionComponent<{}> = () => {
                         Generate Label
                       </button>
                     </ActionsCenter>
-                  </LabelForm>
-                )}
-
-                {labelMode === 'guided' && (
-                  <ActionsCenter>
-                    <button
-                      className="configurator-button"
-                      type="button"
-                      disabled
-                      title="Guided form is coming soon"
-                    >
-                      Guided Form Coming Soon
-                    </button>
-                  </ActionsCenter>
-                )}
+                  )}
+                </LabelForm>
               </LabelDesignWrap>
             )}
 

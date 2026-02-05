@@ -496,8 +496,10 @@ export const LabelTabs = styled.div`
 `;
 
 export const LabelTabButton = styled.button<{ $active?: boolean }>`
-  border: 1px solid ${({ $active }) => ($active ? '#f42492' : '#444')};
-  background: ${({ $active }) => ($active ? '#1a1a1a' : 'transparent')};
+  border: 1px solid ${({ $active }) => ($active ? '#ff73c6' : '#444')};
+  background: ${({ $active }) => ($active ? 'linear-gradient(180deg, #2a2a2a 0%, #141414 100%)' : 'transparent')};
+  border-radius: 10px;
+  box-shadow: ${({ $active }) => ($active ? '0 6px 14px rgba(244, 36, 146, 0.25)' : 'none')};
   color: #fff;
   padding: 8px 12px;
   font-size: 12px;
@@ -533,10 +535,20 @@ export const LabelSummary = styled.summary`
   font-size: 12px;
   letter-spacing: 0.08rem;
   text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
 
   &::-webkit-details-marker {
     display: none;
   }
+`;
+
+export const LabelSummaryMeta = styled.span`
+  font-size: 12px;
+  color: #bbb;
+  text-transform: none;
 `;
 
 export const LabelRow = styled.div`
@@ -560,6 +572,48 @@ export const LabelInput = styled.input`
   padding: 10px 12px;
   font-size: 14px;
   outline: none;
+
+  &[type="color"] {
+    padding: 0;
+    height: 40px;
+    background: transparent;
+    border: 1px solid #333;
+    cursor: pointer;
+  }
+
+  &[type="color"]::-webkit-color-swatch-wrapper {
+    padding: 0;
+  }
+
+  &[type="color"]::-webkit-color-swatch {
+    border: none;
+  }
+
+  &[type="file"] {
+    padding: 8px 10px;
+  }
+
+  &[type="file"]::file-selector-button {
+    margin-right: 10px;
+    padding: 8px 12px;
+    border: 1px solid #ff73c6;
+    background: linear-gradient(180deg, #ff4fb3 0%, #f42492 60%, #d81f7f 100%);
+    color: #fff;
+    letter-spacing: 0.08rem;
+    font-size: 11px;
+    cursor: pointer;
+  }
+
+  &[type="file"]::-webkit-file-upload-button {
+    margin-right: 10px;
+    padding: 8px 12px;
+    border: 1px solid #ff73c6;
+    background: linear-gradient(180deg, #ff4fb3 0%, #f42492 60%, #d81f7f 100%);
+    color: #fff;
+    letter-spacing: 0.08rem;
+    font-size: 11px;
+    cursor: pointer;
+  }
 `;
 
 export const LabelTextarea = styled.textarea`
@@ -589,6 +643,49 @@ export const LabelCheckboxRow = styled.label`
   align-items: flex-start;
   font-size: 12px;
   color: #ddd;
+`;
+
+export const WizardWrap = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+`;
+
+export const WizardStepTitle = styled.h4`
+  margin: 0;
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 0.08rem;
+`;
+
+export const WizardOptions = styled.div`
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 8px;
+`;
+
+export const WizardOptionButton = styled.button<{ $active?: boolean }>`
+  border: 1px solid ${({ $active }) => ($active ? '#ff73c6' : '#333')};
+  background: ${({ $active }) => ($active ? 'linear-gradient(180deg, #2a2a2a 0%, #121212 100%)' : 'transparent')};
+  border-radius: 10px;
+  box-shadow: ${({ $active }) => ($active ? '0 6px 14px rgba(244, 36, 146, 0.25)' : 'none')};
+  color: #fff;
+  padding: 10px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 150ms ease, background-color 150ms ease;
+
+  &:hover {
+    border-color: #f42492;
+  }
+`;
+
+export const WizardNav = styled.div`
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
 `;
 
 // Accessible live region for config warnings

@@ -38,22 +38,26 @@ html,body {
   font-size: 10px;
   font-weight: 400;
   color: #fff;
-  background-color: #f42492;
-  border: 5px solid #f42492;
+  background: linear-gradient(180deg, #ff4fb3 0%, #f42492 60%, #d81f7f 100%);
+  border: 1px solid #ff73c6;
+  border-radius: 0;
+  box-shadow: 0 4px 10px rgba(244, 36, 146, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.16);
   cursor: pointer;
   text-align: center;
   letter-spacing: .1rem;
-  transition: background-color 150ms ease, border-color 150ms ease, transform 150ms ease;
+  transition: background-color 150ms ease, border-color 150ms ease, transform 150ms ease, box-shadow 150ms ease;
 }
 
 .configurator-button:hover {
-  background-color: #d81f7f;
-  border: 5px solid #d81f7f;
+  background: linear-gradient(180deg, #ff62bd 0%, #f42492 55%, #c91a74 100%);
+  border-color: #ff8bd3;
+  box-shadow: 0 6px 14px rgba(244, 36, 146, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.18);
 }
 
 .configurator-button:disabled {
   cursor: not-allowed;
   opacity: 0.6;
+  box-shadow: none;
 }
 
 @media (max-width: 767px) {
@@ -63,6 +67,6 @@ html,body {
     font-size: 12px;
     letter-spacing: 0.08rem;
     width: 100%;
-    border-width: 3px;
+    border-width: 1px;
   }
 }
