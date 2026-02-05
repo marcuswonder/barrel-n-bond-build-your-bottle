@@ -561,6 +561,22 @@ const Selector: FunctionComponent<{}> = () => {
             if (frontImage?.imageID && frontAreaId) {
               await addItemImage(frontImage.imageID, frontAreaId);
 
+              console.log("postMessage Content:", {
+                customMessageType: 'labelAdded',
+                message: {
+                  'order': {
+                    'bottle': productObject.selections.bottle,
+                    'liquid': productObject.selections.liquid,
+                    'closure': productObject.selections.closure,
+                    'label': productObject.selections.label,
+                    'closureExtras': productObject.selections.closureExtras,
+                  },
+                  'designSide': designSide,
+                  'designExport': designExport,
+                  'productSku': product?.sku ?? null,
+                }
+              });
+
               window.parent.postMessage({
                 customMessageType: 'labelAdded',
                 message: {
@@ -577,21 +593,6 @@ const Selector: FunctionComponent<{}> = () => {
                 }
               }, '*');
 
-              console.log("postMessage Content:", {
-                customMessageType: 'labelAdded',
-                message: {
-                  'order': {
-                    'bottle': productObject.selections.bottle,
-                    'liquid': productObject.selections.liquid,
-                    'closure': productObject.selections.closure,
-                    'label': productObject.selections.label,
-                    'closureExtras': productObject.selections.closureExtras,
-                  },
-                  'designSide': designSide,
-                  'designExport': designExport,
-                  'productSku': product?.sku ?? null,
-                }
-              });
             }
           
           } else if(designSide === "back") {
@@ -608,6 +609,22 @@ const Selector: FunctionComponent<{}> = () => {
             if (backImage?.imageID && backAreaId) {
               await addItemImage(backImage.imageID, backAreaId);
 
+              console.log("postMessage Content:", {
+                customMessageType: 'labelAdded',
+                message: {
+                  'order': {
+                    'bottle': productObject.selections.bottle,
+                    'liquid': productObject.selections.liquid,
+                    'closure': productObject.selections.closure,
+                    'label': productObject.selections.label,
+                    'closureExtras': productObject.selections.closureExtras,
+                  },
+                  'designSide': designSide,
+                  'designExport': designExport,
+                  'productSku': product?.sku ?? null,
+                }
+              });
+
               window.parent.postMessage({
                 customMessageType: 'labelAdded',
                 message: {
@@ -624,21 +641,6 @@ const Selector: FunctionComponent<{}> = () => {
                 }
               }, '*');
 
-              console.log("postMessage Content:", {
-                customMessageType: 'labelAdded',
-                message: {
-                  'order': {
-                    'bottle': productObject.selections.bottle,
-                    'liquid': productObject.selections.liquid,
-                    'closure': productObject.selections.closure,
-                    'label': productObject.selections.label,
-                    'closureExtras': productObject.selections.closureExtras,
-                  },
-                  'designSide': designSide,
-                  'designExport': designExport,
-                  'productSku': product?.sku ?? null,
-                }
-              });
             }
           }
         }
@@ -1100,6 +1102,11 @@ const Selector: FunctionComponent<{}> = () => {
     };
 
     const handleUploadLabelLater = () => {
+      console.log("postMessage content:", {
+        customMessageType: 'uploadLabelLater',
+        message: { designSide: 'front' },
+      });
+      
       window.parent.postMessage(
         {
           customMessageType: 'uploadLabelLater',
@@ -1117,10 +1124,24 @@ const Selector: FunctionComponent<{}> = () => {
       } catch (error) {
         console.warn('Failed to read upload label file', error);
       }
+      
+      console.log("postMessage content:", {
+        customMessageType: 'customLabelUploaded',
+        message: { 
+          designSide: 'front', 
+          file: uploadLabelFile, 
+          dataUrl 
+        },
+      });
+
       window.parent.postMessage(
         {
           customMessageType: 'customLabelUploaded',
-          message: { designSide: 'front', file: uploadLabelFile, dataUrl },
+          message: { 
+            designSide: 'front', 
+            file: uploadLabelFile, 
+            dataUrl 
+          },
         },
         '*'
       );
@@ -1224,7 +1245,10 @@ const Selector: FunctionComponent<{}> = () => {
       } catch (error) {
         console.warn('Failed to read character file', error);
       }
-
+      console.log("postMessage Content:", {
+        messageContent: 'generateLabelImage',
+        message: payload,
+      })
       window.parent.postMessage(
         {
           messageContent: 'generateLabelImage',
@@ -1257,8 +1281,14 @@ const Selector: FunctionComponent<{}> = () => {
         critique: trimmed,
         sessionId: sessionStorage.getItem('ss_session_id') || (window as any).SS?.getSessionId?.() || String(Date.now()),
       };
+      console.log("postMessage Content:", {
+        messageContent: 'generateLabelRevision',
+        message: payload,
+      })
+
       window.parent.postMessage(
-        { messageContent: 'generateLabelRevision', message: payload },
+        { messageContent: 'generateLabelRevision', 
+          message: payload },
         '*'
       );
     };
@@ -1283,7 +1313,12 @@ const Selector: FunctionComponent<{}> = () => {
         messageContent: 'generateLabelPrompt',
         message: payload,
       });
-      
+
+      console.log("postMessage Content:", {
+        messageContent: 'generateLabelPrompt',
+        message: payload,
+      })
+
       window.parent.postMessage(
         {
           messageContent: 'generateLabelPrompt',
@@ -1305,23 +1340,6 @@ const Selector: FunctionComponent<{}> = () => {
         ? ((labelDesigns as any)?.front?.id ?? null)
         : ((labelDesigns as any)?.back?.id  ?? null);
 
-      window.parent.postMessage({
-        customMessageType: 'callDesigner',
-        message: {
-          'order': {
-            'bottle': productObject.selections.bottle,
-            'liquid': productObject.selections.liquid,
-            'closure': productObject.selections.closure,
-            'label': productObject.selections.label,
-            'closureExtras': productObject.selections.closureExtras,
-          },
-          'designSide': side,
-          'designType': designType,
-          'designId': designId,
-          'productSku': product?.sku ?? null,
-        }
-      }, '*');
-
       console.log("postMessage Content:", {
         customMessageType: 'callDesigner',
         message: {
@@ -1338,9 +1356,35 @@ const Selector: FunctionComponent<{}> = () => {
           'productSku': product?.sku ?? null,
         }
       });
+
+      window.parent.postMessage({
+        customMessageType: 'callDesigner',
+        message: {
+          'order': {
+            'bottle': productObject.selections.bottle,
+            'liquid': productObject.selections.liquid,
+            'closure': productObject.selections.closure,
+            'label': productObject.selections.label,
+            'closureExtras': productObject.selections.closureExtras,
+          },
+          'designSide': side,
+          'designType': designType,
+          'designId': designId,
+          'productSku': product?.sku ?? null,
+        }
+      }, '*');
     };    
 
     const handleLearnClick = (side?: 'front' | 'back') => {
+
+      console.log("postMessage Content:", {
+        customMessageType: 'OpenDesignerHelp',
+        message: {
+          ...(side ? { side } : {}),
+          productSku: product?.sku ?? null,
+        }
+      });
+
       window.parent.postMessage({
         customMessageType: 'OpenDesignerHelp',
         message: {
