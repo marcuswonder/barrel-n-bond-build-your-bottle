@@ -34,11 +34,11 @@ const Selector: FunctionComponent<{}> = () => {
     } = useZakeke();
 
     
-    console.log("groups", groups)
-    console.log("product", product)
-    console.log("items", items)
-    console.log("price", price)
-    console.log("isSceneLoading", isSceneLoading)
+    // console.log("groups", groups)
+    // console.log("product", product)
+    // console.log("items", items)
+    // console.log("price", price)
+    // console.log("isSceneLoading", isSceneLoading)
     
 
     const buildGroup = groups.find(g => g.name === "Build Your Bottle") ?? null;
@@ -114,9 +114,9 @@ const Selector: FunctionComponent<{}> = () => {
     const closureSel = pick(closureStepIdx);
     const labelSel   = pick(labelStepIdx);
 
-    console.log("liquidSel", liquidSel);
-    console.log("closureSel", closureSel);
-    console.log("labelSel", labelSel);
+    // console.log("liquidSel", liquidSel);
+    // console.log("closureSel", closureSel);
+    // console.log("labelSel", labelSel);
 
     // Notify parent once when the configurator finishes first render/load
     const seenTrue   = useRef(false);
