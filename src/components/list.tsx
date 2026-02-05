@@ -680,7 +680,7 @@ export const WizardStepTitle = styled.h4`
 export const WizardOptions = styled.div`
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: 8px;
+  gap: 6px;
 `;
 
 export const WizardOptionButton = styled.button<{ $active?: boolean }>`
@@ -694,6 +694,9 @@ export const WizardOptionButton = styled.button<{ $active?: boolean }>`
   cursor: pointer;
   text-align: left;
   transition: border-color 150ms ease, background-color 150ms ease;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 
   &:hover {
     border-color: #f42492;
@@ -705,6 +708,31 @@ export const WizardNav = styled.div`
   justify-content: space-between;
   gap: 8px;
   flex-wrap: wrap;
+`;
+
+export const WizardHeader = styled.div`
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 8px;
+`;
+
+export const WizardHeaderSide = styled.div<{ $align?: 'left' | 'right' }>`
+  display: flex;
+  justify-content: ${({ $align }) => ($align === 'right' ? 'flex-end' : 'flex-start')};
+  gap: 8px;
+`;
+
+export const RestartButton = styled.button`
+  background: transparent;
+  border: 1px solid #333;
+  color: #fff;
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
 `;
 
 export const PromptLoading = styled.div`

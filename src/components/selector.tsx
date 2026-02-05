@@ -1,7 +1,7 @@
 import React, { FunctionComponent, useEffect, useMemo, useRef, useState, useCallback, useLayoutEffect } from 'react';
 // import styled from 'styled-components';
 import { useZakeke } from 'zakeke-configurator-react';
-import { LayoutWrapper, ContentWrapper, Container,  OptionListItem, RotateNotice, NavButton, LoadingSpinner, NotesWrapper, CartBar, StepNav, OptionsWrap, OptionText, OptionTitle, OptionDescription, ClosureSections, SectionTitle, SwatchGrid, SwatchButton, SwatchNoneLabel, ActionsCenter, LabelDesignWrap, LabelTabs, LabelTabButton, LabelForm, LabelDetails, LabelSummary, LabelSummaryMeta, LabelRow, LabelField, LabelInput, LabelTextarea, LabelDescription, LabelHelperText, FileNameRow, FileRemoveButton, LabelCheckboxRow, WizardWrap, WizardStepTitle, WizardOptions, WizardOptionButton, WizardNav, PromptLoading, PromptSpinner, ConfigWarning, ViewportSpacer } from './list';
+import { LayoutWrapper, ContentWrapper, Container,  OptionListItem, NavButton, LoadingSpinner, NotesWrapper, CartBar, StepNav, OptionsWrap, OptionText, OptionTitle, OptionDescription, ClosureSections, SectionTitle, SwatchGrid, SwatchButton, SwatchNoneLabel, ActionsCenter, LabelDesignWrap, LabelTabs, LabelTabButton, LabelForm, LabelDetails, LabelSummary, LabelSummaryMeta, LabelRow, LabelField, LabelInput, LabelTextarea, LabelDescription, LabelHelperText, FileNameRow, FileRemoveButton, LabelCheckboxRow, WizardWrap, WizardStepTitle, WizardOptions, WizardOptionButton, WizardNav, WizardHeader, WizardHeaderSide, RestartButton, PromptLoading, PromptSpinner, ConfigWarning, ViewportSpacer } from './list';
 // import { List, StepListItem, , ListItemImage } from './list';
 import { optionNotes } from '../data/option-notes';
 import ClipLoader from 'react-spinners/ClipLoader';
@@ -224,6 +224,7 @@ const Selector: FunctionComponent<{}> = () => {
     const [guidedGenerating, setGuidedGenerating] = useState(false);
     const [reviewImagesVisible, setReviewImagesVisible] = useState(false);
     const [isPromptGenerating, setIsPromptGenerating] = useState(false);
+    const [hideLabelTabs, setHideLabelTabs] = useState(false);
     const [promptOverride, setPromptOverride] = useState('');
     const [labelWizard, setLabelWizard] = useState<LabelWizardState>({
       outputGoal: '',
@@ -266,6 +267,7 @@ const Selector: FunctionComponent<{}> = () => {
         setGuidedPromptConfirmed(false);
         setGuidedGenerating(false);
         setReviewImagesVisible(false);
+        setHideLabelTabs(false);
       }
     }, [labelForm.title]);
 
@@ -1277,6 +1279,11 @@ const Selector: FunctionComponent<{}> = () => {
         hasCharacterPermission: labelForm.hasCharacterPermission,
       };
 
+      console.log("postMessage Content:", {
+        messageContent: 'generateLabelPrompt',
+        message: payload,
+      });
+      
       window.parent.postMessage(
         {
           messageContent: 'generateLabelPrompt',
@@ -1285,10 +1292,6 @@ const Selector: FunctionComponent<{}> = () => {
         '*'
       );
 
-      console.log("postMessage Content:", {
-        messageContent: 'generateLabelPrompt',
-        message: payload,
-      });
     };
 
     const handleLabelClick = (side: 'front') => {
@@ -1405,7 +1408,6 @@ const Selector: FunctionComponent<{}> = () => {
 
     return (
       <>
-        <RotateNotice>Please rotate your device to landscape for the best experience.</RotateNotice>
         <ConfigWarning />
         <LayoutWrapper>
         <ContentWrapper>
@@ -1539,29 +1541,93 @@ const Selector: FunctionComponent<{}> = () => {
 
             {onLabelStep && (
               <LabelDesignWrap>
-                <LabelTabs>
-                  <LabelTabButton
-                    type="button"
-                    $active={labelMode === 'form'}
-                    onClick={() => setLabelMode('form')}
-                  >
-                    Prompt AI
-                  </LabelTabButton>
-                  <LabelTabButton
-                    type="button"
-                    $active={labelMode === 'guided'}
-                    onClick={() => setLabelMode('guided')}
-                  >
-                    Guided AI Prompt
-                  </LabelTabButton>
-                  <LabelTabButton
-                    type="button"
-                    $active={labelMode === 'upload'}
-                    onClick={() => setLabelMode('upload')}
-                  >
-                    Upload Label
-                  </LabelTabButton>
-                </LabelTabs>
+                  {!hideLabelTabs ? (
+                    <LabelTabs>
+                      <LabelTabButton
+                        type="button"
+                        $active={labelMode === 'form'}
+                        onClick={() => setLabelMode('form')}
+                      >
+                        Prompt AI
+                      </LabelTabButton>
+                      <LabelTabButton
+                        type="button"
+                        $active={labelMode === 'guided'}
+                        onClick={() => setLabelMode('guided')}
+                      >
+                        Guided AI Prompt
+                      </LabelTabButton>
+                      <LabelTabButton
+                        type="button"
+                        $active={labelMode === 'upload'}
+                        onClick={() => setLabelMode('upload')}
+                      >
+                        Upload Label
+                      </LabelTabButton>
+                    </LabelTabs>
+                  ) : (
+                    <ActionsCenter>
+                      <RestartButton
+                        type="button"
+                        onClick={() => {
+                          setLabelForm({
+                            title: '',
+                            prompt: '',
+                            primaryColor: '',
+                            secondaryColor: '',
+                            characterFile: null,
+                            logoFile: null,
+                            hasCharacterPermission: false,
+                          });
+                          setLabelWizard({
+                            outputGoal: '',
+                            theme: '',
+                            themeOther: '',
+                            subTheme: '',
+                            settingType: '',
+                            settingSpecific: '',
+                            backgroundDepth: '',
+                            compositionLayout: '',
+                            framing: '',
+                            mainSubjectType: '',
+                            mainSubjectTypeOther: '',
+                            mainSubject: '',
+                            mainSubjectOther: '',
+                            mainStyling: [],
+                            supportingCount: '',
+                            supportingType: '',
+                            action: '',
+                            actionOther: '',
+                            energy: '',
+                            styleFamily: '',
+                            styleFamilyOther: '',
+                            styleSubtype: '',
+                            texture: '',
+                            lighting: '',
+                            paletteMode: '',
+                            paletteVibe: '',
+                            paletteVibeOther: '',
+                            accentCount: '',
+                            accents: [],
+                            labelTextSpace: '',
+                            complexity: '',
+                          });
+                          setWizardStepIndex(0);
+                          setWizardStarted(false);
+                          setGuidedPromptConfirmed(false);
+                          setGuidedGenerating(false);
+                          setReviewImagesVisible(false);
+                          setIsPromptGenerating(false);
+                          setPromptOverride('');
+                          setHideLabelTabs(false);
+                        }}
+                        aria-label="Restart form"
+                        title="Restart"
+                      >
+                        <span className="material-symbols-outlined">replay</span>
+                      </RestartButton>
+                    </ActionsCenter>
+                  )}
 
                 <LabelForm onSubmit={(event) => event.preventDefault()}>
                   {labelMode === 'form' ? (
@@ -1723,6 +1789,9 @@ const Selector: FunctionComponent<{}> = () => {
                               if (nextStep?.key === 'review' && (labelForm.logoFile || labelForm.characterFile)) {
                                 setReviewImagesVisible(true);
                               }
+                              if (currentStep.key === 'theme') {
+                                setHideLabelTabs(true);
+                              }
                               return next;
                             });
                           };
@@ -1751,9 +1820,73 @@ const Selector: FunctionComponent<{}> = () => {
                             return null;
                           }
 
+                          const showHeader = !isPromptGenerating;
+
                           return (
                             <>
-                              <WizardStepTitle>{currentStep.title}</WizardStepTitle>
+                              {showHeader && !guidedPromptConfirmed && (
+                                <WizardHeader>
+                                  <WizardHeaderSide>
+                                    <button
+                                      className="configurator-button"
+                                      type="button"
+                                      onClick={goPrev}
+                                      disabled={wizardStepIndex === 0}
+                                    >
+                                      Back
+                                    </button>
+                                  </WizardHeaderSide>
+                                  <WizardStepTitle>{currentStep.title}</WizardStepTitle>
+                                  <WizardHeaderSide $align="right">
+                                    {currentStep.review ? (
+                                      <button
+                                        className="configurator-button"
+                                        type="button"
+                                        disabled={!!(labelForm.logoFile || labelForm.characterFile) && !labelForm.hasCharacterPermission}
+                                        onClick={async () => {
+                                          setGuidedPromptConfirmed(true);
+                                          setGuidedGenerating(true);
+                                          await handleGenerateLabel();
+                                        }}
+                                      >
+                                        Confirm &amp; Generate
+                                      </button>
+                                    ) : (
+                                      !hasSelection ? (
+                                        <button
+                                          className="configurator-button"
+                                          type="button"
+                                          onClick={() => {
+                                            if (currentStep.key === 'logo') {
+                                              handleGeneratePromptViaShopify();
+                                              goNext();
+                                              return;
+                                            }
+                                            goNext();
+                                          }}
+                                        >
+                                          {currentStep.key === 'logo' ? 'Skip and Generate Prompt' : 'Skip'}
+                                        </button>
+                                      ) : (
+                                        <button
+                                          className="configurator-button"
+                                          type="button"
+                                          onClick={() => {
+                                            if (currentStep.key === 'logo') {
+                                              handleGeneratePromptViaShopify();
+                                              goNext();
+                                              return;
+                                            }
+                                            goNext();
+                                          }}
+                                        >
+                                          {currentStep.key === 'logo' ? 'Generate Prompt' : 'Next'}
+                                        </button>
+                                      )
+                                    )}
+                                  </WizardHeaderSide>
+                                </WizardHeader>
+                              )}
                             {!currentStep.review && currentStep.key !== 'logo' && (
                               <>
                                 {mergedOptions.length === 0 ? (
@@ -1952,64 +2085,6 @@ const Selector: FunctionComponent<{}> = () => {
                                   {labelForm.characterFile?.name || 'No character uploaded.'}
                                 </LabelHelperText>
                               </LabelField>
-                            )}
-                            {!guidedPromptConfirmed && (
-                              <WizardNav>
-                                <button
-                                  className="configurator-button"
-                                  type="button"
-                                  onClick={goPrev}
-                                  disabled={wizardStepIndex === 0}
-                                >
-                                  Back
-                                </button>
-                                {currentStep.review ? (
-                                  <button
-                                    className="configurator-button"
-                                    type="button"
-                                    disabled={!!(labelForm.logoFile || labelForm.characterFile) && !labelForm.hasCharacterPermission}
-                                    onClick={async () => {
-                                      setGuidedPromptConfirmed(true);
-                                      setGuidedGenerating(true);
-                                      await handleGenerateLabel();
-                                    }}
-                                  >
-                                    Confirm &amp; Generate
-                                  </button>
-                                ) : (
-                                  !hasSelection ? (
-                                    <button
-                                      className="configurator-button"
-                                      type="button"
-                                      onClick={() => {
-                                        if (currentStep.key === 'logo') {
-                                          handleGeneratePromptViaShopify();
-                                          goNext();
-                                          return;
-                                        }
-                                        goNext();
-                                      }}
-                                    >
-                                      {currentStep.key === 'logo' ? 'Skip and Generate Prompt' : 'Skip'}
-                                    </button>
-                                  ) : (
-                                    <button
-                                      className="configurator-button"
-                                      type="button"
-                                      onClick={() => {
-                                        if (currentStep.key === 'logo') {
-                                          handleGeneratePromptViaShopify();
-                                          goNext();
-                                          return;
-                                        }
-                                        goNext();
-                                      }}
-                                    >
-                                      {currentStep.key === 'logo' ? 'Generate Prompt' : 'Next'}
-                                    </button>
-                                  )
-                                )}
-                              </WizardNav>
                             )}
                           </>
                         );
