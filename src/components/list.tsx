@@ -480,6 +480,117 @@ export const ActionsCenter = styled.div`
   justify-content: center;
 `;
 
+// Label design form (AI)
+export const LabelDesignWrap = styled.div`
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+`;
+
+export const LabelTabs = styled.div`
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  flex-wrap: wrap;
+`;
+
+export const LabelTabButton = styled.button<{ $active?: boolean }>`
+  border: 1px solid ${({ $active }) => ($active ? '#f42492' : '#444')};
+  background: ${({ $active }) => ($active ? '#1a1a1a' : 'transparent')};
+  color: #fff;
+  padding: 8px 12px;
+  font-size: 12px;
+  letter-spacing: 0.08rem;
+  cursor: pointer;
+  text-transform: uppercase;
+  transition: border-color 150ms ease, background-color 150ms ease;
+
+  &:hover {
+    border-color: #f42492;
+  }
+`;
+
+export const LabelForm = styled.form`
+  width: 100%;
+  max-width: 560px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+`;
+
+export const LabelDetails = styled.details`
+  border: 1px solid #222;
+  padding: 8px 12px;
+  background: #0c0c0c;
+  margin-bottom: 8px;
+`;
+
+export const LabelSummary = styled.summary`
+  cursor: pointer;
+  list-style: none;
+  font-size: 12px;
+  letter-spacing: 0.08rem;
+  text-transform: uppercase;
+
+  &::-webkit-details-marker {
+    display: none;
+  }
+`;
+
+export const LabelRow = styled.div`
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+`;
+
+export const LabelField = styled.label`
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  letter-spacing: 0.05rem;
+`;
+
+export const LabelInput = styled.input`
+  border: 1px solid #333;
+  background: #111;
+  color: #fff;
+  padding: 10px 12px;
+  font-size: 14px;
+  outline: none;
+`;
+
+export const LabelTextarea = styled.textarea`
+  border: 1px solid #333;
+  background: #111;
+  color: #fff;
+  padding: 10px 12px;
+  font-size: 14px;
+  min-height: 120px;
+  resize: vertical;
+  outline: none;
+`;
+
+export const LabelDescription = styled.span`
+  font-size: 12px;
+  color: #bbb;
+`;
+
+export const LabelHelperText = styled.span`
+  font-size: 11px;
+  color: #aaa;
+`;
+
+export const LabelCheckboxRow = styled.label`
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  font-size: 12px;
+  color: #ddd;
+`;
+
 // Accessible live region for config warnings
 export const VisuallyHiddenLive = styled.div`
   position: absolute !important;

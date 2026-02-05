@@ -1,7 +1,7 @@
 import React, { FunctionComponent, useEffect, useMemo, useRef, useState, useCallback, useLayoutEffect } from 'react';
 // import styled from 'styled-components';
 import { useZakeke } from 'zakeke-configurator-react';
-import { LayoutWrapper, ContentWrapper, Container,  StepTitle, OptionListItem, RotateNotice, NavButton, LoadingSpinner, NotesWrapper, CartBar, StepNav, OptionsWrap, OptionText, OptionTitle, OptionDescription, ClosureSections, SectionTitle, SwatchGrid, SwatchButton, SwatchNoneLabel, ActionsCenter, ConfigWarning, ViewportSpacer } from './list';
+import { LayoutWrapper, ContentWrapper, Container,  OptionListItem, RotateNotice, NavButton, LoadingSpinner, NotesWrapper, CartBar, StepNav, OptionsWrap, OptionText, OptionTitle, OptionDescription, ClosureSections, SectionTitle, SwatchGrid, SwatchButton, SwatchNoneLabel, ActionsCenter, LabelDesignWrap, LabelTabs, LabelTabButton, LabelForm, LabelDetails, LabelSummary, LabelRow, LabelField, LabelInput, LabelTextarea, LabelDescription, LabelHelperText, LabelCheckboxRow, ConfigWarning, ViewportSpacer } from './list';
 // import { List, StepListItem, , ListItemImage } from './list';
 import { optionNotes } from '../data/option-notes';
 import ClipLoader from 'react-spinners/ClipLoader';
@@ -161,6 +161,27 @@ const Selector: FunctionComponent<{}> = () => {
     const [selectedAttributeId, selectAttribute] = useState<number | null>(null);
 
     const [isSelecting, setIsSelecting] = useState(false);
+    const [labelMode, setLabelMode] = useState<'form' | 'guided'>('form');
+
+    type LabelFormState = {
+      title: string;
+      prompt: string;
+      primaryColor: string;
+      secondaryColor: string;
+      characterFile: File | null;
+      logoFile: File | null;
+      hasCharacterPermission: boolean;
+    };
+
+    const [labelForm, setLabelForm] = useState<LabelFormState>({
+      title: '',
+      prompt: '',
+      primaryColor: '',
+      secondaryColor: '',
+      characterFile: null,
+      logoFile: null,
+      hasCharacterPermission: false,
+    });
 
     const selectedGroup = groups.find(group => group.id === selectedGroupId);
     const selectedStep = selectedGroup?.steps.find(step => step.id === selectedStepId) ?? null;
@@ -929,6 +950,97 @@ const Selector: FunctionComponent<{}> = () => {
     //   return hit?.id ?? null;
     // };
 
+    const handleLabelFieldChange = (
+      key: 'title' | 'prompt' | 'primaryColor' | 'secondaryColor'
+    ) => (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+      const value = event.target.value;
+      setLabelForm((prev) => ({ ...prev, [key]: value }));
+    };
+
+    const handleLabelCheckboxChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+      const checked = event.target.checked;
+      setLabelForm((prev) => ({ ...prev, hasCharacterPermission: checked }));
+    };
+
+    const handleLabelFileChange = (
+      key: 'characterFile' | 'logoFile'
+    ) => (event: React.ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0] ?? null;
+      setLabelForm((prev) => ({ ...prev, [key]: file }));
+    };
+
+    const fileToDataUrl = (file: File) =>
+      new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ''));
+        reader.onerror = () => reject(new Error('Failed to read file'));
+        reader.readAsDataURL(file);
+      });
+
+    const handleGenerateLabel = async () => {
+      if (!canDesign) {
+        setWarning('Please select a bottle, liquid, and closure before designing labels.');
+        return;
+      }
+      if (!labelForm.title.trim() || !labelForm.prompt.trim()) {
+        setWarning('Please provide both a Title and a label description.');
+        return;
+      }
+      if (labelForm.characterFile && !labelForm.hasCharacterPermission) {
+        setWarning('Please confirm you have permission to use the uploaded character.');
+        return;
+      }
+
+      const includeHexes = !!(labelForm.primaryColor || labelForm.secondaryColor);
+      const subtitle = (miniLiquid?.name || '').trim();
+      const payload = {
+        bottleName: (miniBottle?.name || '').trim(),
+        alcoholName: subtitle,
+        title: labelForm.title.trim(),
+        subtitle,
+        prompt: labelForm.prompt.trim(),
+        primaryColor: includeHexes ? labelForm.primaryColor.trim() : '',
+        secondaryColor: includeHexes ? labelForm.secondaryColor.trim() : '',
+        includeHexes,
+        hasCharacterPermission: !!labelForm.hasCharacterPermission,
+        logoDataUrl: '',
+        characterDataUrl: '',
+        order: {
+          bottle: productObject.selections.bottle,
+          liquid: productObject.selections.liquid,
+          closure: productObject.selections.closure,
+          label: productObject.selections.label,
+          closureExtras: productObject.selections.closureExtras,
+        },
+      };
+
+      try {
+        if (labelForm.logoFile) {
+          payload.logoDataUrl = await fileToDataUrl(labelForm.logoFile);
+        }
+      } catch (error) {
+        console.warn('Failed to read logo file', error);
+      }
+
+      try {
+        if (labelForm.characterFile) {
+          payload.characterDataUrl = await fileToDataUrl(labelForm.characterFile);
+        }
+      } catch (error) {
+        console.warn('Failed to read character file', error);
+      }
+
+      window.parent.postMessage(
+        {
+          customMessageType: 'handleConfiguratorLabel',
+          message: payload,
+        },
+        '*'
+      );
+
+      console.log('postMessage handleConfiguratorLabel', payload);
+    };
+
     const handleLabelClick = (side: 'front') => {
       if (!canDesign) {
         setWarning('Please select a bottle, liquid, and closure before designing labels.');
@@ -1176,16 +1288,149 @@ const Selector: FunctionComponent<{}> = () => {
             )}
 
             {onLabelStep && (
-              <ActionsCenter>
-                <button
-                  className="configurator-button"
-                  disabled={!canDesign}
-                  title={!canDesign ? 'Select bottle, liquid, and closure first' : undefined}
-                  onClick={() => handleLabelClick('front')}
-                >
-                  Design Your Label
-                </button>
-              </ActionsCenter>
+              <LabelDesignWrap>
+                <LabelTabs>
+                  <LabelTabButton
+                    type="button"
+                    $active={labelMode === 'form'}
+                    onClick={() => setLabelMode('form')}
+                  >
+                    AI Label Form
+                  </LabelTabButton>
+                  <LabelTabButton
+                    type="button"
+                    $active={labelMode === 'guided'}
+                    onClick={() => setLabelMode('guided')}
+                  >
+                    Guided Form (Coming Soon)
+                  </LabelTabButton>
+                </LabelTabs>
+
+                {labelMode === 'form' && (
+                  <LabelForm onSubmit={(event) => event.preventDefault()}>
+                    <LabelField>
+                      Title
+                      <LabelInput
+                        type="text"
+                        value={labelForm.title}
+                        onChange={handleLabelFieldChange('title')}
+                        placeholder="e.g. Barrel & Bond"
+                      />
+                    </LabelField>
+
+                    <LabelField>
+                      Describe your label
+                      <LabelTextarea
+                        value={labelForm.prompt}
+                        onChange={handleLabelFieldChange('prompt')}
+                        placeholder="Describe the mood, style, and motifs you want."
+                      />
+                    </LabelField>
+
+                    <LabelDetails>
+                      <LabelSummary>Select colours</LabelSummary>
+                      <LabelRow>
+                        <LabelField>
+                          Primary Colour (Optional)
+                          <LabelInput
+                            type="text"
+                            value={labelForm.primaryColor}
+                            onChange={handleLabelFieldChange('primaryColor')}
+                            placeholder="e.g. #F42492"
+                          />
+                        </LabelField>
+                        <LabelField>
+                          Secondary Colour (Optional)
+                          <LabelInput
+                            type="text"
+                            value={labelForm.secondaryColor}
+                            onChange={handleLabelFieldChange('secondaryColor')}
+                            placeholder="e.g. #111111"
+                          />
+                        </LabelField>
+                      </LabelRow>
+                    </LabelDetails>
+
+                    <LabelDetails>
+                      <LabelSummary>Include images</LabelSummary>
+                      <LabelRow>
+                        <LabelField>
+                          Include a logo
+                          <LabelDescription>Optional</LabelDescription>
+                          <LabelInput
+                            type="file"
+                            accept="image/*"
+                            onChange={handleLabelFileChange('logoFile')}
+                          />
+                          <LabelDescription>
+                            Upload a logo to include in the label.
+                          </LabelDescription>
+                          <LabelHelperText>
+                            {labelForm.logoFile?.name || 'No logo uploaded.'}
+                          </LabelHelperText>
+                        </LabelField>
+                        <LabelField>
+                          Include a logo
+                          <LabelDescription>Optional</LabelDescription>
+                          <LabelInput
+                            type="file"
+                            accept="image/*"
+                            onChange={handleLabelFileChange('characterFile')}
+                          />
+                          <LabelDescription>
+                            Upload a photo of a person/character to include in your label design.
+                          </LabelDescription>
+                          <LabelHelperText>
+                            {labelForm.characterFile?.name || 'No character uploaded.'}
+                          </LabelHelperText>
+                        </LabelField>
+                      </LabelRow>
+                    </LabelDetails>
+
+                    {labelForm.characterFile && (
+                      <LabelCheckboxRow>
+                        <input
+                          type="checkbox"
+                          checked={labelForm.hasCharacterPermission}
+                          onChange={handleLabelCheckboxChange}
+                        />
+                        I have the express permission/right to use the likeness of the person/character being uploaded
+                      </LabelCheckboxRow>
+                    )}
+
+                    <ActionsCenter>
+                      <button
+                        className="configurator-button"
+                        disabled={!canDesign || (!!labelForm.characterFile && !labelForm.hasCharacterPermission)}
+                        title={
+                          !canDesign
+                            ? 'Select bottle, liquid, and closure first'
+                            : (labelForm.characterFile && !labelForm.hasCharacterPermission)
+                              ? 'Confirm you have permission to use the uploaded character'
+                              : undefined
+                        }
+                        type="button"
+                        onClick={handleGenerateLabel}
+                      >
+                        Generate Label
+                      </button>
+                    </ActionsCenter>
+                  </LabelForm>
+                )}
+
+                {labelMode === 'guided' && (
+                  <ActionsCenter>
+                    <button
+                      className="configurator-button"
+                      type="button"
+                      disabled
+                      title="Guided form is coming soon"
+                    >
+                      Guided Form Coming Soon
+                    </button>
+                  </ActionsCenter>
+                )}
+              </LabelDesignWrap>
             )}
 
             {(() => {
