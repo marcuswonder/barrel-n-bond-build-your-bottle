@@ -59,7 +59,7 @@ const Selector: FunctionComponent<{}> = () => {
     const bottleOptions = steps[bottleStepIdx]?.attributes?.[0]?.options ?? [];
     const bottleIdx = bottleOptions.findIndex(o => o.selected);
     const bottleSel = bottleIdx >= 0 ? bottleOptions[bottleIdx] : null;
-    console.log("bottleSel", bottleSel);
+    // console.log("bottleSel", bottleSel);
 
     const pick = (stepIdx: number) => {
       const step = steps[stepIdx];
@@ -329,10 +329,10 @@ const Selector: FunctionComponent<{}> = () => {
     const miniClosure = toMini(closureSel);
     const miniLabel   = toMini(labelSel);
 
-    console.log("miniBottle", miniBottle);
-    console.log("miniLiquid", miniLiquid);
-    console.log("miniClosure", miniClosure);
-    console.log("miniLabel", miniLabel);
+    // console.log("miniBottle", miniBottle);
+    // console.log("miniLiquid", miniLiquid);
+    // console.log("miniClosure", miniClosure);
+    // console.log("miniLabel", miniLabel);
 
     const {
       setFromSelections,
