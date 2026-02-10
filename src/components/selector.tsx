@@ -1548,7 +1548,7 @@ const Selector: FunctionComponent<{}> = () => {
                           className={isSelecting ? 'is-selecting' : undefined}
                           $selected={selected}
                           $hex={s.hex}
-                          title={s.key}
+                          data-swatch-label={s.key}
                         />
                       );
                     })}
@@ -1556,30 +1556,32 @@ const Selector: FunctionComponent<{}> = () => {
                 </div>
 
                 {/* Wax section */}
-                <div>
-                  <SectionTitle>Choose a Wax Colour</SectionTitle>
-                  <SwatchGrid>
-                    {WAX_SWATCHES.map(s => {
-                      const isNone = s.key === 'No Wax Seal';
-                      const selected = isNone ? !closureChoices?.wax : closureChoices?.wax?.hex === s.hex;
-                      return (
-                        <SwatchButton
-                          key={s.key}
-                          aria-label={s.key}
-                          onClick={() => onPickWax(s.key, s.hex)}
-                          $disabled={isSelecting}
-                          className={isSelecting ? 'is-selecting' : undefined}
+                {closureChoices?.wood?.hex && (
+                  <div>
+                    <SectionTitle>Choose a Wax Colour</SectionTitle>
+                    <SwatchGrid>
+                      {WAX_SWATCHES.map(s => {
+                        const isNone = s.key === 'No Wax Seal';
+                        const selected = isNone ? !closureChoices?.wax : closureChoices?.wax?.hex === s.hex;
+                        return (
+                          <SwatchButton
+                            key={s.key}
+                            aria-label={s.key}
+                            onClick={() => onPickWax(s.key, s.hex)}
+                            $disabled={isSelecting}
+                            className={isSelecting ? 'is-selecting' : undefined}
                           $selected={selected}
                           $hex={s.hex}
                           $isNone={isNone}
-                          title={s.key}
+                          data-swatch-label={isNone ? '' : s.key}
                         >
-                          {isNone && (<SwatchNoneLabel>None</SwatchNoneLabel>)}
-                        </SwatchButton>
-                      );
-                    })}
-                  </SwatchGrid>
-                </div>
+                            {isNone && (<SwatchNoneLabel>None</SwatchNoneLabel>)}
+                          </SwatchButton>
+                        );
+                      })}
+                    </SwatchGrid>
+                  </div>
+                )}
               </ClosureSections>
             )}
 
@@ -1666,7 +1668,7 @@ const Selector: FunctionComponent<{}> = () => {
                           setHideLabelTabs(false);
                         }}
                         aria-label="Restart form"
-                        title="Restart"
+                        data-tooltip="Restart"
                       >
                         <span className="material-symbols-outlined">replay</span>
                       </RestartButton>
@@ -1699,10 +1701,10 @@ const Selector: FunctionComponent<{}> = () => {
 
                   {labelMode === 'guided' && guidedGenerating && (
                     <ActionsCenter>
-                      <div>
-                        <div style={{ textAlign: 'center', marginBottom: 12 }}>Designing Your Label</div>
-                        <LoadingSpinner />
-                      </div>
+                      <PromptLoading>
+                        <PromptSpinner />
+                        <div>Designing Your Label...</div>
+                      </PromptLoading>
                     </ActionsCenter>
                   )}
 
@@ -1990,7 +1992,7 @@ const Selector: FunctionComponent<{}> = () => {
                               isPromptGenerating ? (
                                 <PromptLoading>
                                   <PromptSpinner />
-                                  Generating prompt…
+                                  Writing your prompt...
                                 </PromptLoading>
                               ) : (
                                 <>
@@ -2252,7 +2254,7 @@ const Selector: FunctionComponent<{}> = () => {
                       <button
                         className="configurator-button"
                         disabled={!canDesign || (!!(labelForm.logoFile || labelForm.characterFile) && !labelForm.hasCharacterPermission)}
-                        title={
+                        data-tooltip={
                           !canDesign
                             ? 'Select bottle, liquid, and closure first'
                             : ((labelForm.logoFile || labelForm.characterFile) && !labelForm.hasCharacterPermission)

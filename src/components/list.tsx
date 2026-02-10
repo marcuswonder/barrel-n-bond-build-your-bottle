@@ -1,6 +1,17 @@
 import React from 'react';
 import styled from "styled-components";
 
+const getContrastText = (hex?: string) => {
+  if (!hex) return '#fff';
+  const normalized = hex.replace('#', '');
+  if (normalized.length !== 6) return '#fff';
+  const r = parseInt(normalized.slice(0, 2), 16);
+  const g = parseInt(normalized.slice(2, 4), 16);
+  const b = parseInt(normalized.slice(4, 6), 16);
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return luminance > 0.6 ? '#000' : '#fff';
+};
+
 // Option item – for attribute selections with images
 export const OptionListItem = styled.li<{
   $selected?: boolean;
@@ -87,15 +98,16 @@ export const NavButton = styled.button`
   font-size: 36px;
   cursor: pointer;
   padding: 4px 12px;
-  color: #333;
-  transition: color 0.2s ease;
+  color: #fff;
+  transition: color 0.2s ease, opacity 0.2s ease;
 
   &:hover:not(:disabled) {
-    color: #fff;
+    color: #f42492;
   }
 
   &:disabled {
-    opacity: 0.2;
+    opacity: 1;
+    color: #777;
     cursor: default;
   }
 `;
@@ -133,36 +145,9 @@ export const LoadingSpinner = styled.div`
   }
 `; 
 
-export const CartButton = styled.button`
-  background-color: #f42492;
-  color: #fff;
-  padding: 12px 24px;
-  border: 5px solid #f42492;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 16px;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
-  transition: all 0.2s ease;
-  transform-style: preserve-3d;
-
-  &:hover {
-    background-color: #d81f7f;
-    border-color: #d81f7f;
-    transform: translateY(-4px);
-    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
-  }
-
-  &:active {
-    transform: translateY(0);
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  }
-
-  &:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-    transform: none;
-    box-shadow: none;
-  }
+export const CartButton = styled.button.attrs({ className: 'configurator-button' })`
+  width: 100%;
+  margin: 0;
 `;
 
 export const RotateNotice = styled.div`
@@ -229,7 +214,7 @@ export const NotesWrapper = styled.div<{ $accent?: string }>`
 
   p {
     margin: 8px 0 0;
-    color: #555;
+    color: #c7c7c7;
   }
 
   @media (max-width: 767px) {
@@ -326,14 +311,14 @@ export const StepNav: React.FC<{
   disableNext?: boolean;
 }> = ({ title, stepIndex, totalSteps, onPrev, onNext, disablePrev, disableNext }) => (
   <StepNavContainer>
-    <NavButton onClick={onPrev} disabled={!!disablePrev} title="Back">←</NavButton>
+    <NavButton onClick={onPrev} disabled={!!disablePrev} data-tooltip="Back">←</NavButton>
 
     <StepNavCenter>
       <StepTitle>{title}</StepTitle>
       <span>Step {stepIndex + 1} of {totalSteps}</span>
     </StepNavCenter>
 
-    <NavButton onClick={onNext} disabled={!!disableNext} title="Next">→</NavButton>
+    <NavButton onClick={onNext} disabled={!!disableNext} data-tooltip="Next">→</NavButton>
   </StepNavContainer>
 );
 
@@ -440,10 +425,40 @@ export const SwatchButton = styled.button<{
   width: 64px;
   height: 64px;
   border-radius: 50%;
-  border: ${({ $selected }) => ($selected ? '3px solid #000' : '1px solid #ccc')};
+  border: ${({ $selected, $isNone }) => {
+    if ($isNone) return '1px solid #fff';
+    return $selected ? '2px solid #f42492' : '1px solid #fff';
+  }};
   background: ${({ $isNone, $hex }) => ($isNone ? 'transparent' : ($hex || 'transparent'))};
   cursor: ${({ $disabled }) => ($disabled ? 'wait' : 'pointer')};
   position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  overflow: hidden;
+
+  &::after {
+    content: attr(data-swatch-label);
+    position: absolute;
+    inset: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    line-height: 1.1;
+    letter-spacing: 0.03rem;
+    text-transform: none;
+    color: ${({ $hex, $isNone }) => ($isNone ? '#fff' : getContrastText($hex))};
+    text-shadow: none;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+  }
+
+  &:hover::after {
+    opacity: 1;
+  }
 `;
 
 export const SwatchNoneLabel = styled.span`
@@ -453,7 +468,7 @@ export const SwatchNoneLabel = styled.span`
   align-items: center;
   justify-content: center;
   font-size: 12px;
-  color: #555;
+  color: #fff;
 `;
 
 // Label step cards
@@ -737,10 +752,12 @@ export const RestartButton = styled.button`
 
 export const PromptLoading = styled.div`
   display: flex;
+  flex-direction: column;
   align-items: center;
   gap: 12px;
   font-size: 14px;
   color: #fff;
+  text-align: center;
 `;
 
 export const PromptSpinner = styled.div`

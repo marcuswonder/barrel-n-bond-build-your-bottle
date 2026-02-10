@@ -60,6 +60,51 @@ html,body {
   box-shadow: none;
 }
 
+[data-tooltip] {
+  position: relative;
+}
+
+[data-tooltip]:not([data-tooltip=""])::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 10px);
+  transform: translateX(-50%) translateY(4px);
+  background: #111;
+  color: #fff;
+  padding: 6px 10px;
+  border: 1px solid #ff73c6;
+  font-size: 11px;
+  letter-spacing: 0.05rem;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
+  z-index: 10;
+}
+
+[data-tooltip]:not([data-tooltip=""])::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 2px);
+  transform: translateX(-50%);
+  border: 6px solid transparent;
+  border-top-color: #ff73c6;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  z-index: 10;
+}
+
+[data-tooltip]:not([data-tooltip=""]):hover::after,
+[data-tooltip]:not([data-tooltip=""]):hover::before,
+[data-tooltip]:not([data-tooltip=""]):focus-visible::after,
+[data-tooltip]:not([data-tooltip=""]):focus-visible::before {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
 @media (max-width: 767px) {
   .configurator-button {
     padding: 8px 12px;
