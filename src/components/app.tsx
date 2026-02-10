@@ -71,12 +71,46 @@ const ViewerPanel = styled.div`
 
 const zakekeEnvironment = new ZakekeEnvironment();
 
+type AppMode = 'full' | 'lite';
+
+const LITE_PRODUCT_CODES = new Set([
+  '10532134027610',
+]);
+
+const FULL_PRODUCT_CODES = new Set([
+  '10197521465690',
+  '10243095429466',
+  '10243096445274',
+  '10243100311898',
+]);
+
+const resolveMode = (modelCode?: string): AppMode => {
+  const code = (modelCode || '').trim();
+  if (LITE_PRODUCT_CODES.has(code)) {
+    console.log("lite mode activated for product code", code);
+    return 'lite';
+  }
+  if (FULL_PRODUCT_CODES.has(code)) {
+    console.log("full mode activated for product code", code);
+    return 'full';
+  }
+  console.log("no mode identified, reverted to full mode for product code", code);
+  return 'full';
+};
+
 const App: FunctionComponent<{}> = () => {
     const bootstrapParameters = getBootstrapParameters();
-    return <ZakekeProvider environment={zakekeEnvironment} parameters={bootstrapParameters}>
+    const modelCode = String(bootstrapParameters.modelCode ?? bootstrapParameters.modelcode ?? '');
+    const mode = resolveMode(modelCode);
+    const defaultBottleName = String(
+      bootstrapParameters.bottleName ??
+      bootstrapParameters.defaultBottleName ??
+      'antica'
+    );
+    return <ZakekeProvider environment={zakekeEnvironment} parameters={{ ...bootstrapParameters, appMode: mode }}>
         <Layout>
             <SelectorPanel>
-                <Selector />
+                <Selector mode={mode} defaultBottleName={defaultBottleName} />
             </SelectorPanel>
             <ViewerPanel>
                 <ZakekeViewer />

@@ -10,7 +10,28 @@ import { WOOD_SWATCHES, WAX_SWATCHES } from '../data/options';
 
 
 
-const Selector: FunctionComponent<{}> = () => {
+type AppMode = 'full' | 'lite';
+
+const normalizebottleName = (value: string) =>
+  value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '');
+
+const buildSyntheticBottle = (bottleName: string) => {
+  const cleaned = normalizebottleName(bottleName || 'antica');
+  if (!cleaned) return null;
+  let hash = 0;
+  for (let i = 0; i < cleaned.length; i += 1) {
+    hash = ((hash << 5) - hash) + cleaned.charCodeAt(i);
+    hash |= 0;
+  }
+  const id = -Math.abs(hash || 1);
+  const name = cleaned.replace(/(^|_)([a-z])/g, (_, __, c) => c.toUpperCase()).replace(/_/g, ' ');
+  return { id, guid: `synthetic-${cleaned}`, name, selected: true };
+};
+
+const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }> = ({
+  mode = 'full',
+  defaultBottleName = 'antica',
+}) => {
     const {
         isSceneLoading,
         isAddToCartLoading,
@@ -33,15 +54,20 @@ const Selector: FunctionComponent<{}> = () => {
         // restoreMeshVisibility,
     } = useZakeke();
 
-    
-    // console.log("groups", groups)
-    // console.log("product", product)
-    // console.log("items", items)
-    // console.log("price", price)
-    // console.log("isSceneLoading", isSceneLoading)
+
+    console.log("groups", groups)
+    console.log("product", product)
+    console.log("items", items)
+    console.log("price", price)
+    console.log("isSceneLoading", isSceneLoading)
     
 
-    const buildGroup = groups.find(g => g.name === "Build Your Bottle") ?? null;
+    const isLiteMode = mode === 'lite';
+
+    const buildGroup =
+      groups.find(g => g.name === "Build Your Bottle") ??
+      groups.find(g => Array.isArray(g?.steps) && g.steps.length > 0) ??
+      null;
 
     const steps = useMemo(() => buildGroup?.steps ?? [], [buildGroup]);
 
@@ -51,12 +77,12 @@ const Selector: FunctionComponent<{}> = () => {
       return i >= 0 ? i : fallbackIndex;
     };
 
-    const bottleStepIdx = findStepIndex('bottle', 0);
-    const liquidStepIdx = findStepIndex('gin', 1);
-    const closureStepIdx = findStepIndex('closure', 2);
-    const labelStepIdx  = findStepIndex('label', 3);
+    const bottleStepIdx = isLiteMode ? -1 : findStepIndex('bottle', 0);
+    const liquidStepIdx = findStepIndex('gin', isLiteMode ? 0 : 1);
+    const closureStepIdx = findStepIndex('closure', isLiteMode ? 1 : 2);
+    const labelStepIdx  = findStepIndex('label', isLiteMode ? 2 : 3);
 
-    const bottleOptions = steps[bottleStepIdx]?.attributes?.[0]?.options ?? [];
+    const bottleOptions = bottleStepIdx >= 0 ? (steps[bottleStepIdx]?.attributes?.[0]?.options ?? []) : [];
     const bottleIdx = bottleOptions.findIndex(o => o.selected);
     const bottleSel = bottleIdx >= 0 ? bottleOptions[bottleIdx] : null;
     // console.log("bottleSel", bottleSel);
@@ -162,6 +188,50 @@ const Selector: FunctionComponent<{}> = () => {
 
     const [isSelecting, setIsSelecting] = useState(false);
     const [labelMode, setLabelMode] = useState<'form' | 'guided' | 'upload'>('form');
+
+    useEffect(() => {
+      if (!isLiteMode) return;
+      if (!steps.length) return;
+      const bottleStep = steps[bottleStepIdx];
+      const attrs: any[] = Array.isArray(bottleStep?.attributes) ? bottleStep!.attributes : [];
+      const attr = attrs[0] || null;
+      const opts: any[] = Array.isArray(attr?.options) ? attr!.options : [];
+      if (!opts.length) return;
+      if (opts.some(o => !!o?.selected)) return;
+
+      const needle = normalizebottleName(defaultBottleName || 'antica');
+      const match = opts.find((o: any) => {
+        const name = normalizebottleName(o?.name || '');
+        const code = normalizebottleName(o?.code || '');
+        return (needle && (name.includes(needle) || code.includes(needle)));
+      }) || opts[0];
+
+      if (!match) return;
+
+      if (selectedGroupId == null && buildGroup) {
+        selectGroup(buildGroup.id);
+      }
+      if (selectedStepId !== bottleStep?.id && bottleStep?.id != null) {
+        selectStep(bottleStep.id);
+      }
+      if (selectedAttributeId !== attr?.id && attr?.id != null) {
+        selectAttribute(attr.id);
+      }
+      selectOption(match.id);
+    }, [
+      isLiteMode,
+      steps,
+      bottleStepIdx,
+      defaultBottleName,
+      selectedGroupId,
+      selectedStepId,
+      selectedAttributeId,
+      selectGroup,
+      selectStep,
+      selectAttribute,
+      selectOption,
+      buildGroup,
+    ]);
 
     type LabelFormState = {
       title: string;
@@ -324,15 +394,20 @@ const Selector: FunctionComponent<{}> = () => {
     const toMini = (o: any) => (o ? ({ id: o.id, guid: o.guid, name: o.name, selected: !!o.selected }) : null);
 
     // Keep "No Selection" visible in minis
-    const miniBottle  = toMini(bottleSel);
+    const miniBottle  = isLiteMode ? buildSyntheticBottle(defaultBottleName) : toMini(bottleSel);
     const miniLiquid  = toMini(liquidSel);
     const miniClosure = toMini(closureSel);
     const miniLabel   = toMini(labelSel);
 
-    // console.log("miniBottle", miniBottle);
-    // console.log("miniLiquid", miniLiquid);
-    // console.log("miniClosure", miniClosure);
-    // console.log("miniLabel", miniLabel);
+    console.log("miniBottle", miniBottle);
+    console.log("miniLiquid", miniLiquid);
+    console.log("miniClosure", miniClosure);
+    console.log("miniLabel", miniLabel);
+
+    console.log('[steps]', steps.map(s => ({ id: s.id, name: s.name, attrCount: s.attributes?.length })));
+    console.log('[bottleStepIdx]', bottleStepIdx, 'stepName', steps[bottleStepIdx]?.name);
+    console.log('[bottleAttr0 opts]', steps[bottleStepIdx]?.attributes?.[0]?.options?.map(o => ({ name: o.name, selected: o.selected })));
+
 
     const {
       setFromSelections,
@@ -353,7 +428,7 @@ const Selector: FunctionComponent<{}> = () => {
       liquid: miniLiquid,
       closure: miniClosure,
       label: miniLabel,
-      closureExtras: closureChoices,
+      closureExtras: isLiteMode ? null : closureChoices,
     } as const), [
       bottleSel,
       liquidSel,
@@ -366,7 +441,7 @@ const Selector: FunctionComponent<{}> = () => {
       closureChoices,
     ]);
 
-    // console.log("selections", selections)
+    console.log("selections", selections)
 
     // Key that only changes when meaningful order fields change, closure id excluded to avoid transient updates during attribute switch
     const orderKey = [
@@ -458,11 +533,23 @@ const Selector: FunctionComponent<{}> = () => {
       console.warn('[Configurator warning]', msg);
     };
 
-    // A user can "design" only when required selections are made and not "No Selection"
-    const canDesign = !!(miniBottle && miniLiquid && miniClosure) &&
-      miniBottle.name !== 'No Selection' &&
-      miniLiquid.name !== 'No Selection' &&
-      miniClosure.name !== 'No Selection';
+    const requireBottle = !isLiteMode;
+    const hasSelectionInStep = (stepIdx: number) => {
+      const step = steps[stepIdx];
+      const attrs: any[] = Array.isArray(step?.attributes) ? step!.attributes : [];
+      for (const a of attrs) {
+        const opts: any[] = Array.isArray(a?.options) ? a.options : [];
+        const sel = opts.find(o => !!o?.selected);
+        if (sel && (sel.name || '').trim().toLowerCase() !== 'no selection') return true;
+      }
+      return false;
+    };
+
+    const hasBottleSelection = hasSelectionInStep(bottleStepIdx);
+    const hasLiquidSelection = hasSelectionInStep(liquidStepIdx);
+    const hasClosureSelection = hasSelectionInStep(closureStepIdx);
+
+    const canDesign = hasLiquidSelection && hasClosureSelection && (!requireBottle || hasBottleSelection);
 
 
 
@@ -1194,7 +1281,7 @@ const Selector: FunctionComponent<{}> = () => {
 
     const handleGenerateLabel = async () => {
       if (!canDesign) {
-        setWarning('Please select a bottle, liquid, and closure before designing labels.');
+        setWarning(`Please select ${requireBottle ? 'a bottle, ' : ''}a liquid and a closure before designing labels.`);
         return;
       }
       const assembledPrompt = assemblePrompt();
@@ -1331,7 +1418,7 @@ const Selector: FunctionComponent<{}> = () => {
 
     const handleLabelClick = (side: 'front') => {
       if (!canDesign) {
-        setWarning('Please select a bottle, liquid, and closure before designing labels.');
+        setWarning(`Please select ${requireBottle ? 'a bottle, ' : ''}a liquid and a closure before designing labels.`);
         return;
       }
       const hasDesign = side === 'front' ? !!labelDesigns.front : !!labelDesigns.back;
@@ -1455,7 +1542,7 @@ const Selector: FunctionComponent<{}> = () => {
         <ConfigWarning />
         <LayoutWrapper>
         <ContentWrapper>
-          <Container>
+          <Container data-app-mode={mode}>
             {/* Step Navigation */}
             {selectedGroup && selectedGroup.steps.length > 0 && selectedStep && (
               <StepNav
@@ -1477,7 +1564,7 @@ const Selector: FunctionComponent<{}> = () => {
                     const nextStep = selectedGroup.steps[i + 1];
                     const isLabelish = /label|design/i.test(nextStep?.name || '');
                     if (isLabelish && !canDesign) {
-                      setWarning('Please select a bottle, liquid, and closure (not "No Selection") before designing labels.');
+                      setWarning(`Please select ${requireBottle ? 'a bottle, ' : ''}a liquid and a closure (not "No Selection") before designing labels.`);
                       return;
                     }
                     selectStep(nextStep.id);
@@ -1535,7 +1622,7 @@ const Selector: FunctionComponent<{}> = () => {
               <ClosureSections>
                 {/* Wood section */}
                 <div>
-                  <SectionTitle>Choose Your Wood</SectionTitle>
+                  <SectionTitle>{isLiteMode ? 'Choose Your Closure' : 'Choose Your Wood'}</SectionTitle>
                   <SwatchGrid>
                     {WOOD_SWATCHES.map(s => {
                       const selected = closureChoices?.wood?.hex === s.hex;
@@ -1556,7 +1643,7 @@ const Selector: FunctionComponent<{}> = () => {
                 </div>
 
                 {/* Wax section */}
-                {closureChoices?.wood?.hex && (
+                {!isLiteMode && closureChoices?.wood?.hex && (
                   <div>
                     <SectionTitle>Choose a Wax Colour</SectionTitle>
                     <SwatchGrid>
@@ -2245,7 +2332,7 @@ const Selector: FunctionComponent<{}> = () => {
                         disabled={!canDesign || (!!(labelForm.logoFile || labelForm.characterFile) && !labelForm.hasCharacterPermission)}
                         data-tooltip={
                           !canDesign
-                            ? 'Select bottle, liquid, and closure first'
+                            ? (requireBottle ? 'Select bottle, liquid, and closure first' : 'Select liquid and closure first')
                             : ((labelForm.logoFile || labelForm.characterFile) && !labelForm.hasCharacterPermission)
                               ? 'Confirm you have permission to use the uploaded files'
                               : undefined
