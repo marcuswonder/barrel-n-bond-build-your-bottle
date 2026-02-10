@@ -1611,69 +1611,7 @@ const Selector: FunctionComponent<{}> = () => {
                         Upload Label
                       </LabelTabButton>
                     </LabelTabs>
-                  ) : (
-                    <ActionsCenter>
-                      <RestartButton
-                        type="button"
-                        onClick={() => {
-                          setLabelForm({
-                            title: '',
-                            prompt: '',
-                            primaryColor: '',
-                            secondaryColor: '',
-                            characterFile: null,
-                            logoFile: null,
-                            hasCharacterPermission: false,
-                          });
-                          setLabelWizard({
-                            outputGoal: '',
-                            theme: '',
-                            themeOther: '',
-                            subTheme: '',
-                            settingType: '',
-                            settingSpecific: '',
-                            backgroundDepth: '',
-                            compositionLayout: '',
-                            framing: '',
-                            mainSubjectType: '',
-                            mainSubjectTypeOther: '',
-                            mainSubject: '',
-                            mainSubjectOther: '',
-                            mainStyling: [],
-                            supportingCount: '',
-                            supportingType: '',
-                            action: '',
-                            actionOther: '',
-                            energy: '',
-                            styleFamily: '',
-                            styleFamilyOther: '',
-                            styleSubtype: '',
-                            texture: '',
-                            lighting: '',
-                            paletteMode: '',
-                            paletteVibe: '',
-                            paletteVibeOther: '',
-                            accentCount: '',
-                            accents: [],
-                            labelTextSpace: '',
-                            complexity: '',
-                          });
-                          setWizardStepIndex(0);
-                          setWizardStarted(false);
-                          setGuidedPromptConfirmed(false);
-                          setGuidedGenerating(false);
-                          setReviewImagesVisible(false);
-                          setIsPromptGenerating(false);
-                          setPromptOverride('');
-                          setHideLabelTabs(false);
-                        }}
-                        aria-label="Restart form"
-                        data-tooltip="Restart"
-                      >
-                        <span className="material-symbols-outlined">replay</span>
-                      </RestartButton>
-                    </ActionsCenter>
-                  )}
+                  ) : null}
 
                 <LabelForm onSubmit={(event) => event.preventDefault()}>
                   {labelMode === 'form' ? (
@@ -1872,63 +1810,69 @@ const Selector: FunctionComponent<{}> = () => {
                             <>
                               {showHeader && !guidedPromptConfirmed && (
                                 <WizardHeader>
-                                  <WizardHeaderSide>
-                                    <button
-                                      className="configurator-button"
-                                      type="button"
-                                      onClick={goPrev}
-                                      disabled={wizardStepIndex === 0}
-                                    >
-                                      Back
-                                    </button>
-                                  </WizardHeaderSide>
+                                  <WizardHeaderSide />
                                   <WizardStepTitle>{currentStep.title}</WizardStepTitle>
                                   <WizardHeaderSide $align="right">
-                                    {currentStep.review ? (
-                                      <button
-                                        className="configurator-button"
+                                    {wizardStarted && (
+                                      <RestartButton
                                         type="button"
-                                        disabled={!!(labelForm.logoFile || labelForm.characterFile) && !labelForm.hasCharacterPermission}
-                                        onClick={async () => {
-                                          setGuidedPromptConfirmed(true);
-                                          setGuidedGenerating(true);
-                                          await handleGenerateLabel();
+                                        aria-label="Reset"
+                                        data-tooltip="Reset"
+                                        onClick={() => {
+                                          setLabelForm({
+                                            title: '',
+                                            prompt: '',
+                                            primaryColor: '',
+                                            secondaryColor: '',
+                                            characterFile: null,
+                                            logoFile: null,
+                                            hasCharacterPermission: false,
+                                          });
+                                          setLabelWizard({
+                                            outputGoal: '',
+                                            theme: '',
+                                            themeOther: '',
+                                            subTheme: '',
+                                            settingType: '',
+                                            settingSpecific: '',
+                                            backgroundDepth: '',
+                                            compositionLayout: '',
+                                            framing: '',
+                                            mainSubjectType: '',
+                                            mainSubjectTypeOther: '',
+                                            mainSubject: '',
+                                            mainSubjectOther: '',
+                                            mainStyling: [],
+                                            supportingCount: '',
+                                            supportingType: '',
+                                            action: '',
+                                            actionOther: '',
+                                            energy: '',
+                                            styleFamily: '',
+                                            styleFamilyOther: '',
+                                            styleSubtype: '',
+                                            texture: '',
+                                            lighting: '',
+                                            paletteMode: '',
+                                            paletteVibe: '',
+                                            paletteVibeOther: '',
+                                            accentCount: '',
+                                            accents: [],
+                                            labelTextSpace: '',
+                                            complexity: '',
+                                          });
+                                          setWizardStepIndex(0);
+                                          setWizardStarted(false);
+                                          setGuidedPromptConfirmed(false);
+                                          setGuidedGenerating(false);
+                                          setReviewImagesVisible(false);
+                                          setIsPromptGenerating(false);
+                                          setPromptOverride('');
+                                          setHideLabelTabs(false);
                                         }}
                                       >
-                                        Confirm &amp; Generate
-                                      </button>
-                                    ) : (
-                                      !hasSelection ? (
-                                        <button
-                                          className="configurator-button"
-                                          type="button"
-                                          onClick={() => {
-                                            if (currentStep.key === 'logo') {
-                                              handleGeneratePromptViaShopify();
-                                              goNext();
-                                              return;
-                                            }
-                                            goNext();
-                                          }}
-                                        >
-                                          {currentStep.key === 'logo' ? 'Skip and Generate Prompt' : 'Skip'}
-                                        </button>
-                                      ) : (
-                                        <button
-                                          className="configurator-button"
-                                          type="button"
-                                          onClick={() => {
-                                            if (currentStep.key === 'logo') {
-                                              handleGeneratePromptViaShopify();
-                                              goNext();
-                                              return;
-                                            }
-                                            goNext();
-                                          }}
-                                        >
-                                          {currentStep.key === 'logo' ? 'Generate Prompt' : 'Next'}
-                                        </button>
-                                      )
+                                        <span className="material-symbols-outlined">replay</span>
+                                      </RestartButton>
                                     )}
                                   </WizardHeaderSide>
                                 </WizardHeader>
@@ -1954,6 +1898,10 @@ const Selector: FunctionComponent<{}> = () => {
                                                 return;
                                               }
                                               setWizardField(currentStep.key as keyof LabelWizardState, opt as any);
+                                              if (opt === 'Other' || opt === 'Upload my own') return;
+                                              setTimeout(() => {
+                                                goNext();
+                                              }, 200);
                                             }}
                                           >
                                             {opt}
@@ -2131,6 +2079,47 @@ const Selector: FunctionComponent<{}> = () => {
                                   {labelForm.characterFile?.name || 'No character uploaded.'}
                                 </LabelHelperText>
                               </LabelField>
+                            )}
+                            {showHeader && !guidedPromptConfirmed && (
+                              <WizardNav>
+                                <button
+                                  className="wizard-ghost"
+                                  type="button"
+                                  onClick={goPrev}
+                                  disabled={wizardStepIndex === 0}
+                                >
+                                  Back
+                                </button>
+                                {currentStep.review ? (
+                                  <button
+                                    className="configurator-button"
+                                    type="button"
+                                    disabled={!!(labelForm.logoFile || labelForm.characterFile) && !labelForm.hasCharacterPermission}
+                                    onClick={async () => {
+                                      setGuidedPromptConfirmed(true);
+                                      setGuidedGenerating(true);
+                                      await handleGenerateLabel();
+                                    }}
+                                  >
+                                    Confirm &amp; Generate
+                                  </button>
+                                ) : (
+                                  <button
+                                    className="wizard-ghost"
+                                    type="button"
+                                    onClick={() => {
+                                      if (currentStep.key === 'logo') {
+                                        handleGeneratePromptViaShopify();
+                                        goNext();
+                                        return;
+                                      }
+                                      goNext();
+                                    }}
+                                  >
+                                    {currentStep.key === 'logo' ? 'Generate' : (hasSelection ? 'Next' : 'Skip')}
+                                  </button>
+                                )}
+                              </WizardNav>
                             )}
                           </>
                         );

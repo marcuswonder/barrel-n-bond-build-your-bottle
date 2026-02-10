@@ -700,9 +700,9 @@ export const WizardOptions = styled.div`
 
 export const WizardOptionButton = styled.button<{ $active?: boolean }>`
   border: 1px solid ${({ $active }) => ($active ? '#ff73c6' : '#333')};
-  background: ${({ $active }) => ($active ? 'linear-gradient(180deg, #2a2a2a 0%, #121212 100%)' : 'transparent')};
+  background: ${({ $active }) => ($active ? 'linear-gradient(180deg, #ff4fb3 0%, #f42492 70%)' : 'transparent')};
   border-radius: 10px;
-  box-shadow: ${({ $active }) => ($active ? '0 6px 14px rgba(244, 36, 146, 0.25)' : 'none')};
+  box-shadow: ${({ $active }) => ($active ? '0 10px 20px rgba(244, 36, 146, 0.3)' : 'none')};
   color: #fff;
   padding: 10px 12px;
   font-size: 12px;
@@ -740,14 +740,20 @@ export const WizardHeaderSide = styled.div<{ $align?: 'left' | 'right' }>`
 
 export const RestartButton = styled.button`
   background: transparent;
-  border: 1px solid #333;
+  border: none;
   color: #fff;
-  width: 34px;
-  height: 34px;
+  width: 24px;
+  height: 24px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
+  padding: 0;
+
+  span {
+    font-size: 20px;
+    line-height: 1;
+  }
 `;
 
 export const PromptLoading = styled.div`
