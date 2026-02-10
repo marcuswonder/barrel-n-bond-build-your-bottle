@@ -1,10 +1,10 @@
 export const optionNotes: Record<string, Record<string, string>> = {
     bottles: {
-        "Polo": "",
-        "Outlaw": "",
-        "Antica": "",
-        "Manila": "",
-        "Origin": "",
+        "Polo": "Aesthetically pleasing, with its heavy glass base and rounded shoulder.",
+        "Outlaw": "Modest, practical, compact, while retaining a particularly craft appearance.",
+        "Antica": "Inspired by the apothecary bottle Anitca is refined and versatile, a timeless icon.",
+        "Manila": "A low, round profile; the refined lines create a play of light that emphasise the contents.",
+        "Origin": "The refined vertical lines evoke a vintage atmospheres, elegant and iconic.",
     },
     liquids: {
         "Contemporary Gin": "This classic London dry gin delivers a strong juniper flavor complemented by fresh citrus and earthy spice notes. The finish is clean and crisp, with a lingering herbal essence that adds depth.",
