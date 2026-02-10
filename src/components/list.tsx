@@ -430,7 +430,7 @@ export const SwatchButton = styled.button<{
     return $selected ? '2px solid #f42492' : '1px solid #fff';
   }};
   background: ${({ $isNone, $hex }) => ($isNone ? 'transparent' : ($hex || 'transparent'))};
-  cursor: ${({ $disabled }) => ($disabled ? 'wait' : 'pointer')};
+  cursor: ${({ $disabled }) => ($disabled ? 'not-allowed' : 'pointer')};
   position: relative;
   display: inline-flex;
   align-items: center;

@@ -997,20 +997,6 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
       };
     }, []);
 
-    // Utility: wait for a predicate to become true with timeout (helps with Zakeke async UI updates)
-    const waitFor = (predicate: () => boolean, timeout = 2500, interval = 50) =>
-      new Promise<boolean>((resolve) => {
-        const start = Date.now();
-        const tick = () => {
-          let ok = false;
-          try { ok = !!predicate(); } catch {}
-          if (ok) return resolve(true);
-          if (Date.now() - start >= timeout) return resolve(false);
-          setTimeout(tick, interval);
-        };
-        tick();
-      });
-
     // --- Helper: ensure atomic update for closure selection ---
     const selectOptionOnAttribute = async (
       attributeId: number | null,
@@ -1030,64 +1016,17 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
           const closureStep = selectedGroup?.steps?.find(s => /closure/i.test(s?.name || ''));
           if (closureStep) {
             selectStep(closureStep.id);
-            await waitFor(() => selectedStepId === closureStep.id, 2000, 40);
           }
         }
 
         if (selectedAttributeId !== attrId) {
           selectAttribute(attrId);
-          await waitFor(() => selectedAttributeId === attrId, 2000, 40);
         }
 
-        // Select the option and confirm
+        // Fire-and-forget select
         selectOption(optId);
-        const ok = await waitFor(() => {
-          const activeAttr = attributes.find(a => a.id === (selectedAttributeId ?? -1));
-          const opts = activeAttr?.options || [];
-          return !!opts.find(o => o.id === optId && o.selected);
-        }, 1500, 40);
-
-        if (!ok) {
-          await new Promise(r => setTimeout(r, 60));
-          selectOption(optId);
-          await waitFor(() => {
-            const activeAttr = attributes.find(a => a.id === (selectedAttributeId ?? -1));
-            const opts = activeAttr?.options || [];
-            return !!opts.find(o => o.id === optId && o.selected);
-          }, 2000, 40);
-        }
-
-        // === Atomic commit to store ===
-        const step = steps[closureStepIdx];
-        let attr = Array.isArray(step?.attributes) ? step!.attributes.find((a: any) => !!a?.enabled) : null;
-        if (!attr && selectedAttributeId != null) {
-          attr = step?.attributes?.find((a: any) => a?.id === selectedAttributeId) || null;
-        }
-        if (!attr) {
-          const attrs: any[] = Array.isArray(step?.attributes) ? step!.attributes : [];
-          attr = (bottleIdx >= 0 ? attrs[bottleIdx] : null) || attrs[0] || null;
-        }
-        const latestClosureSel = Array.isArray(attr?.options) ? attr!.options.find((o: any) => !!o?.selected) || null : null;
-
-        const latestBottleSel = bottleSel;
-        const latestLiquidSel = liquidSel;
-        const latestLabelSel  = labelSel;
-
-        const latestSelections = {
-          bottleSel: latestBottleSel,
-          liquidSel: latestLiquidSel,
-          closureSel: latestClosureSel,
-          labelSel: latestLabelSel,
-          bottle: latestBottleSel ? { id: latestBottleSel.id, guid: latestBottleSel.guid, name: latestBottleSel.name, selected: !!latestBottleSel.selected } : null,
-          liquid: latestLiquidSel ? { id: latestLiquidSel.id, guid: latestLiquidSel.guid, name: latestLiquidSel.name, selected: !!latestLiquidSel.selected } : null,
-          closure: latestClosureSel ? { id: latestClosureSel.id, guid: latestClosureSel.guid, name: latestClosureSel.name, selected: !!latestClosureSel.selected } : null,
-          label: latestLabelSel ? { id: latestLabelSel.id, guid: latestLabelSel.guid, name: latestLabelSel.name, selected: !!latestLabelSel.selected } : null,
-        } as const;
-
-        setFromSelections({ selections: latestSelections as any, sku: product?.sku ?? null, price });
       } finally {
-        // small delay to avoid rapid double-clicks
-        setTimeout(() => setIsSelecting(false), 120);
+        // keep isSelecting true until observed in state
       }
     };
 
@@ -1123,6 +1062,16 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
     const isLiquidStep  = stepNameLc.includes('gin') || stepNameLc.includes('liquid');
     const isClosureStep = stepNameLc.includes('closure');
     const hasValidSelection = !!(selectedAttribute?.options?.some(o => o.selected && o.name !== 'No Selection'));
+
+    useEffect(() => {
+      if (!isSelecting) return;
+      if (!isClosureStep) return;
+      const opts = selectedAttribute?.options || [];
+      const hasSel = !!opts.find(o => o.selected && o.name !== 'No Selection');
+      if (hasSel) {
+        setIsSelecting(false);
+      }
+    }, [isSelecting, isClosureStep, selectedAttribute?.options]);
 
     // Closure options can live on step or attribute depending on Zakeke setup
     const closureOptions = useMemo(() => {
@@ -1573,7 +1522,8 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                 disablePrev={selectedGroup.steps.findIndex(s => s.id === selectedStep.id) === 0}
                 disableNext={
                   selectedGroup.steps.findIndex(s => s.id === selectedStep.id) === selectedGroup.steps.length - 1 ||
-                  ((isBottleStep || isLiquidStep || isClosureStep) && !hasValidSelection)
+                  ((isBottleStep || isLiquidStep || isClosureStep) && !hasValidSelection) ||
+                  (isClosureStep && isSelecting)
                 }
               />
             )}
