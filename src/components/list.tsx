@@ -493,6 +493,16 @@ export const ActionsCenter = styled.div`
   margin-top: 12px;
   display: flex;
   justify-content: center;
+
+  & .configurator-button,
+  & .wizard-ghost {
+    width: auto;
+  }
+
+  @media (max-width: 767px) {
+    flex-direction: column;
+    align-items: center;
+  }
 `;
 
 // Label design form (AI)
@@ -723,6 +733,33 @@ export const WizardNav = styled.div`
   justify-content: space-between;
   gap: 8px;
   flex-wrap: wrap;
+
+  & .configurator-button,
+  & .wizard-ghost {
+    width: auto;
+  }
+
+  @media (max-width: 767px) {
+    flex-direction: column;
+    align-items: center;
+  }
+`;
+
+export const GuidedActionRow = styled.div`
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+
+  & .configurator-button,
+  & .wizard-ghost {
+    width: auto;
+  }
+
+  @media (max-width: 767px) {
+    flex-direction: column;
+    align-items: center;
+  }
 `;
 
 export const WizardHeader = styled.div`

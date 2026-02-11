@@ -1,7 +1,7 @@
 import React, { FunctionComponent, useEffect, useMemo, useRef, useState, useCallback, useLayoutEffect } from 'react';
 // import styled from 'styled-components';
 import { useZakeke } from 'zakeke-configurator-react';
-import { LayoutWrapper, ContentWrapper, Container,  OptionListItem, NavButton, LoadingSpinner, NotesWrapper, CartBar, StepNav, OptionsWrap, OptionText, OptionTitle, OptionDescription, ClosureSections, SectionTitle, SwatchGrid, SwatchButton, SwatchNoneLabel, ActionsCenter, LabelDesignWrap, LabelTabs, LabelTabButton, LabelForm, LabelDetails, LabelSummary, LabelSummaryMeta, LabelRow, LabelField, LabelInput, LabelTextarea, LabelDescription, LabelHelperText, FileNameRow, FileRemoveButton, LabelCheckboxRow, WizardWrap, WizardStepTitle, WizardOptions, WizardOptionButton, WizardNav, WizardHeader, WizardHeaderSide, RestartButton, PromptLoading, PromptSpinner, ConfigWarning, ViewportSpacer } from './list';
+import { LayoutWrapper, ContentWrapper, Container,  OptionListItem, NavButton, LoadingSpinner, NotesWrapper, CartBar, StepNav, OptionsWrap, OptionText, OptionTitle, OptionDescription, ClosureSections, SectionTitle, SwatchGrid, SwatchButton, SwatchNoneLabel, ActionsCenter, LabelDesignWrap, LabelTabs, LabelTabButton, LabelForm, LabelDetails, LabelSummary, LabelSummaryMeta, LabelRow, LabelField, LabelInput, LabelTextarea, LabelDescription, LabelHelperText, FileNameRow, FileRemoveButton, LabelCheckboxRow, WizardWrap, WizardStepTitle, WizardOptions, WizardOptionButton, WizardNav, WizardHeader, WizardHeaderSide, RestartButton, PromptLoading, PromptSpinner, ConfigWarning, ViewportSpacer, GuidedActionRow } from './list';
 // import { List, StepListItem, , ListItemImage } from './list';
 import { optionNotes } from '../data/option-notes';
 import ClipLoader from 'react-spinners/ClipLoader';
@@ -292,6 +292,8 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
     const [wizardStarted, setWizardStarted] = useState(false);
     const [guidedPromptConfirmed, setGuidedPromptConfirmed] = useState(false);
     const [guidedGenerating, setGuidedGenerating] = useState(false);
+    const [guidedEditMode, setGuidedEditMode] = useState(false);
+    const [guidedEditNotes, setGuidedEditNotes] = useState('');
     const [reviewImagesVisible, setReviewImagesVisible] = useState(false);
     const [isPromptGenerating, setIsPromptGenerating] = useState(false);
     const [hideLabelTabs, setHideLabelTabs] = useState(false);
@@ -523,6 +525,39 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
       return { front, back } as const;
     }, [visibleAreas]);
 
+    const liveItems = useMemo(
+      () => (Array.isArray(items) ? items : []).filter((it: any) => !it?.deleted),
+      [items]
+    );
+
+    const hasLabelOnBottle = useMemo(() => {
+      if (!liveItems.length) return false;
+      const frontId = labelAreas.front?.id;
+      const backId = labelAreas.back?.id;
+      if (frontId || backId) {
+        return liveItems.some((it: any) => (
+          it?.areaId === frontId ||
+          it?.areaId === backId ||
+          it?.area?.id === frontId ||
+          it?.area?.id === backId
+        ));
+      }
+      return liveItems.length > 0;
+    }, [liveItems, labelAreas.front?.id, labelAreas.back?.id]);
+
+    useEffect(() => {
+      if (guidedGenerating && hasLabelOnBottle) {
+        setGuidedGenerating(false);
+      }
+    }, [guidedGenerating, hasLabelOnBottle]);
+
+    useEffect(() => {
+      if (labelMode !== 'guided' && guidedEditMode) {
+        setGuidedEditMode(false);
+        setGuidedEditNotes('');
+      }
+    }, [labelMode, guidedEditMode]);
+
     // Invisible warning helper (logs and stores a message for later UX surfacing)
     const setWarning = (msg: string) => {
       const el = document.getElementById('config-warning');
@@ -617,7 +652,6 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
               designSide,
               designExport,
             });
-            setGuidedGenerating(false);
           }
 
           // items.forEach(item => {
@@ -865,7 +899,16 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
       try {
         await setCameraByName(name, false, animate);
         lastCamRef.current = name;
-      } catch {}
+      } catch {
+        const alt = name.includes('-')
+          ? name.replace(/-/g, '_')
+          : (name.includes('_') ? name.replace(/_/g, '-') : '');
+        if (!alt || alt === name) return;
+        try {
+          await setCameraByName(alt, false, animate);
+          lastCamRef.current = alt;
+        } catch {}
+      }
     };
 
     const runCameraTour = async (frames: string[], final: string, perFrameMs = 600) => {
@@ -913,10 +956,11 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
           ? 'liquid'
           : stepName.includes('closure') ? 'closure' : 'label';
 
-      const bottleKey = (bottleSel?.name || selections.bottle?.name || '')
+      const rawBottleName = (bottleSel?.name || selections.bottle?.name || '')
         .trim()
-        .toLowerCase()
-        .replace(/\s+/g, '_');
+        .toLowerCase();
+      const bottleKey = rawBottleName.replace(/\s+/g, '_');
+      const bottleKeyKebab = rawBottleName.replace(/\s+/g, '-');
 
       if (!bottleKey) return;
 
@@ -942,8 +986,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
         final = cams.closure;
       } else if (stepKey === 'label') {
         frames = ['wide_high_front'];
-        const preferFront = !!labelAreas.front || !labelAreas.back;
-        final = preferFront ? cams.label_front : cams.label_back;
+        final = `${bottleKeyKebab}-full-front`;
       }
 
       const tourKey = `${stepKey}|${bottleKey}|${final}`;
@@ -967,7 +1010,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
       labelAreas.front?.id,
       labelAreas.back,
       labelAreas.back?.id,
-      isSceneLoading
+      isSceneLoading,
     ]);
 
     // --- Helper: find an option by exact name across ALL attributes in the current step ---
@@ -1236,6 +1279,10 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
       if (!canDesign) {
         setWarning(`Please select ${requireBottle ? 'a bottle, ' : ''}a liquid and a closure before designing labels.`);
         return;
+      }
+      if (labelMode === 'guided') {
+        setGuidedEditMode(false);
+        setGuidedEditNotes('');
       }
       const assembledPrompt = assemblePrompt();
       const finalPrompt =
@@ -1662,7 +1709,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                         type="text"
                         value={labelForm.title}
                         onChange={handleLabelFieldChange('title')}
-                        placeholder="e.g. Barrel & Bond"
+                        placeholder="e.g. Spirits Studio"
                       />
                     </LabelField>
                   ) : null}
@@ -1678,7 +1725,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                     </LabelField>
                   )}
 
-                  {labelMode === 'guided' && guidedGenerating && (
+                  {labelMode === 'guided' && guidedGenerating && !hasLabelOnBottle && (
                     <ActionsCenter>
                       <PromptLoading>
                         <PromptSpinner />
@@ -1697,7 +1744,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                               type="text"
                               value={labelForm.title}
                               onChange={handleLabelFieldChange('title')}
-                              placeholder="e.g. Barrel & Bond"
+                              placeholder="e.g. Spirits Studio"
                             />
                           </LabelField>
                           <WizardNav>
@@ -1991,7 +2038,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                                       type="text"
                                       value={labelForm.title}
                                       onChange={handleLabelFieldChange('title')}
-                                      placeholder="e.g. Barrel & Bond"
+                                      placeholder="e.g. Spirits Studio"
                                     />
                                   </LabelField>
                                   <LabelField>
@@ -2146,7 +2193,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                                   </button>
                                 ) : (
                                   <button
-                                    className="wizard-ghost"
+                                    className={currentStep.key === 'logo' ? 'configurator-button' : 'wizard-ghost'}
                                     type="button"
                                     onClick={() => {
                                       if (currentStep.key === 'logo') {
@@ -2166,6 +2213,65 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                         );
                       })()
                       )}
+                    </WizardWrap>
+                  )}
+
+                  {labelMode === 'guided' && hasLabelOnBottle && !guidedEditMode && (
+                    <GuidedActionRow>
+                      <button
+                        className="configurator-button"
+                        type="button"
+                        onClick={() => {
+                          setGuidedEditMode(false);
+                          setGuidedEditNotes('');
+                        }}
+                      >
+                        Accept Label
+                      </button>
+                      <button
+                        className="wizard-ghost"
+                        type="button"
+                        onClick={() => setGuidedEditMode(true)}
+                      >
+                        Make Edits
+                      </button>
+                    </GuidedActionRow>
+                  )}
+
+                  {labelMode === 'guided' && hasLabelOnBottle && guidedEditMode && (
+                    <WizardWrap>
+                      <SectionTitle>Edit Your Label</SectionTitle>
+                      <LabelField>
+                        Describe your edits
+                        <LabelTextarea
+                          value={guidedEditNotes}
+                          onChange={(event) => setGuidedEditNotes(event.target.value)}
+                          placeholder="Describe what you want to change about the label."
+                        />
+                      </LabelField>
+                      <GuidedActionRow>
+                        <button
+                          className="configurator-button"
+                          type="button"
+                          disabled={!guidedEditNotes.trim()}
+                          onClick={() => {
+                            setGuidedGenerating(true);
+                            handleSendRevision(guidedEditNotes);
+                          }}
+                        >
+                          Generate Edits
+                        </button>
+                        <button
+                          className="wizard-ghost"
+                          type="button"
+                          onClick={() => {
+                            setGuidedEditMode(false);
+                            setGuidedEditNotes('');
+                          }}
+                        >
+                          Accept
+                        </button>
+                      </GuidedActionRow>
                     </WizardWrap>
                   )}
 
