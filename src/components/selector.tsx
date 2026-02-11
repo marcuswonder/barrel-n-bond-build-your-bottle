@@ -1,7 +1,7 @@
 import React, { FunctionComponent, useEffect, useMemo, useRef, useState, useCallback, useLayoutEffect } from 'react';
 // import styled from 'styled-components';
 import { useZakeke } from 'zakeke-configurator-react';
-import { LayoutWrapper, ContentWrapper, Container,  OptionListItem, NavButton, LoadingSpinner, NotesWrapper, CartBar, StepNav, OptionsWrap, OptionText, OptionTitle, OptionDescription, ClosureSections, SectionTitle, SwatchGrid, SwatchButton, SwatchNoneLabel, ActionsCenter, LabelDesignWrap, LabelTabs, LabelTabButton, LabelForm, LabelDetails, LabelSummary, LabelSummaryMeta, LabelRow, LabelField, LabelInput, LabelTextarea, LabelDescription, LabelHelperText, FileNameRow, FileRemoveButton, LabelCheckboxRow, WizardWrap, WizardStepTitle, WizardOptions, WizardOptionButton, WizardNav, WizardHeader, WizardHeaderSide, RestartButton, PromptLoading, PromptSpinner, ConfigWarning, ViewportSpacer, GuidedActionRow } from './list';
+import { LayoutWrapper, ContentWrapper, Container,  OptionListItem, NavButton, LoadingSpinner, NotesWrapper, CartBar, StepNav, OptionsWrap, OptionText, OptionTitle, OptionDescription, ClosureSections, SectionTitle, SwatchGrid, SwatchButton, SwatchNoneLabel, ActionsCenter, LabelDesignWrap, LabelTabs, LabelTabButton, LabelForm, LabelDetails, LabelSummary, LabelSummaryMeta, LabelRow, LabelRowTight, LabelField, LabelInput, LabelTextarea, LabelDescription, LabelHelperText, FileNameRow, FileRemoveButton, LabelCheckboxRow, WizardWrap, WizardStepTitle, WizardOptions, WizardOptionButton, WizardNav, WizardHeader, WizardHeaderSide, RestartButton, PromptLoading, PromptSpinner, PromptFadeText, ConfigWarning, ViewportSpacer, GuidedActionRow } from './list';
 // import { List, StepListItem, , ListItemImage } from './list';
 import { optionNotes } from '../data/option-notes';
 import ClipLoader from 'react-spinners/ClipLoader';
@@ -296,6 +296,11 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
     const [guidedEditNotes, setGuidedEditNotes] = useState('');
     const [reviewImagesVisible, setReviewImagesVisible] = useState(false);
     const [isPromptGenerating, setIsPromptGenerating] = useState(false);
+    const [promptError, setPromptError] = useState(false);
+    const [labelError, setLabelError] = useState(false);
+    const [promptLoadingIndex, setPromptLoadingIndex] = useState(0);
+    const [labelLoadingIndex, setLabelLoadingIndex] = useState(0);
+    const [labelRequestKind, setLabelRequestKind] = useState<'create' | 'edit' | null>(null);
     const [hideLabelTabs, setHideLabelTabs] = useState(false);
     const [promptOverride, setPromptOverride] = useState('');
     const [labelWizard, setLabelWizard] = useState<LabelWizardState>({
@@ -525,6 +530,23 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
       return { front, back } as const;
     }, [visibleAreas]);
 
+    const promptLoadingMessages = useMemo(() => ([
+      'Translating your choices into a creative brief…',
+      'Shaping tone, mood and composition…',
+      'Refining the visual language…',
+      'Crafting the perfect prompt…',
+      'Almost ready…',
+    ]), []);
+
+    const labelLoadingMessages = useMemo(() => ([
+      'Blending visual ingredients…',
+      'Distilling the composition…',
+      'Infusing colour and texture…',
+      'Ageing to perfection…',
+      'Bottling the final design…',
+      'Almost ready…',
+    ]), []);
+
     const liveItems = useMemo(
       () => (Array.isArray(items) ? items : []).filter((it: any) => !it?.deleted),
       [items]
@@ -550,6 +572,56 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
         setGuidedGenerating(false);
       }
     }, [guidedGenerating, hasLabelOnBottle]);
+
+    useEffect(() => {
+      if (hasLabelOnBottle && labelError) {
+        setLabelError(false);
+      }
+    }, [hasLabelOnBottle, labelError]);
+
+    useEffect(() => {
+      if (hasLabelOnBottle && labelRequestKind) {
+        setLabelRequestKind(null);
+      }
+    }, [hasLabelOnBottle, labelRequestKind]);
+
+    useEffect(() => {
+      if (!isPromptGenerating) return;
+      setPromptLoadingIndex(0);
+      const max = promptLoadingMessages.length - 1;
+      const id = window.setInterval(() => {
+        setPromptLoadingIndex((prev) => (prev >= max ? max : prev + 1));
+      }, 3500);
+      return () => window.clearInterval(id);
+    }, [isPromptGenerating, promptLoadingMessages.length]);
+
+    useEffect(() => {
+      if (!guidedGenerating) return;
+      setLabelLoadingIndex(0);
+      const max = labelLoadingMessages.length - 1;
+      const id = window.setInterval(() => {
+        setLabelLoadingIndex((prev) => (prev >= max ? max : prev + 1));
+      }, 3500);
+      return () => window.clearInterval(id);
+    }, [guidedGenerating, labelLoadingMessages.length]);
+
+    useEffect(() => {
+      if (!guidedGenerating || hasLabelOnBottle) return;
+      const timeout = window.setTimeout(() => {
+        setGuidedGenerating(false);
+        setLabelError(true);
+      }, 90000);
+      return () => window.clearTimeout(timeout);
+    }, [guidedGenerating, hasLabelOnBottle]);
+
+    useEffect(() => {
+      if (!isPromptGenerating) return;
+      const timeout = window.setTimeout(() => {
+        setIsPromptGenerating(false);
+        setPromptError(true);
+      }, 45000);
+      return () => window.clearTimeout(timeout);
+    }, [isPromptGenerating]);
 
     useEffect(() => {
       if (labelMode !== 'guided' && guidedEditMode) {
@@ -770,14 +842,20 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
           if (prompt) {
             setPromptOverride(prompt);
           }
+          setPromptError(false);
           setIsPromptGenerating(false);
         }
         if (e.data?.customMessageType === 'generateLabelPromptError') {
-          const fallback = assemblePrompt();
-          if (fallback) {
-            setPromptOverride(fallback);
-          }
+          setPromptError(true);
           setIsPromptGenerating(false);
+        }
+        if (
+          e.data?.customMessageType === 'generateLabelImageError' ||
+          e.data?.customMessageType === 'generateLabelRevisionError' ||
+          e.data?.customMessageType === 'generateLabelError'
+        ) {
+          setLabelError(true);
+          setGuidedGenerating(false);
         }
       };
       window.addEventListener('message', onMsg);
@@ -1381,6 +1459,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
     };
 
     const handleGeneratePromptViaShopify = () => {
+      setPromptError(false);
       setIsPromptGenerating(true);
       const payload = {
         subtitle: (miniLiquid?.name || '').trim(),
@@ -1729,12 +1808,32 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                     <ActionsCenter>
                       <PromptLoading>
                         <PromptSpinner />
-                        <div>Designing Your Label...</div>
+                        <PromptFadeText>
+                          {labelLoadingMessages[Math.min(labelLoadingIndex, labelLoadingMessages.length - 1)]}
+                        </PromptFadeText>
                       </PromptLoading>
                     </ActionsCenter>
                   )}
 
-                  {labelMode === 'guided' && !guidedGenerating && (
+                  {labelMode === 'guided' && promptError && !isPromptGenerating && (
+                    <ActionsCenter>
+                      <PromptLoading>
+                        <div>We couldn't generate your prompt right now.</div>
+                        <button
+                          className="configurator-button"
+                          type="button"
+                          onClick={() => {
+                            setPromptError(false);
+                            setIsPromptGenerating(false);
+                          }}
+                        >
+                          Try Again
+                        </button>
+                      </PromptLoading>
+                    </ActionsCenter>
+                  )}
+
+                  {labelMode === 'guided' && !guidedGenerating && !promptError && (
                     <WizardWrap>
                       {!wizardStarted ? (
                         <>
@@ -1987,6 +2086,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                                               }
                                               setWizardField(currentStep.key as keyof LabelWizardState, opt as any);
                                               if (opt === 'Other' || opt === 'Upload my own') return;
+                                              if (currentStep.key === 'paletteVibe' && opt === 'Pick my own') return;
                                               setTimeout(() => {
                                                 goNext();
                                               }, 200);
@@ -2028,7 +2128,9 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                               isPromptGenerating ? (
                                 <PromptLoading>
                                   <PromptSpinner />
-                                  Writing your prompt...
+                                  <PromptFadeText>
+                                    {promptLoadingMessages[Math.min(promptLoadingIndex, promptLoadingMessages.length - 1)]}
+                                  </PromptFadeText>
                                 </PromptLoading>
                               ) : (
                                 <>
@@ -2052,7 +2154,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                                     />
                                   </LabelField>
                                   {showReviewColours && (
-                                    <LabelRow>
+                                    <LabelRowTight>
                                       {labelForm.primaryColor && (
                                         <LabelField>
                                           Primary colour
@@ -2073,7 +2175,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                                           />
                                         </LabelField>
                                       )}
-                                    </LabelRow>
+                                    </LabelRowTight>
                                   )}
                                   {showReviewImages && (
                                     <LabelRow>
@@ -2184,6 +2286,8 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                                     type="button"
                                     disabled={!!(labelForm.logoFile || labelForm.characterFile) && !labelForm.hasCharacterPermission}
                                     onClick={async () => {
+                                      setLabelError(false);
+                                      setLabelRequestKind('create');
                                       setGuidedPromptConfirmed(true);
                                       setGuidedGenerating(true);
                                       await handleGenerateLabel();
@@ -2238,6 +2342,25 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                     </GuidedActionRow>
                   )}
 
+                  {labelMode === 'guided' && labelError && !guidedGenerating && (
+                    <ActionsCenter>
+                      <PromptLoading>
+                        <div>
+                          {labelRequestKind === 'edit'
+                            ? "We couldn't generate your label edits right now."
+                            : "We couldn't generate your label right now."}
+                        </div>
+                        <button
+                          className="configurator-button"
+                          type="button"
+                          onClick={() => setLabelError(false)}
+                        >
+                          Try Again
+                        </button>
+                      </PromptLoading>
+                    </ActionsCenter>
+                  )}
+
                   {labelMode === 'guided' && hasLabelOnBottle && guidedEditMode && (
                     <WizardWrap>
                       <SectionTitle>Edit Your Label</SectionTitle>
@@ -2255,6 +2378,8 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                           type="button"
                           disabled={!guidedEditNotes.trim()}
                           onClick={() => {
+                            setLabelError(false);
+                            setLabelRequestKind('edit');
                             setGuidedGenerating(true);
                             handleSendRevision(guidedEditNotes);
                           }}

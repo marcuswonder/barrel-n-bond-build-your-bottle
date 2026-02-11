@@ -579,6 +579,12 @@ export const LabelRow = styled.div`
   gap: 12px;
 `;
 
+export const LabelRowTight = styled.div`
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+`;
+
 export const LabelField = styled.label`
   display: flex;
   flex-direction: column;
@@ -792,6 +798,19 @@ export const PromptLoading = styled.div`
   font-size: 14px;
   color: #fff;
   text-align: center;
+  min-height: 48px;
+`;
+
+export const PromptFadeText = styled.div`
+  animation: promptFade 3.5s ease-in-out infinite;
+
+  @keyframes promptFade {
+    0% { opacity: 0; }
+    15% { opacity: 1; }
+    50% { opacity: 1; }
+    85% { opacity: 0; }
+    100% { opacity: 0; }
+  }
 `;
 
 export const PromptSpinner = styled.div`
