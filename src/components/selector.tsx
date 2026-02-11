@@ -861,9 +861,9 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
       await new Promise(r => requestAnimationFrame(() => r(null)));
     };
 
-    const moveCamera = async (name: string) => {
+    const moveCamera = async (name: string, animate = true) => {
       try {
-        await setCameraByName(name);
+        await setCameraByName(name, false, animate);
         lastCamRef.current = name;
       } catch {}
     };
@@ -888,9 +888,14 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
         for (const f of seq) {
           if (ctrl.signal.aborted) return;
           await moveCamera(f);
+          await waitSceneIdle(3600, 60);
           await new Promise(r => setTimeout(r, perFrameMs));
         }
-        if (!ctrl.signal.aborted) await moveCamera(final);
+        if (!ctrl.signal.aborted) {
+          await moveCamera(final);
+          await waitSceneIdle(3600, 60);
+          await moveCamera(final, false);
+        }
       } finally {
         if (camAbort.current === ctrl) camAbort.current = null;
         isAnimatingCam.current = false;
@@ -901,23 +906,20 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
     useEffect(() => {
       if (!selectedStep) return;
 
-      // current step key
-      const s = (selectedStep.name || '').toLowerCase();
+      const stepName = (selectedStep.name || '').toLowerCase();
       const stepKey: 'bottle' | 'liquid' | 'closure' | 'label' =
-        s.includes('bottle') ? 'bottle' :
-        s.includes('closure') ? 'closure' :
-        s.includes('liquid')   ? 'liquid'   : 'label';
+        stepName.includes('bottle') ? 'bottle' :
+        stepName.includes('liquid') || stepName.includes('gin') || stepName.includes('vodka') || stepName.includes('whiskey') || stepName.includes('rum')
+          ? 'liquid'
+          : stepName.includes('closure') ? 'closure' : 'label';
 
-      // derive bottle key from current bottle selection (e.g. "Antica" -> "antica")
       const bottleKey = (bottleSel?.name || selections.bottle?.name || '')
         .trim()
         .toLowerCase()
         .replace(/\s+/g, '_');
 
-      // if no bottle yet, skip anim
       if (!bottleKey) return;
 
-      // build dynamic camera names based on your convention
       const cams: Record<'full_front'|'full_side'|'closure'|'label_front'|'label_back', string> = {
         full_front: `${bottleKey}_full_front`,
         full_side: `${bottleKey}_full_side`,
@@ -926,7 +928,6 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
         label_back: `${bottleKey}_label_back`,
       };
 
-      // choose keyframe path for a short orbit feel per step
       let frames: string[] = [];
       let final: string = cams.full_front;
 
@@ -938,7 +939,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
         final = cams.full_front;
       } else if (stepKey === 'closure') {
         frames = ['wide_high_front', 'wide_high_back'];
-        final = cams.label_front;
+        final = cams.closure;
       } else if (stepKey === 'label') {
         frames = ['wide_high_front'];
         const preferFront = !!labelAreas.front || !labelAreas.back;
@@ -946,22 +947,25 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
       }
 
       const tourKey = `${stepKey}|${bottleKey}|${final}`;
-      if (!isSceneLoading && prevTourKeyRef.current === tourKey) {
-        return; // identical request, skip to avoid jitter
-      }
+      if (!isSceneLoading && prevTourKeyRef.current === tourKey) return;
       prevTourKeyRef.current = tourKey;
+      
+      const perFrameMs = stepKey === 'bottle' ? 1000 : 1000;
 
       (async () => {
-        await waitSceneIdle(1500, 60); // wait for model/meshes swap to settle
-        await runCameraTour(frames, final, 1000); // adjust per-frame ms as desired
+        await waitSceneIdle(4500, 60);
+        await runCameraTour(frames, final, perFrameMs);
       })();
 
       return () => camAbort.current?.abort();
     }, [
+      selectedStep,
       selectedStep?.id,
       selections.bottle?.name,
       bottleSel?.name,
+      labelAreas.front,
       labelAreas.front?.id,
+      labelAreas.back,
       labelAreas.back?.id,
       isSceneLoading
     ]);
