@@ -499,10 +499,7 @@ export const ActionsCenter = styled.div`
     width: auto;
   }
 
-  @media (max-width: 767px) {
-    flex-direction: column;
-    align-items: center;
-  }
+  flex-wrap: wrap;
 `;
 
 // Label design form (AI)
@@ -739,10 +736,7 @@ export const WizardNav = styled.div`
     width: auto;
   }
 
-  @media (max-width: 767px) {
-    flex-direction: column;
-    align-items: center;
-  }
+  flex-wrap: wrap;
 `;
 
 export const GuidedActionRow = styled.div`
@@ -756,10 +750,7 @@ export const GuidedActionRow = styled.div`
     width: auto;
   }
 
-  @media (max-width: 767px) {
-    flex-direction: column;
-    align-items: center;
-  }
+  flex-wrap: wrap;
 `;
 
 export const WizardHeader = styled.div`
