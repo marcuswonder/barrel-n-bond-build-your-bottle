@@ -48,6 +48,10 @@ html,body {
   transition: background-color 150ms ease, border-color 150ms ease, transform 150ms ease, box-shadow 150ms ease;
 }
 
+.configurator-button span {
+  background: transparent;
+}
+
 .configurator-button:hover {
   background: linear-gradient(180deg, #ff62bd 0%, #f42492 55%, #c91a74 100%);
   border-color: #ff8bd3;

@@ -758,7 +758,9 @@ export const GuidedActionRow = styled.div`
   flex-wrap: wrap;
 
   & .guided-action {
-    min-width: 180px;
+    flex: 0 1 240px;
+    width: 240px;
+    max-width: 100%;
   }
 `;
 

@@ -55,11 +55,11 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
     } = useZakeke();
 
 
-    console.log("groups", groups)
-    console.log("product", product)
-    console.log("items", items)
-    console.log("price", price)
-    console.log("isSceneLoading", isSceneLoading)
+    // console.log("groups", groups)
+    // console.log("product", product)
+    // console.log("items", items)
+    // console.log("price", price)
+    // console.log("isSceneLoading", isSceneLoading)
     
 
     const isLiteMode = mode === 'lite';
@@ -406,15 +406,10 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
     const miniClosure = toMini(closureSel);
     const miniLabel   = toMini(labelSel);
 
-    console.log("miniBottle", miniBottle);
-    console.log("miniLiquid", miniLiquid);
-    console.log("miniClosure", miniClosure);
-    console.log("miniLabel", miniLabel);
-
-    console.log('[steps]', steps.map(s => ({ id: s.id, name: s.name, attrCount: s.attributes?.length })));
-    console.log('[bottleStepIdx]', bottleStepIdx, 'stepName', steps[bottleStepIdx]?.name);
-    console.log('[bottleAttr0 opts]', steps[bottleStepIdx]?.attributes?.[0]?.options?.map(o => ({ name: o.name, selected: o.selected })));
-
+    // console.log("miniBottle", miniBottle);
+    // console.log("miniLiquid", miniLiquid);
+    // console.log("miniClosure", miniClosure);
+    // console.log("miniLabel", miniLabel);
 
     const {
       setFromSelections,
@@ -448,7 +443,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
       closureChoices,
     ]);
 
-    console.log("selections", selections)
+    // console.log("selections", selections)
 
     // Key that only changes when meaningful order fields change, closure id excluded to avoid transient updates during attribute switch
     const orderKey = [
@@ -1825,7 +1820,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                     </LabelField>
                   )}
 
-                  {labelMode === 'guided' && guidedGenerating && !hasLabelOnBottle && (
+                  {labelMode === 'guided' && guidedGenerating && (labelRequestKind === 'edit' || !hasLabelOnBottle) && (
                     <ActionsCenter>
                       <PromptLoading>
                         <PromptSpinner />
@@ -2399,16 +2394,6 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                         />
                       </LabelField>
                       <GuidedActionRow>
-                        <button
-                          className="wizard-ghost guided-action"
-                          type="button"
-                          onClick={() => {
-                            setGuidedEditMode(false);
-                            setGuidedEditNotes('');
-                          }}
-                        >
-                          Accept Original
-                        </button>
                         <button
                           className="configurator-button guided-action"
                           type="button"
