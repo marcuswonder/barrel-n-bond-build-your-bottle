@@ -229,14 +229,13 @@ export const NotesWrapper = styled.div<{ $accent?: string }>`
 export const CartBarContainer = styled.div`
   position: sticky;
   bottom: 0;
-  background: #fff;
-  padding: 16px 16px 24px;
-  border-top: 1px solid #ccc;
+  background: #000;
+  padding: 8px 16px 12px;
   z-index: 100;
   box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.06);
 
   @supports (padding-bottom: env(safe-area-inset-bottom)) {
-    padding-bottom: calc(24px + env(safe-area-inset-bottom));
+    padding-bottom: calc(12px + env(safe-area-inset-bottom));
   }
 `;
 
@@ -757,6 +756,19 @@ export const GuidedActionRow = styled.div`
   }
 
   flex-wrap: wrap;
+
+  & .guided-action {
+    min-width: 180px;
+  }
+`;
+
+export const LabelPreviewImage = styled.img`
+  width: 100%;
+  max-width: 520px;
+  border: 1px solid #222;
+  background: #0b0b0b;
+  display: block;
+  user-select: none;
 `;
 
 export const WizardHeader = styled.div`

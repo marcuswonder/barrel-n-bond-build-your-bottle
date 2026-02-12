@@ -1,7 +1,7 @@
 import React, { FunctionComponent, useEffect, useMemo, useRef, useState, useCallback, useLayoutEffect } from 'react';
 // import styled from 'styled-components';
 import { useZakeke } from 'zakeke-configurator-react';
-import { LayoutWrapper, ContentWrapper, Container,  OptionListItem, NavButton, LoadingSpinner, NotesWrapper, CartBar, StepNav, OptionsWrap, OptionText, OptionTitle, OptionDescription, ClosureSections, SectionTitle, SwatchGrid, SwatchButton, SwatchNoneLabel, ActionsCenter, LabelDesignWrap, LabelTabs, LabelTabButton, LabelForm, LabelDetails, LabelSummary, LabelSummaryMeta, LabelRow, LabelRowTight, LabelField, LabelInput, LabelTextarea, LabelDescription, LabelHelperText, FileNameRow, FileRemoveButton, LabelCheckboxRow, WizardWrap, WizardStepTitle, WizardOptions, WizardOptionButton, WizardNav, WizardHeader, WizardHeaderSide, RestartButton, PromptLoading, PromptSpinner, PromptFadeText, ConfigWarning, ViewportSpacer, GuidedActionRow } from './list';
+import { LayoutWrapper, ContentWrapper, Container,  OptionListItem, NavButton, LoadingSpinner, NotesWrapper, CartBar, StepNav, OptionsWrap, OptionText, OptionTitle, OptionDescription, ClosureSections, SectionTitle, SwatchGrid, SwatchButton, SwatchNoneLabel, ActionsCenter, LabelDesignWrap, LabelTabs, LabelTabButton, LabelForm, LabelDetails, LabelSummary, LabelSummaryMeta, LabelRow, LabelRowTight, LabelField, LabelInput, LabelTextarea, LabelDescription, LabelHelperText, FileNameRow, FileRemoveButton, LabelCheckboxRow, WizardWrap, WizardStepTitle, WizardOptions, WizardOptionButton, WizardNav, WizardHeader, WizardHeaderSide, RestartButton, PromptLoading, PromptSpinner, PromptFadeText, ConfigWarning, ViewportSpacer, GuidedActionRow, LabelPreviewImage } from './list';
 // import { List, StepListItem, , ListItemImage } from './list';
 import { optionNotes } from '../data/option-notes';
 import ClipLoader from 'react-spinners/ClipLoader';
@@ -547,6 +547,14 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
       'Almost ready…',
     ]), []);
 
+    const labelEditLoadingMessages = useMemo(() => ([
+      'Rebalancing the blend…',
+      'Adjusting notes and finish…',
+      'Deepening colour and character…',
+      'Smoothing the final edges…',
+      'Resealing the bottle…',
+    ]), []);
+
     const liveItems = useMemo(
       () => (Array.isArray(items) ? items : []).filter((it: any) => !it?.deleted),
       [items]
@@ -566,6 +574,18 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
       }
       return liveItems.length > 0;
     }, [liveItems, labelAreas.front?.id, labelAreas.back?.id]);
+
+    const labelPreviewUrl = useMemo(() => {
+      const front = (labelDesigns as any)?.front || null;
+      if (!front) return '';
+      return (
+        front.frontS3Url ||
+        front.s3url ||
+        front.url ||
+        (Array.isArray(front.images) ? front.images[0] : '') ||
+        ''
+      );
+    }, [labelDesigns]);
 
     useEffect(() => {
       if (guidedGenerating && hasLabelOnBottle) {
@@ -598,12 +618,13 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
     useEffect(() => {
       if (!guidedGenerating) return;
       setLabelLoadingIndex(0);
-      const max = labelLoadingMessages.length - 1;
+      const messages = labelRequestKind === 'edit' ? labelEditLoadingMessages : labelLoadingMessages;
+      const max = messages.length - 1;
       const id = window.setInterval(() => {
         setLabelLoadingIndex((prev) => (prev >= max ? max : prev + 1));
       }, 3500);
       return () => window.clearInterval(id);
-    }, [guidedGenerating, labelLoadingMessages.length]);
+    }, [guidedGenerating, labelLoadingMessages.length, labelEditLoadingMessages.length, labelRequestKind]);
 
     useEffect(() => {
       if (!guidedGenerating || hasLabelOnBottle) return;
@@ -1809,7 +1830,12 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                       <PromptLoading>
                         <PromptSpinner />
                         <PromptFadeText>
-                          {labelLoadingMessages[Math.min(labelLoadingIndex, labelLoadingMessages.length - 1)]}
+                          {(labelRequestKind === 'edit' ? labelEditLoadingMessages : labelLoadingMessages)[
+                            Math.min(
+                              labelLoadingIndex,
+                              (labelRequestKind === 'edit' ? labelEditLoadingMessages.length : labelLoadingMessages.length) - 1
+                            )
+                          ]}
                         </PromptFadeText>
                       </PromptLoading>
                     </ActionsCenter>
@@ -2232,7 +2258,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                               )
                             )}
                             {currentStep.key === 'paletteVibe' && labelWizard.paletteVibe === 'Pick my own' && (
-                              <LabelRow>
+                              <LabelRowTight>
                                 <LabelField>
                                   Primary colour
                                   <LabelInput
@@ -2252,7 +2278,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                                     onChange={handleLabelFieldChange('secondaryColor')}
                                   />
                                 </LabelField>
-                              </LabelRow>
+                              </LabelRowTight>
                             )}
                             {currentStep.key === 'mainSubject' && labelWizard.mainSubject === 'Upload my own' && (
                               <LabelField>
@@ -2321,25 +2347,25 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                   )}
 
                   {labelMode === 'guided' && hasLabelOnBottle && !guidedEditMode && (
-                    <GuidedActionRow>
-                      <button
-                        className="configurator-button"
-                        type="button"
-                        onClick={() => {
-                          setGuidedEditMode(false);
-                          setGuidedEditNotes('');
-                        }}
-                      >
-                        Accept Label
-                      </button>
-                      <button
-                        className="wizard-ghost"
-                        type="button"
-                        onClick={() => setGuidedEditMode(true)}
-                      >
-                        Make Edits
-                      </button>
-                    </GuidedActionRow>
+                    <WizardWrap>
+                      {labelPreviewUrl && (
+                        <LabelPreviewImage
+                          src={labelPreviewUrl}
+                          alt="Generated label preview"
+                          draggable={false}
+                          onContextMenu={(event) => event.preventDefault()}
+                        />
+                      )}
+                      <GuidedActionRow>
+                        <button
+                          className="wizard-ghost guided-action"
+                          type="button"
+                          onClick={() => setGuidedEditMode(true)}
+                        >
+                          Make Edits
+                        </button>
+                      </GuidedActionRow>
+                    </WizardWrap>
                   )}
 
                   {labelMode === 'guided' && labelError && !guidedGenerating && (
@@ -2374,7 +2400,17 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                       </LabelField>
                       <GuidedActionRow>
                         <button
-                          className="configurator-button"
+                          className="wizard-ghost guided-action"
+                          type="button"
+                          onClick={() => {
+                            setGuidedEditMode(false);
+                            setGuidedEditNotes('');
+                          }}
+                        >
+                          Accept Original
+                        </button>
+                        <button
+                          className="configurator-button guided-action"
                           type="button"
                           disabled={!guidedEditNotes.trim()}
                           onClick={() => {
@@ -2385,16 +2421,6 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                           }}
                         >
                           Generate Edits
-                        </button>
-                        <button
-                          className="wizard-ghost"
-                          type="button"
-                          onClick={() => {
-                            setGuidedEditMode(false);
-                            setGuidedEditNotes('');
-                          }}
-                        >
-                          Accept
                         </button>
                       </GuidedActionRow>
                     </WizardWrap>
@@ -2444,7 +2470,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                         Select colours
                         <LabelSummaryMeta>Optional</LabelSummaryMeta>
                       </LabelSummary>
-                      <LabelRow>
+                      <LabelRowTight>
                         <LabelField>
                           Primary colour
                           <LabelInput
@@ -2466,7 +2492,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                             onChange={handleLabelFieldChange('secondaryColor')}
                           />
                         </LabelField>
-                      </LabelRow>
+                      </LabelRowTight>
                     </LabelDetails>
                   )}
 
