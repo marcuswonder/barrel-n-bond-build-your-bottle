@@ -15,6 +15,9 @@ type AppMode = 'full' | 'lite';
 const normalizebottleName = (value: string) =>
   value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '');
 
+const toBottleCameraKey = (value: string) =>
+  value.trim().toLowerCase().replace(/\s+/g, '_');
+
 const buildSyntheticBottle = (bottleName: string) => {
   const cleaned = normalizebottleName(bottleName || 'antica');
   if (!cleaned) return null;
@@ -678,6 +681,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
 
     const canDesign = hasLiquidSelection && hasClosureSelection && (!requireBottle || hasBottleSelection);
     const isAiLabelMode = labelMode === 'guided' || labelMode === 'form';
+    const hasUploadLaterTemplateOnBottle = Boolean((labelDesigns as any)?.front?.uploadLaterTemplate);
     const isUploadLaterRequest = labelMode === 'upload' && guidedGenerating && labelRequestKind === 'uploadLater';
     const showLabelLoadingState =
       guidedGenerating &&
@@ -685,7 +689,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
         (isAiLabelMode && (labelRequestKind === 'edit' || !hasLabelOnBottle)) ||
         isUploadLaterRequest
       );
-    const showUploadLabelForm = labelMode === 'upload' && !isUploadLaterRequest;
+    const showUploadLabelForm = labelMode === 'upload' && !isUploadLaterRequest && !hasUploadLaterTemplateOnBottle;
     const showLabelErrorState = (isAiLabelMode || labelMode === 'upload') && labelError && !guidedGenerating;
     const showPromptFormBuilder =
       labelMode === 'form' && !guidedGenerating && !hasLabelOnBottle && !guidedEditMode;
@@ -1726,6 +1730,21 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
     
     const handleAddToCart = async () => {
     try {
+        const bottleCameraKey = toBottleCameraKey(
+          String(productObject?.selections?.bottle?.name || miniBottle?.name || defaultBottleName || '')
+        );
+        if (bottleCameraKey) {
+          camAbort.current?.abort();
+          pendingTourKeyRef.current = null;
+          await moveCamera(`${bottleCameraKey}_full_front`, false);
+          await waitSceneIdle(2200, 60);
+          await new Promise<void>((resolve) => {
+            requestAnimationFrame(() => {
+              requestAnimationFrame(() => resolve());
+            });
+          });
+        }
+
         await addToCart(
             {},
             async (data) => {

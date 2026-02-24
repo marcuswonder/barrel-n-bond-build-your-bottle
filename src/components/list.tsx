@@ -146,7 +146,9 @@ export const LoadingSpinner = styled.div`
 `; 
 
 export const CartButton = styled.button.attrs({ className: 'configurator-button' })`
-  width: 100%;
+  width: auto;
+  max-width: 100%;
+  align-self: flex-start;
   margin: 0;
 `;
 
@@ -242,6 +244,7 @@ export const CartBarContainer = styled.div`
 export const CartBarInner = styled.div`
   display: flex;
   flex-direction: column;
+  align-items: flex-start;
   gap: 12px;
 `;
 
