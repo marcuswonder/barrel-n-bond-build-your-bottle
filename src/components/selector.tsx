@@ -1363,8 +1363,12 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
         customMessageType: 'customLabelUploaded',
         message: { 
           designSide: 'front', 
-          file: uploadLabelFile, 
-          dataUrl 
+          bottleName: (miniBottle?.name || '').trim(),
+          sessionId: sessionStorage.getItem('ss_session_id') || (window as any).SS?.getSessionId?.() || String(Date.now()),
+          fileName: uploadLabelFile.name || '',
+          fileType: uploadLabelFile.type || '',
+          fileSize: uploadLabelFile.size || 0,
+          dataUrl,
         },
       });
 
@@ -1373,8 +1377,12 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
           customMessageType: 'customLabelUploaded',
           message: { 
             designSide: 'front', 
-            file: uploadLabelFile, 
-            dataUrl 
+            bottleName: (miniBottle?.name || '').trim(),
+            sessionId: sessionStorage.getItem('ss_session_id') || (window as any).SS?.getSessionId?.() || String(Date.now()),
+            fileName: uploadLabelFile.name || '',
+            fileType: uploadLabelFile.type || '',
+            fileSize: uploadLabelFile.size || 0,
+            dataUrl,
           },
         },
         '*'
@@ -1503,18 +1511,47 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
         return;
       }
       const prev = labelDesigns?.front || null;
+      const prevInput = (prev?.aiInput && typeof prev.aiInput === 'object') ? prev.aiInput : {};
+      const previousDataUrlCandidate =
+        (typeof prev?.frontImage === 'string' && prev.frontImage.startsWith('data:') ? prev.frontImage : '') ||
+        (Array.isArray(prev?.images) && typeof prev.images[0] === 'string' && prev.images[0].startsWith('data:') ? prev.images[0] : '') ||
+        (typeof prev?.imageDataUrl === 'string' && prev.imageDataUrl.startsWith('data:') ? prev.imageDataUrl : '');
       const previousImage =
-        prev?.frontS3Url || prev?.s3url || prev?.url || (Array.isArray(prev?.images) ? prev.images[0] : '') || '';
+        previousDataUrlCandidate ||
+        prev?.frontS3Url ||
+        prev?.s3url ||
+        prev?.url ||
+        (Array.isArray(prev?.images) ? prev.images[0] : '') ||
+        '';
       if (!previousImage) {
         setWarning('No previous label image found to revise.');
         return;
       }
+      const fallbackPrompt = (labelMode === 'guided' ? (promptOverride.trim() || assemblePrompt()) : labelForm.prompt.trim());
+      const inheritedPrompt = String(prevInput.prompt || prev?.prompt || fallbackPrompt || '').trim();
+      const inheritedTitle = String(prevInput.title || prev?.title || labelForm.title || '').trim();
+      const inheritedSubtitle = String(prevInput.subtitle || prev?.subtitle || miniLiquid?.name || '').trim();
+      const inheritedPrimary = String(prevInput.primaryColor || prev?.primaryColor || labelForm.primaryColor || '').trim();
+      const inheritedSecondary = String(prevInput.secondaryColor || prev?.secondaryColor || labelForm.secondaryColor || '').trim();
+      const inheritedLogoDataUrl = String(prevInput.logoDataUrl || prev?.logoDataUrl || '').trim();
+      const inheritedCharacterDataUrl = String(prevInput.characterDataUrl || prev?.characterDataUrl || '').trim();
+      const includeHexes = Boolean(
+        (prevInput.includeHexes ?? prev?.includeHexes) ?? (inheritedPrimary || inheritedSecondary)
+      );
       const payload = {
         designSide: 'front',
         alcoholName: (miniLiquid?.name || '').trim(),
         bottleName: (miniBottle?.name || '').trim(),
         liquidName: (miniLiquid?.name || '').trim(),
         closureName: (miniClosure?.name || '').trim(),
+        title: inheritedTitle,
+        subtitle: inheritedSubtitle,
+        prompt: inheritedPrompt,
+        primaryColor: inheritedPrimary,
+        secondaryColor: inheritedSecondary,
+        includeHexes,
+        logoDataUrl: inheritedLogoDataUrl,
+        characterDataUrl: inheritedCharacterDataUrl,
         previousImage,
         critique: trimmed,
         sessionId: sessionStorage.getItem('ss_session_id') || (window as any).SS?.getSessionId?.() || String(Date.now()),
@@ -2303,7 +2340,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                                         checked={labelForm.hasCharacterPermission}
                                         onChange={handleLabelCheckboxChange}
                                       />
-                                      I have the express permission/right to use any logo, or any image with the likeness of a person/character being uploaded for commercial purposes
+                                      I have the express permission/right to use any logo, or any image with the likeness of a character being uploaded for commercial purposes
                                     </LabelCheckboxRow>
                                   )}
                                 </>
@@ -2341,7 +2378,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                                   onChange={handleLabelFileChange('characterFile')}
                                 />
                                 <LabelDescription>
-                                  Upload a person/character to include in the label.
+                                  Upload a character to include in the label.
                                 </LabelDescription>
                                 <LabelHelperText>
                                   {labelForm.characterFile?.name || 'No character uploaded.'}
@@ -2567,7 +2604,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                             onChange={handleLabelFileChange('characterFile')}
                           />
                           <LabelDescription>
-                            Upload a person/character to include in the label.
+                            Upload a character to include in the label.
                           </LabelDescription>
                           <LabelHelperText>
                             {labelForm.characterFile?.name || 'No character uploaded.'}
@@ -2577,6 +2614,16 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                     </LabelDetails>
                   )}
 
+                  {labelMode === 'form' && (labelForm.logoFile || labelForm.characterFile) && (
+                    <LabelCheckboxRow>
+                      <input
+                        type="checkbox"
+                        checked={labelForm.hasCharacterPermission}
+                        onChange={handleLabelCheckboxChange}
+                      />
+                      I have the express permission/right to use any logo, or any image with the likeness of a character being uploaded for commercial purposes
+                    </LabelCheckboxRow>
+                  )}
 
                   {labelMode === 'form' && (
                     <ActionsCenter>
