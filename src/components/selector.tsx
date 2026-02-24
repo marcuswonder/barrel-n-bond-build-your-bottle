@@ -187,6 +187,8 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
     const [selectedAttributeId, selectAttribute] = useState<number | null>(null);
 
     const [isSelecting, setIsSelecting] = useState(false);
+    const selectGuardTimerRef = useRef<number | null>(null);
+    const [isInitialUiReady, setIsInitialUiReady] = useState(false);
     const [labelMode, setLabelMode] = useState<'form' | 'guided' | 'upload'>('form');
 
     useEffect(() => {
@@ -365,13 +367,13 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
       if (!opts.length) return;
 
       const noSel = opts.find(o => (o?.name || '').trim().toLowerCase() === 'no selection') || null;
+      const active = opts.find(o => !!o?.selected) || null;
 
       const isLabelStep = /label|design/i.test(selectedStep?.name || '');
 
       // If we're NOT on the label step, force "No Selection" so labels stay hidden
       if (!isLabelStep) {
-        const active = opts.find(o => !!o?.selected);
-        if (active && noSel && active.id !== noSel.id) {
+        if (noSel && active?.id !== noSel.id) {
           selectOption(noSel.id);
         }
         return;
@@ -382,18 +384,18 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
       const bottleKey = bottleName.replace(/\s+/g, '_'); // e.g. 'Polo' -> 'polo'
 
       if (!bottleKey) {
-        if (noSel && !noSel.selected) selectOption(noSel.id);
+        if (noSel && active?.id !== noSel.id) selectOption(noSel.id);
         return;
       }
 
       const match = opts.find(o => typeof o?.code === 'string' && o.code.toLowerCase().endsWith(`_${bottleKey}`));
 
-      if (match && !match.selected) {
+      if (match && active?.id !== match.id) {
         selectOption(match.id);
         return;
       }
 
-      if (!match && noSel && !noSel.selected) {
+      if (!match && noSel && active?.id !== noSel.id) {
         selectOption(noSel.id);
       }
     }, [steps, labelStepIdx, selectedStepId, selectedStep?.name, bottleSel?.name, selectOption]);
@@ -583,10 +585,10 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
     }, [labelDesigns]);
 
     useEffect(() => {
-      if (guidedGenerating && hasLabelOnBottle) {
+      if (guidedGenerating && hasLabelOnBottle && labelRequestKind !== 'edit') {
         setGuidedGenerating(false);
       }
-    }, [guidedGenerating, hasLabelOnBottle]);
+    }, [guidedGenerating, hasLabelOnBottle, labelRequestKind]);
 
     useEffect(() => {
       if (hasLabelOnBottle && labelError) {
@@ -595,10 +597,10 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
     }, [hasLabelOnBottle, labelError]);
 
     useEffect(() => {
-      if (hasLabelOnBottle && labelRequestKind) {
+      if (hasLabelOnBottle && labelRequestKind === 'create' && !guidedGenerating) {
         setLabelRequestKind(null);
       }
-    }, [hasLabelOnBottle, labelRequestKind]);
+    }, [hasLabelOnBottle, labelRequestKind, guidedGenerating]);
 
     useEffect(() => {
       if (!isPromptGenerating) return;
@@ -622,13 +624,14 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
     }, [guidedGenerating, labelLoadingMessages.length, labelEditLoadingMessages.length, labelRequestKind]);
 
     useEffect(() => {
-      if (!guidedGenerating || hasLabelOnBottle) return;
+      if (!guidedGenerating) return;
+      if (labelRequestKind !== 'edit' && hasLabelOnBottle) return;
       const timeout = window.setTimeout(() => {
         setGuidedGenerating(false);
         setLabelError(true);
       }, 90000);
       return () => window.clearTimeout(timeout);
-    }, [guidedGenerating, hasLabelOnBottle]);
+    }, [guidedGenerating, hasLabelOnBottle, labelRequestKind]);
 
     useEffect(() => {
       if (!isPromptGenerating) return;
@@ -695,6 +698,13 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
         selectAttribute((prev: number | null) => (prev === null ? firstEnabledAttr.id : prev));
       }
     }, [groups, selectedGroupId, selectedStepId, selectedAttributeId]);
+
+    useEffect(() => {
+      if (isInitialUiReady) return;
+      if (!groups || groups.length === 0) return;
+      if (isSceneLoading) return;
+      setIsInitialUiReady(true);
+    }, [groups, isSceneLoading, isInitialUiReady]);
 
 
     // (Optional debug) Log selected group/step
@@ -769,6 +779,10 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
             
             if (frontImage?.imageID && frontAreaId) {
               await addItemImage(frontImage.imageID, frontAreaId);
+              if (labelRequestKind === 'edit') {
+                setGuidedGenerating(false);
+                setLabelRequestKind(null);
+              }
 
               console.log("postMessage Content:", {
                 customMessageType: 'labelAdded',
@@ -817,6 +831,10 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
   
             if (backImage?.imageID && backAreaId) {
               await addItemImage(backImage.imageID, backAreaId);
+              if (labelRequestKind === 'edit') {
+                setGuidedGenerating(false);
+                setLabelRequestKind(null);
+              }
 
               console.log("postMessage Content:", {
                 customMessageType: 'labelAdded',
@@ -973,12 +991,18 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
     const lastCamRef = useRef<string | null>(null);
     const isAnimatingCam = useRef(false);
     const prevTourKeyRef = useRef<string | null>(null);
+    const pendingTourKeyRef = useRef<string | null>(null);
+    const sceneLoadingRef = useRef(isSceneLoading);
+
+    useEffect(() => {
+      sceneLoadingRef.current = isSceneLoading;
+    }, [isSceneLoading]);
 
     const waitSceneIdle = async (timeout = 1500, interval = 60) => {
       const start = Date.now();
       let stable = 0;
       while (Date.now() - start < timeout) {
-        if (!isSceneLoading) {
+        if (!sceneLoadingRef.current) {
           stable++;
           if (stable >= 2) break;
         } else {
@@ -1084,27 +1108,33 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
       }
 
       const tourKey = `${stepKey}|${bottleKey}|${final}`;
-      if (!isSceneLoading && prevTourKeyRef.current === tourKey) return;
-      prevTourKeyRef.current = tourKey;
-      
+      if (pendingTourKeyRef.current === tourKey) return;
+      if (prevTourKeyRef.current === tourKey) return;
+      pendingTourKeyRef.current = tourKey;
+
       const perFrameMs = stepKey === 'bottle' ? 1000 : 1000;
 
       (async () => {
         await waitSceneIdle(4500, 60);
+        if (pendingTourKeyRef.current !== tourKey) return;
         await runCameraTour(frames, final, perFrameMs);
+        if (pendingTourKeyRef.current === tourKey) {
+          prevTourKeyRef.current = tourKey;
+          pendingTourKeyRef.current = null;
+        }
       })();
 
-      return () => camAbort.current?.abort();
+      return () => {
+        if (pendingTourKeyRef.current === tourKey) {
+          pendingTourKeyRef.current = null;
+        }
+        camAbort.current?.abort();
+      };
     }, [
-      selectedStep,
       selectedStep?.id,
+      selectedStep?.name,
       selections.bottle?.name,
       bottleSel?.name,
-      labelAreas.front,
-      labelAreas.front?.id,
-      labelAreas.back,
-      labelAreas.back?.id,
-      isSceneLoading,
     ]);
 
     // --- Helper: find an option by exact name across ALL attributes in the current step ---
@@ -1146,6 +1176,13 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
       if (!attributeId || !optionId || isSelecting) return;
 
       setIsSelecting(true);
+      if (selectGuardTimerRef.current) {
+        window.clearTimeout(selectGuardTimerRef.current);
+      }
+      selectGuardTimerRef.current = window.setTimeout(() => {
+        setIsSelecting(false);
+        selectGuardTimerRef.current = null;
+      }, 5000);
       try {
         const attrId = Number(attributeId);
         const optId  = Number(optionId);
@@ -1206,13 +1243,33 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
 
     useEffect(() => {
       if (!isSelecting) return;
-      if (!isClosureStep) return;
+      if (!isClosureStep) {
+        if (selectGuardTimerRef.current) {
+          window.clearTimeout(selectGuardTimerRef.current);
+          selectGuardTimerRef.current = null;
+        }
+        setIsSelecting(false);
+        return;
+      }
       const opts = selectedAttribute?.options || [];
       const hasSel = !!opts.find(o => o.selected && o.name !== 'No Selection');
       if (hasSel) {
+        if (selectGuardTimerRef.current) {
+          window.clearTimeout(selectGuardTimerRef.current);
+          selectGuardTimerRef.current = null;
+        }
         setIsSelecting(false);
       }
     }, [isSelecting, isClosureStep, selectedAttribute?.options]);
+
+    useEffect(() => {
+      return () => {
+        if (selectGuardTimerRef.current) {
+          window.clearTimeout(selectGuardTimerRef.current);
+          selectGuardTimerRef.current = null;
+        }
+      };
+    }, []);
 
     // Closure options can live on step or attribute depending on Zakeke setup
     const closureOptions = useMemo(() => {
@@ -1577,7 +1634,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
     };
     
 
-    if (isSceneLoading || !groups || groups.length === 0)
+    if (!isInitialUiReady || !groups || groups.length === 0)
         return <LoadingSpinner />;
     
     const handleAddToCart = async () => {

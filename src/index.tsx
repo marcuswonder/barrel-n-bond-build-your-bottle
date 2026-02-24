@@ -10,11 +10,22 @@ import * as serviceWorker from './serviceWorker';
 (function installZkNetTap(){
   try {
     const ORIGIN: string = '*'; // tighten to your parent origin later
+    const qp = new URLSearchParams(window.location.search);
+    const tapEnabled =
+      qp.has('debugnet') ||
+      qp.has('debug-net') ||
+      (window as any).__ZK_NET_TAP__ === true;
+
     const w = window as unknown as {
       fetch: typeof window.fetch;
       parent: Window | null;
       __zkNetTap?: { enabled: boolean };
     };
+
+    if (!tapEnabled) {
+      (w as any).__zkNetTap = { enabled: false };
+      return;
+    }
 
     const shouldLog = (url: string): boolean => /zakeke\./i.test(url) || /\/api\//i.test(url);
     const post = (type: string, payload: unknown): void => {
@@ -31,10 +42,13 @@ import * as serviceWorker from './serviceWorker';
       try {
         const res = await _fetch(input as any, init as any);
         if (shouldLog(url)) {
-          const clone = res.clone();
+          const contentType = res.headers.get('content-type') || '';
           let bodySnippet: string | null = null;
-          try { bodySnippet = await clone.text(); bodySnippet = bodySnippet.slice(0, 3000); } catch {}
-          post('zk-net-fetch', { phase: 'end', method, url, status: res.status, durMs: Date.now()-started, bodySnippet });
+          if (/json|text|javascript|xml/i.test(contentType)) {
+            const clone = res.clone();
+            try { bodySnippet = await clone.text(); bodySnippet = bodySnippet.slice(0, 3000); } catch {}
+          }
+          post('zk-net-fetch', { phase: 'end', method, url, status: res.status, durMs: Date.now()-started, contentType, bodySnippet });
         }
         return res;
       } catch (e) {
