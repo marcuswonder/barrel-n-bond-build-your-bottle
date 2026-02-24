@@ -302,7 +302,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
     const [labelError, setLabelError] = useState(false);
     const [promptLoadingIndex, setPromptLoadingIndex] = useState(0);
     const [labelLoadingIndex, setLabelLoadingIndex] = useState(0);
-    const [labelRequestKind, setLabelRequestKind] = useState<'create' | 'edit' | null>(null);
+    const [labelRequestKind, setLabelRequestKind] = useState<'create' | 'edit' | 'uploadLater' | null>(null);
     const [hideLabelTabs, setHideLabelTabs] = useState(false);
     const [promptOverride, setPromptOverride] = useState('');
     const [labelWizard, setLabelWizard] = useState<LabelWizardState>({
@@ -417,6 +417,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
       setFromSelections,
       labelDesigns,
       setFromUploadDesign,
+      setLabelDesign,
       closureChoices,
       setClosureWood,
       setClosureWax
@@ -597,7 +598,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
     }, [hasLabelOnBottle, labelError]);
 
     useEffect(() => {
-      if (hasLabelOnBottle && labelRequestKind === 'create' && !guidedGenerating) {
+      if (hasLabelOnBottle && (labelRequestKind === 'create' || labelRequestKind === 'uploadLater') && !guidedGenerating) {
         setLabelRequestKind(null);
       }
     }, [hasLabelOnBottle, labelRequestKind, guidedGenerating]);
@@ -643,7 +644,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
     }, [isPromptGenerating]);
 
     useEffect(() => {
-      if (labelMode !== 'guided' && guidedEditMode) {
+      if (labelMode === 'upload' && guidedEditMode) {
         setGuidedEditMode(false);
         setGuidedEditNotes('');
       }
@@ -676,6 +677,18 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
     const hasClosureSelection = hasSelectionInStep(closureStepIdx);
 
     const canDesign = hasLiquidSelection && hasClosureSelection && (!requireBottle || hasBottleSelection);
+    const isAiLabelMode = labelMode === 'guided' || labelMode === 'form';
+    const isUploadLaterRequest = labelMode === 'upload' && guidedGenerating && labelRequestKind === 'uploadLater';
+    const showLabelLoadingState =
+      guidedGenerating &&
+      (
+        (isAiLabelMode && (labelRequestKind === 'edit' || !hasLabelOnBottle)) ||
+        isUploadLaterRequest
+      );
+    const showUploadLabelForm = labelMode === 'upload' && !isUploadLaterRequest;
+    const showLabelErrorState = (isAiLabelMode || labelMode === 'upload') && labelError && !guidedGenerating;
+    const showPromptFormBuilder =
+      labelMode === 'form' && !guidedGenerating && !hasLabelOnBottle && !guidedEditMode;
 
 
 
@@ -1335,19 +1348,50 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
       setUploadLabelFile(file);
     };
 
-    const handleUploadLabelLater = () => {
-      console.log("postMessage content:", {
-        customMessageType: 'uploadLabelLater',
-        message: { designSide: 'front' },
-      });
-      
-      window.parent.postMessage(
-        {
-          customMessageType: 'uploadLabelLater',
-          message: { designSide: 'front' },
-        },
-        '*'
-      );
+    const handleUploadLabelLater = async () => {
+      if (!canDesign) {
+        setWarning(`Please select ${requireBottle ? 'a bottle, ' : ''}a liquid and a closure before designing labels.`);
+        return;
+      }
+
+      const bottleName = (miniBottle?.name || defaultBottleName || '').trim().toLowerCase();
+      const templateUrl = `https://spirits-studio.s3.eu-west-2.amazonaws.com/templates/upload-later/${bottleName}.png`;
+      const frontAreaId = product?.areas.find(
+        (area) => (area?.name || '').toLowerCase() === `${bottleName}_label_front`
+      )?.id;
+
+      if (!frontAreaId) {
+        setWarning('Could not find the front label area for this bottle.');
+        return;
+      }
+
+      setLabelError(false);
+      setLabelRequestKind('uploadLater');
+      setGuidedGenerating(true);
+
+      try {
+        const frontImage = await createImageFromUrl(templateUrl);
+        if (!frontImage?.imageID) {
+          throw new Error('Template image could not be created');
+        }
+
+        await addItemImage(frontImage.imageID, frontAreaId);
+        setLabelDesign('front', {
+          id: `upload-later-${bottleName}-${Date.now()}`,
+          designSide: 'front',
+          uploadLaterTemplate: true,
+          templateUrl,
+          s3url: templateUrl,
+          frontS3Url: templateUrl,
+          url: templateUrl,
+        });
+        setGuidedGenerating(false);
+      } catch (error) {
+        console.warn('Failed to apply upload-later template', error);
+        setGuidedGenerating(false);
+        setLabelError(true);
+        setWarning('Unable to load the upload-later template right now. Please try again.');
+      }
     };
 
     const handleUploadLabelSubmit = async () => {
@@ -1434,14 +1478,10 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
       return sentence.replace(/\s+/g, ' ').trim();
     };
 
-    const handleGenerateLabel = async () => {
+    const handleGenerateLabel = async (options: { confirmGuidedPrompt?: boolean } = {}) => {
       if (!canDesign) {
         setWarning(`Please select ${requireBottle ? 'a bottle, ' : ''}a liquid and a closure before designing labels.`);
         return;
-      }
-      if (labelMode === 'guided') {
-        setGuidedEditMode(false);
-        setGuidedEditNotes('');
       }
       const assembledPrompt = assemblePrompt();
       const finalPrompt =
@@ -1455,6 +1495,14 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
       if ((labelForm.characterFile || labelForm.logoFile) && !labelForm.hasCharacterPermission) {
         setWarning('Please confirm you have permission to use the uploaded files.');
         return;
+      }
+      setLabelError(false);
+      setLabelRequestKind('create');
+      setGuidedGenerating(true);
+      setGuidedEditMode(false);
+      setGuidedEditNotes('');
+      if (options.confirmGuidedPrompt) {
+        setGuidedPromptConfirmed(true);
       }
 
       const includeHexes = !!(labelForm.primaryColor || labelForm.secondaryColor);
@@ -1680,6 +1728,11 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
             {},
             async (data) => {
                 console.log("data", data);
+                const frontDesign = (labelDesigns as any)?.front || null;
+                const labelUploadLater = Boolean(frontDesign?.uploadLaterTemplate);
+                const labelTemplateUrl = labelUploadLater
+                  ? String(frontDesign?.templateUrl || frontDesign?.frontS3Url || frontDesign?.s3url || frontDesign?.url || '')
+                  : '';
 
                 console.log("postMessage Content:", {
                     customMessageType: "AddToCart",
@@ -1694,6 +1747,8 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                         closure: productObject.selections.closure,
                         label: productObject.selections.label,
                         closureExtras: closureChoices,
+                        labelUploadLater,
+                        labelTemplateUrl,
                     }
                 }
                 )
@@ -1711,6 +1766,8 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                         closure: productObject.selections.closure,
                         label: productObject.selections.label,
                         closureExtras: closureChoices,
+                        labelUploadLater,
+                        labelTemplateUrl,
                     }
                 }, "*");
 
@@ -1891,7 +1948,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                   ) : null}
 
                 <LabelForm onSubmit={(event) => event.preventDefault()}>
-                  {labelMode === 'form' ? (
+                  {showPromptFormBuilder ? (
                     <LabelField>
                       Title
                       <LabelInput
@@ -1903,7 +1960,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                     </LabelField>
                   ) : null}
 
-                  {labelMode === 'form' && (
+                  {showPromptFormBuilder && (
                     <LabelField>
                       Describe your label
                       <LabelTextarea
@@ -1914,7 +1971,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                     </LabelField>
                   )}
 
-                  {labelMode === 'guided' && guidedGenerating && (labelRequestKind === 'edit' || !hasLabelOnBottle) && (
+                  {showLabelLoadingState && (
                     <ActionsCenter>
                       <PromptLoading>
                         <PromptSpinner />
@@ -2401,11 +2458,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                                     type="button"
                                     disabled={!!(labelForm.logoFile || labelForm.characterFile) && !labelForm.hasCharacterPermission}
                                     onClick={async () => {
-                                      setLabelError(false);
-                                      setLabelRequestKind('create');
-                                      setGuidedPromptConfirmed(true);
-                                      setGuidedGenerating(true);
-                                      await handleGenerateLabel();
+                                      await handleGenerateLabel({ confirmGuidedPrompt: true });
                                     }}
                                   >
                                     Confirm &amp; Generate
@@ -2435,7 +2488,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                     </WizardWrap>
                   )}
 
-                  {labelMode === 'guided' && hasLabelOnBottle && !guidedEditMode && (
+                  {isAiLabelMode && hasLabelOnBottle && !guidedEditMode && (
                     <WizardWrap>
                       {labelPreviewUrl && (
                         <LabelPreviewImage
@@ -2457,11 +2510,13 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                     </WizardWrap>
                   )}
 
-                  {labelMode === 'guided' && labelError && !guidedGenerating && (
+                  {showLabelErrorState && (
                     <ActionsCenter>
                       <PromptLoading>
                         <div>
-                          {labelRequestKind === 'edit'
+                          {labelRequestKind === 'uploadLater'
+                            ? "We couldn't load your upload-later template right now."
+                            : labelRequestKind === 'edit'
                             ? "We couldn't generate your label edits right now."
                             : "We couldn't generate your label right now."}
                         </div>
@@ -2476,7 +2531,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                     </ActionsCenter>
                   )}
 
-                  {labelMode === 'guided' && hasLabelOnBottle && guidedEditMode && (
+                  {isAiLabelMode && hasLabelOnBottle && guidedEditMode && (
                     <WizardWrap>
                       <SectionTitle>Edit Your Label</SectionTitle>
                       <LabelField>
@@ -2505,7 +2560,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                     </WizardWrap>
                   )}
 
-                  {labelMode === 'upload' && (
+                  {showUploadLabelForm && (
                     <WizardWrap>
                       <LabelHelperText>
                         <a href="#" onClick={(event) => event.preventDefault()}>
@@ -2543,7 +2598,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                     </WizardWrap>
                   )}
 
-                  {labelMode === 'form' && (
+                  {showPromptFormBuilder && (
                     <LabelDetails>
                       <LabelSummary>
                         Select colours
@@ -2575,7 +2630,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                     </LabelDetails>
                   )}
 
-                  {labelMode === 'form' && (
+                  {showPromptFormBuilder && (
                     <LabelDetails>
                       <LabelSummary>
                         Include images
@@ -2614,7 +2669,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                     </LabelDetails>
                   )}
 
-                  {labelMode === 'form' && (labelForm.logoFile || labelForm.characterFile) && (
+                  {showPromptFormBuilder && (labelForm.logoFile || labelForm.characterFile) && (
                     <LabelCheckboxRow>
                       <input
                         type="checkbox"
@@ -2625,7 +2680,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                     </LabelCheckboxRow>
                   )}
 
-                  {labelMode === 'form' && (
+                  {showPromptFormBuilder && (
                     <ActionsCenter>
                       <button
                         className="configurator-button"
@@ -2638,7 +2693,9 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                               : undefined
                         }
                         type="button"
-                        onClick={handleGenerateLabel}
+                        onClick={() => {
+                          handleGenerateLabel();
+                        }}
                       >
                         Generate Label
                       </button>
