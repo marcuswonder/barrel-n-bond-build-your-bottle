@@ -2341,7 +2341,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                                   onChange={handleLabelFileChange('characterFile')}
                                 />
                                 <LabelDescription>
-                                  Upload a photo of a person/character to include in your label design.
+                                  Upload a person/character to include in the label.
                                 </LabelDescription>
                                 <LabelHelperText>
                                   {labelForm.characterFile?.name || 'No character uploaded.'}
@@ -2567,7 +2567,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                             onChange={handleLabelFileChange('characterFile')}
                           />
                           <LabelDescription>
-                            Upload a photo of a person/character to include in your label design.
+                            Upload a person/character to include in the label.
                           </LabelDescription>
                           <LabelHelperText>
                             {labelForm.characterFile?.name || 'No character uploaded.'}
