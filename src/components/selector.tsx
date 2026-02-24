@@ -750,7 +750,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
       const onMsg = async (e: MessageEvent) => {
         if (e.data?.customMessageType === 'uploadDesign') {
           console.log("Received uploadDesign message:", e.data.message);
-
+          
           const { designExport, designSide } = e.data.message || {};
           console.log("designExport", designExport)
           console.log("designSide", designSide)
@@ -763,6 +763,9 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
               designSide,
               designExport,
             });
+            
+            const bottleName = productObject?.selections?.bottle?.name?.toLowerCase() ?? '';
+            setCameraByName(`${bottleName}_full_front`)
           }
 
           // items.forEach(item => {
@@ -1091,7 +1094,6 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
         .trim()
         .toLowerCase();
       const bottleKey = rawBottleName.replace(/\s+/g, '_');
-      const bottleKeyKebab = rawBottleName.replace(/\s+/g, '-');
 
       if (!bottleKey) return;
 
@@ -1117,7 +1119,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
         final = cams.closure;
       } else if (stepKey === 'label') {
         frames = ['wide_high_front'];
-        final = `${bottleKeyKebab}-full-front`;
+        final = cams.label_front
       }
 
       const tourKey = `${stepKey}|${bottleKey}|${final}`;
