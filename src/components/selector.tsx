@@ -42,6 +42,11 @@ const postToParent = (payload: unknown): void => {
   }
 };
 
+const resolveSessionId = (): string =>
+  sessionStorage.getItem('ss_session_id') ||
+  (window as any).SS?.getSessionId?.() ||
+  String(Date.now());
+
 const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }> = ({
   mode = 'full',
   defaultBottleName = 'antica',
@@ -795,6 +800,106 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
         }
       };
 
+      const resolveVersionKind = (designExport: any): 'Initial' | 'Edit' | 'Upload' => {
+        if (labelRequestKind === 'edit') return 'Edit';
+        if (
+          labelMode === 'upload' ||
+          designExport?.source === 'custom-upload' ||
+          designExport?.uploadLaterTemplate
+        ) {
+          return 'Upload';
+        }
+        return 'Initial';
+      };
+
+      const firstHttp = (...values: Array<unknown>): string | null => {
+        for (const value of values) {
+          if (typeof value !== 'string') continue;
+          const text = value.trim();
+          if (/^https?:\/\//i.test(text)) return text;
+        }
+        return null;
+      };
+
+      const buildLabelPersistence = (side: 'front' | 'back', designExport: any) => {
+        const aiInput =
+          (designExport?.aiInput && typeof designExport.aiInput === 'object')
+            ? designExport.aiInput
+            : {};
+
+        const outputImageUrl = firstHttp(
+          designExport?.outputImageUrl,
+          designExport?.frontImage,
+          designExport?.backImage,
+          designExport?.url,
+          designExport?.s3url,
+          Array.isArray(designExport?.imageUrls) ? designExport.imageUrls[0] : null
+        );
+        const outputS3Url = firstHttp(
+          designExport?.outputS3Url,
+          designExport?.frontS3Url,
+          designExport?.backS3Url,
+          designExport?.s3url,
+          designExport?.url
+        );
+        const outputPdfUrl = firstHttp(designExport?.outputPdfUrl, designExport?.pdfUrl);
+        const outputZakekeUrl = firstHttp(designExport?.outputZakekeUrl, designExport?.zakekeUrl);
+        const inputLogoUrl = firstHttp(
+          designExport?.inputLogoUrl,
+          aiInput?.inputLogoUrl,
+          aiInput?.logoUrl
+        );
+        const inputCharacterUrl = firstHttp(
+          designExport?.inputCharacterUrl,
+          aiInput?.inputCharacterUrl,
+          aiInput?.characterUrl
+        );
+        const inputReferenceUrl = firstHttp(
+          designExport?.inputReferenceUrl,
+          designExport?.previousImage,
+          aiInput?.inputReferenceUrl
+        );
+        const promptText =
+          String(
+            aiInput?.prompt ||
+            designExport?.prompt ||
+            promptOverride ||
+            labelForm.prompt ||
+            ''
+          ).trim() || null;
+        const editPromptText =
+          String(
+            designExport?.editPromptText ||
+            designExport?.critique ||
+            guidedEditNotes ||
+            ''
+          ).trim() || null;
+
+        return {
+          sessionId: resolveSessionId(),
+          versionKind: resolveVersionKind(designExport),
+          accepted: true,
+          promptText,
+          editPromptText,
+          inputLogoUrl,
+          inputCharacterUrl,
+          inputReferenceUrl,
+          outputImageUrl,
+          outputS3Url,
+          outputPdfUrl,
+          outputZakekeUrl,
+          outputS3Key: typeof designExport?.outputS3Key === 'string' ? designExport.outputS3Key : null,
+          modelName:
+            String(
+              designExport?.modelName ||
+              designExport?.model ||
+              designExport?.model_name ||
+              ''
+            ).trim() || null,
+          source: String(designExport?.source || '').trim() || 'zakeke'
+        };
+      };
+
       const onMsg = async (e: MessageEvent) => {
         if (!trustedMessageOrigins.has(e.origin)) {
           console.warn('[postMessage] Ignored untrusted origin:', e.origin);
@@ -896,6 +1001,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                 setGuidedGenerating(false);
                 setLabelRequestKind(null);
               }
+              const labelPersistence = buildLabelPersistence('front', designExport);
 
               console.log("postMessage Content:", {
                 customMessageType: 'labelAdded',
@@ -910,6 +1016,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                   'designSide': designSide,
                   'designExport': designExport,
                   'productSku': product?.sku ?? null,
+                  ...labelPersistence,
                 }
               });
 
@@ -926,6 +1033,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                   'designSide': designSide,
                   'designExport': designExport,
                   'productSku': product?.sku ?? null,
+                  ...labelPersistence,
                 }
               });
 
@@ -948,6 +1056,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                 setGuidedGenerating(false);
                 setLabelRequestKind(null);
               }
+              const labelPersistence = buildLabelPersistence('back', designExport);
 
               console.log("postMessage Content:", {
                 customMessageType: 'labelAdded',
@@ -962,6 +1071,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                   'designSide': designSide,
                   'designExport': designExport,
                   'productSku': product?.sku ?? null,
+                  ...labelPersistence,
                 }
               });
 
@@ -978,6 +1088,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                   'designSide': designSide,
                   'designExport': designExport,
                   'productSku': product?.sku ?? null,
+                  ...labelPersistence,
                 }
               });
 
@@ -1007,7 +1118,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
       };
       window.addEventListener('message', onMsg);
       return () => window.removeEventListener('message', onMsg);
-    }, [createImageFromUrl, getMeshIDbyName, addItemImage, removeItem, items, productObject?.selections?.bottle?.name, product?.areas, setCameraByName, setFromUploadDesign, steps, selectOption, productObject?.selections?.bottle, productObject?.selections?.liquid, productObject?.selections?.closure, productObject?.selections?.label]);
+    }, [createImageFromUrl, getMeshIDbyName, addItemImage, removeItem, items, productObject?.selections?.bottle?.name, product?.areas, setCameraByName, setFromUploadDesign, steps, selectOption, productObject?.selections?.bottle, productObject?.selections?.liquid, productObject?.selections?.closure, productObject?.selections?.label, labelRequestKind, labelMode, labelForm.prompt, promptOverride, guidedEditNotes]);
 
 
     // --- Clear items when bottle changes ---
@@ -1816,6 +1927,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                 console.log("postMessage Content:", {
                     customMessageType: "AddToCart",
                     message: {
+                        sessionId: resolveSessionId(),
                         preview: data.preview,
                         quantity: data.quantity,
                         compositionId: data.composition,
@@ -1835,6 +1947,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                 postToParent({
                     customMessageType: "AddToCart",
                     message: {
+                        sessionId: resolveSessionId(),
                         preview: data.preview,
                         quantity: data.quantity,
                         compositionId: data.composition,
