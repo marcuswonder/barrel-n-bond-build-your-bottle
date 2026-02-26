@@ -7,6 +7,7 @@ import { optionNotes } from '../data/option-notes';
 import ClipLoader from 'react-spinners/ClipLoader';
 import { useOrderStore } from '../state/orderStore';
 import { WOOD_SWATCHES, WAX_SWATCHES } from '../data/options';  
+import { resolveParentMessagingConfig } from '../utils/postMessage';
 
 
 
@@ -29,6 +30,16 @@ const buildSyntheticBottle = (bottleName: string) => {
   const id = -Math.abs(hash || 1);
   const name = cleaned.replace(/(^|_)([a-z])/g, (_, __, c) => c.toUpperCase()).replace(/_/g, ' ');
   return { id, guid: `synthetic-${cleaned}`, name, selected: true };
+};
+
+const { parentTargetOrigin, trustedOrigins: trustedMessageOrigins } = resolveParentMessagingConfig();
+
+const postToParent = (payload: unknown): void => {
+  try {
+    window.parent?.postMessage(payload, parentTargetOrigin);
+  } catch (error) {
+    console.error('postMessage failed', error);
+  }
 };
 
 const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }> = ({
@@ -171,14 +182,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
         postedOnce.current = true;
         modulePosted = true; // avoid double post across dev remounts
 
-        try {
-          window.parent?.postMessage(
-            { customMessageType: 'firstRender', message: { closeLoadingScreen: true } },
-            '*' // set a specific origin if you can
-          );
-        } catch (e) {
-          console.error('postMessage failed', e);
-        }
+        postToParent({ customMessageType: 'firstRender', message: { closeLoadingScreen: true } });
       }
 
       prev.current = isSceneLoading;
@@ -306,6 +310,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
     const [promptLoadingIndex, setPromptLoadingIndex] = useState(0);
     const [labelLoadingIndex, setLabelLoadingIndex] = useState(0);
     const [labelRequestKind, setLabelRequestKind] = useState<'create' | 'edit' | 'uploadLater' | null>(null);
+    const [activeDesignSide, setActiveDesignSide] = useState<'front' | 'back'>('front');
     const [hideLabelTabs, setHideLabelTabs] = useState(false);
     const [promptOverride, setPromptOverride] = useState('');
     const [labelWizard, setLabelWizard] = useState<LabelWizardState>({
@@ -751,16 +756,104 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
 
 
     useEffect(() => {
+      const wait = (ms: number) => new Promise<void>((resolve) => window.setTimeout(resolve, ms));
+
+      const findOptionId = (stepNeedle: string, optionName: string) => {
+        const needle = String(stepNeedle || '').trim().toLowerCase();
+        const target = String(optionName || '').trim().toLowerCase();
+        if (!needle || !target) return null;
+        const step = steps.find((item: any) => String(item?.name || '').toLowerCase().includes(needle));
+        if (!step) return null;
+        const attrs: any[] = Array.isArray(step?.attributes) ? step.attributes : [];
+        for (const attr of attrs) {
+          const options: any[] = Array.isArray(attr?.options) ? attr.options : [];
+          const exact = options.find((option) => String(option?.name || '').trim().toLowerCase() === target);
+          if (exact) return exact.id;
+          const partial = options.find((option) => String(option?.name || '').trim().toLowerCase().includes(target));
+          if (partial) return partial.id;
+        }
+        return null;
+      };
+
+      const applyBootstrapSelections = async (payload: any) => {
+        const bottleId = findOptionId('bottle', payload?.bottleName || '');
+        if (bottleId) {
+          selectOption(bottleId);
+          await wait(180);
+        }
+        const liquidId =
+          findOptionId('liquid', payload?.liquidName || '') ||
+          findOptionId('gin', payload?.liquidName || '');
+        if (liquidId) {
+          selectOption(liquidId);
+          await wait(180);
+        }
+        const closureId = findOptionId('closure', payload?.closureName || '');
+        if (closureId) {
+          selectOption(closureId);
+          await wait(180);
+        }
+      };
+
       const onMsg = async (e: MessageEvent) => {
+        if (!trustedMessageOrigins.has(e.origin)) {
+          console.warn('[postMessage] Ignored untrusted origin:', e.origin);
+          return;
+        }
+
+        if (e.data?.customMessageType === 'studioEditBootstrap') {
+          const payload = e.data?.message || {};
+          await applyBootstrapSelections(payload);
+
+          const parentOrder = {
+            bottle: productObject.selections.bottle,
+            liquid: productObject.selections.liquid,
+            closure: productObject.selections.closure,
+            label: productObject.selections.label,
+          };
+
+          const frontDesign = payload?.front?.designExport || null;
+          const backDesign = payload?.back?.designExport || null;
+
+          if (frontDesign) {
+            window.postMessage(
+              {
+                customMessageType: 'uploadDesign',
+                message: {
+                  order: parentOrder,
+                  designSide: 'front',
+                  designExport: frontDesign,
+                },
+              },
+              window.location.origin
+            );
+          }
+
+          if (backDesign) {
+            window.postMessage(
+              {
+                customMessageType: 'uploadDesign',
+                message: {
+                  order: parentOrder,
+                  designSide: 'back',
+                  designExport: backDesign,
+                },
+              },
+              window.location.origin
+            );
+          }
+          return;
+        }
+
         if (e.data?.customMessageType === 'uploadDesign') {
           console.log("Received uploadDesign message:", e.data.message);
           
           const { designExport, designSide } = e.data.message || {};
           console.log("designExport", designExport)
           console.log("designSide", designSide)
-          if (designSide && designSide !== 'front') return;
           const parentOrder = e.data.message?.order;
           if (designSide) {
+            setActiveDesignSide(String(designSide).toLowerCase() === 'back' ? 'back' : 'front');
             // Persist to zustand so UI flips to "Edit [side] label" and save gating can use it
             setFromUploadDesign({
               order: parentOrder,
@@ -820,7 +913,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                 }
               });
 
-              window.parent.postMessage({
+              postToParent({
                 customMessageType: 'labelAdded',
                 message: {
                   'order': {
@@ -834,7 +927,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                   'designExport': designExport,
                   'productSku': product?.sku ?? null,
                 }
-              }, '*');
+              });
 
             }
           
@@ -872,7 +965,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                 }
               });
 
-              window.parent.postMessage({
+              postToParent({
                 customMessageType: 'labelAdded',
                 message: {
                   'order': {
@@ -886,7 +979,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                   'designExport': designExport,
                   'productSku': product?.sku ?? null,
                 }
-              }, '*');
+              });
 
             }
           }
@@ -914,7 +1007,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
       };
       window.addEventListener('message', onMsg);
       return () => window.removeEventListener('message', onMsg);
-    }, [createImageFromUrl, getMeshIDbyName, addItemImage, removeItem, items, productObject?.selections?.bottle?.name, product?.areas, setCameraByName, setFromUploadDesign]);
+    }, [createImageFromUrl, getMeshIDbyName, addItemImage, removeItem, items, productObject?.selections?.bottle?.name, product?.areas, setCameraByName, setFromUploadDesign, steps, selectOption, productObject?.selections?.bottle, productObject?.selections?.liquid, productObject?.selections?.closure, productObject?.selections?.label]);
 
 
     // --- Clear items when bottle changes ---
@@ -975,36 +1068,6 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
             if (camera) setCamera(camera);
         }
     }, [selectedGroupId, selectedGroup, setCamera]);
-
-
-    // useEffect(() => {
-    //   const sendHeight = () => {
-    //     const h = Math.max(
-    //       document.documentElement.scrollHeight,
-    //       document.body?.scrollHeight || 0
-    //     );
-    //     window.parent.postMessage(
-    //       { customMessageType: 'CONFIG_IFRAME_HEIGHT', height: h },
-    //       '*'
-    //     );
-    //   };
-
-    //   // observe size changes
-    //   const ro = new ResizeObserver(() => sendHeight());
-    //   ro.observe(document.documentElement);
-
-    //   // initial + on load
-    //   sendHeight();
-    //   window.addEventListener('load', sendHeight);
-
-    //   // on orientation changes
-    //   window.addEventListener('orientationchange', () => setTimeout(sendHeight, 250));
-
-    //   return () => {
-    //     ro.disconnect();
-    //     window.removeEventListener('load', sendHeight);
-    //   };
-    // }, []);
 
     // === Camera animation: refs & helpers (top-level inside component) ===
     const camAbort = useRef<AbortController | null>(null);
@@ -1359,6 +1422,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
         setWarning(`Please select ${requireBottle ? 'a bottle, ' : ''}a liquid and a closure before designing labels.`);
         return;
       }
+      setActiveDesignSide('front');
 
       const bottleName = (miniBottle?.name || defaultBottleName || '').trim().toLowerCase();
       const templateUrl = `https://spirits-studio.s3.eu-west-2.amazonaws.com/templates/upload-later/${bottleName}.png`;
@@ -1402,6 +1466,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
 
     const handleUploadLabelSubmit = async () => {
       if (!uploadLabelFile) return;
+      setActiveDesignSide('front');
       let dataUrl = '';
       try {
         dataUrl = await fileToDataUrl(uploadLabelFile);
@@ -1422,21 +1487,18 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
         },
       });
 
-      window.parent.postMessage(
-        {
-          customMessageType: 'customLabelUploaded',
-          message: { 
-            designSide: 'front', 
-            bottleName: (miniBottle?.name || '').trim(),
-            sessionId: sessionStorage.getItem('ss_session_id') || (window as any).SS?.getSessionId?.() || String(Date.now()),
-            fileName: uploadLabelFile.name || '',
-            fileType: uploadLabelFile.type || '',
-            fileSize: uploadLabelFile.size || 0,
-            dataUrl,
-          },
+      postToParent({
+        customMessageType: 'customLabelUploaded',
+        message: { 
+          designSide: 'front', 
+          bottleName: (miniBottle?.name || '').trim(),
+          sessionId: sessionStorage.getItem('ss_session_id') || (window as any).SS?.getSessionId?.() || String(Date.now()),
+          fileName: uploadLabelFile.name || '',
+          fileType: uploadLabelFile.type || '',
+          fileSize: uploadLabelFile.size || 0,
+          dataUrl,
         },
-        '*'
-      );
+      });
     };
 
     const fileToDataUrl = (file: File) =>
@@ -1489,6 +1551,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
         setWarning(`Please select ${requireBottle ? 'a bottle, ' : ''}a liquid and a closure before designing labels.`);
         return;
       }
+      setActiveDesignSide('front');
       const assembledPrompt = assemblePrompt();
       const finalPrompt =
         labelMode === 'form'
@@ -1549,13 +1612,10 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
         messageContent: 'generateLabelImage',
         message: payload,
       })
-      window.parent.postMessage(
-        {
-          messageContent: 'generateLabelImage',
-          message: payload,
-        },
-        '*'
-      );
+      postToParent({
+        messageContent: 'generateLabelImage',
+        message: payload,
+      });
     };
 
     const handleSendRevision = (critique: string) => {
@@ -1564,6 +1624,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
         setWarning('Please enter revision notes.');
         return;
       }
+      setActiveDesignSide('front');
       const prev = labelDesigns?.front || null;
       const prevInput = (prev?.aiInput && typeof prev.aiInput === 'object') ? prev.aiInput : {};
       const previousDataUrlCandidate =
@@ -1615,11 +1676,10 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
         message: payload,
       })
 
-      window.parent.postMessage(
-        { messageContent: 'generateLabelRevision', 
-          message: payload },
-        '*'
-      );
+      postToParent({
+        messageContent: 'generateLabelRevision',
+        message: payload
+      });
     };
 
     const handleGeneratePromptViaShopify = () => {
@@ -1649,21 +1709,19 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
         message: payload,
       })
 
-      window.parent.postMessage(
-        {
-          messageContent: 'generateLabelPrompt',
-          message: payload,
-        },
-        '*'
-      );
+      postToParent({
+        messageContent: 'generateLabelPrompt',
+        message: payload,
+      });
 
     };
 
-    const handleLabelClick = (side: 'front') => {
+    const handleLabelClick = (side: 'front' | 'back') => {
       if (!canDesign) {
         setWarning(`Please select ${requireBottle ? 'a bottle, ' : ''}a liquid and a closure before designing labels.`);
         return;
       }
+      setActiveDesignSide(side);
       const hasDesign = side === 'front' ? !!labelDesigns.front : !!labelDesigns.back;
       const designType = hasDesign ? 'edit' : 'design';
       const designId = side === 'front'
@@ -1687,7 +1745,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
         }
       });
 
-      window.parent.postMessage({
+      postToParent({
         customMessageType: 'callDesigner',
         message: {
           'order': {
@@ -1702,7 +1760,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
           'designId': designId,
           'productSku': product?.sku ?? null,
         }
-      }, '*');
+      });
     };    
 
     const handleLearnClick = (side?: 'front' | 'back') => {
@@ -1715,13 +1773,13 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
         }
       });
 
-      window.parent.postMessage({
+      postToParent({
         customMessageType: 'OpenDesignerHelp',
         message: {
           ...(side ? { side } : {}),
           productSku: product?.sku ?? null,
         }
-      }, '*');
+      });
     };
     
 
@@ -1774,7 +1832,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                 }
                 )
 
-                window.parent.postMessage({
+                postToParent({
                     customMessageType: "AddToCart",
                     message: {
                         preview: data.preview,
@@ -1790,7 +1848,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                         labelUploadLater,
                         labelTemplateUrl,
                     }
-                }, "*");
+                });
 
                 return data;
             },
@@ -2199,6 +2257,16 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                                         aria-label="Reset"
                                         data-tooltip="Reset"
                                         onClick={() => {
+                                          postToParent({
+                                            customMessageType: 'labelReset',
+                                            message: {
+                                              designSide: activeDesignSide,
+                                              sessionId:
+                                                sessionStorage.getItem('ss_session_id') ||
+                                                (window as any).SS?.getSessionId?.() ||
+                                                String(Date.now()),
+                                            },
+                                          });
                                           setLabelForm({
                                             title: '',
                                             prompt: '',

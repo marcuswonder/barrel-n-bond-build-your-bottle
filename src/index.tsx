@@ -5,11 +5,19 @@ import ReactDOM from 'react-dom';
 import './index.css';
 import App from './components/app';
 import * as serviceWorker from './serviceWorker';
+import { resolveParentMessagingConfig } from './utils/postMessage';
+
+const { parentTargetOrigin } = resolveParentMessagingConfig();
+
+const postToParent = (type: string, payload: unknown): void => {
+  try {
+    window.parent?.postMessage({ src: 'zakeke-app', type, payload }, parentTargetOrigin);
+  } catch {}
+};
 
 // ---- Zakeke network tap (fetch/XMLHttpRequest) ----
 (function installZkNetTap(){
   try {
-    const ORIGIN: string = '*'; // tighten to your parent origin later
     const qp = new URLSearchParams(window.location.search);
     const tapEnabled =
       qp.has('debugnet') ||
@@ -18,7 +26,6 @@ import * as serviceWorker from './serviceWorker';
 
     const w = window as unknown as {
       fetch: typeof window.fetch;
-      parent: Window | null;
       __zkNetTap?: { enabled: boolean };
     };
 
@@ -29,7 +36,7 @@ import * as serviceWorker from './serviceWorker';
 
     const shouldLog = (url: string): boolean => /zakeke\./i.test(url) || /\/api\//i.test(url);
     const post = (type: string, payload: unknown): void => {
-      try { w.parent && w.parent.postMessage({ src: 'zakeke-app', type, payload }, ORIGIN); } catch {}
+      postToParent(type, payload);
     };
 
     // --- fetch tap ---
@@ -174,9 +181,8 @@ import * as serviceWorker from './serviceWorker';
 // ---- end module inspector ----
 // ---- Safari telemetry + parent handshake ----
 (function telemetryAndHandshake() {
-  const ORIGIN = '*'; // TODO: tighten to 'https://spiritsstudio.co.uk' once verified
   const send = (type: string, payload: any = {}) => {
-    try { window.parent && window.parent.postMessage({ src: 'zakeke-app', type, payload }, ORIGIN); } catch {}
+    postToParent(type, payload);
   };
 
   // Lifecycle breadcrumbs
@@ -240,20 +246,12 @@ try {
     try {
       const t1 = performance.now();
       (window as any).__zk_performance.t1 = t1;
-      window.parent?.postMessage({
-        src: 'zakeke-app',
-        type: 'zk-react-mounted',
-        payload: { durationMs: t1 - (window as any).__zk_performance.t0 }
-      }, '*');
+      postToParent('zk-react-mounted', { durationMs: t1 - (window as any).__zk_performance.t0 });
     } catch {}
   })();
 } catch (e) {
   try {
-    window.parent?.postMessage({
-      src: 'zakeke-app',
-      type: 'zk-react-mount-error',
-      payload: { message: (e as any)?.message, stack: (e as any)?.stack }
-    }, '*');
+    postToParent('zk-react-mount-error', { message: (e as any)?.message, stack: (e as any)?.stack });
   } catch {}
   throw e;
 }
