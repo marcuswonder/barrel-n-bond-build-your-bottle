@@ -702,7 +702,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
     const showUploadLabelForm = labelMode === 'upload' && !isUploadLaterRequest && !hasUploadLaterTemplateOnBottle;
     const showLabelErrorState = (isAiLabelMode || labelMode === 'upload') && labelError && !guidedGenerating;
     const showPromptFormBuilder =
-      labelMode === 'form' && !guidedGenerating && !hasLabelOnBottle && !guidedEditMode;
+      labelMode === 'form' && !guidedGenerating && !hasLabelOnBottle && !guidedEditMode && !labelError;
 
 
 
@@ -1000,6 +1000,8 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
               if (labelRequestKind === 'edit') {
                 setGuidedGenerating(false);
                 setLabelRequestKind(null);
+                setGuidedEditMode(false);
+                setGuidedEditNotes('');
               }
               const labelPersistence = buildLabelPersistence('front', designExport);
 
@@ -1055,6 +1057,8 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
               if (labelRequestKind === 'edit') {
                 setGuidedGenerating(false);
                 setLabelRequestKind(null);
+                setGuidedEditMode(false);
+                setGuidedEditNotes('');
               }
               const labelPersistence = buildLabelPersistence('back', designExport);
 
@@ -2712,28 +2716,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                     </WizardWrap>
                   )}
 
-                  {showLabelErrorState && (
-                    <ActionsCenter>
-                      <PromptLoading>
-                        <div>
-                          {labelRequestKind === 'uploadLater'
-                            ? "We couldn't load your upload-later template right now."
-                            : labelRequestKind === 'edit'
-                            ? "We couldn't generate your label edits right now."
-                            : "We couldn't generate your label right now."}
-                        </div>
-                        <button
-                          className="configurator-button"
-                          type="button"
-                          onClick={() => setLabelError(false)}
-                        >
-                          Try Again
-                        </button>
-                      </PromptLoading>
-                    </ActionsCenter>
-                  )}
-
-                  {isAiLabelMode && hasLabelOnBottle && guidedEditMode && (
+                  {isAiLabelMode && hasLabelOnBottle && guidedEditMode && !showLabelLoadingState && (
                     <WizardWrap>
                       <SectionTitle>Edit Your Label</SectionTitle>
                       <LabelField>
@@ -2901,6 +2884,27 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                       >
                         Generate Label
                       </button>
+                    </ActionsCenter>
+                  )}
+
+                  {showLabelErrorState && (
+                    <ActionsCenter>
+                      <PromptLoading>
+                        <div>
+                          {labelRequestKind === 'uploadLater'
+                            ? "We couldn't load your upload-later template right now."
+                            : labelRequestKind === 'edit'
+                            ? "We couldn't generate your label edits right now."
+                            : "We couldn't generate your label right now."}
+                        </div>
+                        <button
+                          className="configurator-button"
+                          type="button"
+                          onClick={() => setLabelError(false)}
+                        >
+                          Try Again
+                        </button>
+                      </PromptLoading>
                     </ActionsCenter>
                   )}
                 </LabelForm>
