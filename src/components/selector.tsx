@@ -879,6 +879,14 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
           sessionId: resolveSessionId(),
           versionKind: resolveVersionKind(designExport),
           accepted: true,
+          displayName:
+            String(
+              aiInput?.title ||
+              designExport?.displayName ||
+              designExport?.title ||
+              labelForm.title ||
+              ''
+            ).trim() || null,
           promptText,
           editPromptText,
           inputLogoUrl,
@@ -1122,7 +1130,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
       };
       window.addEventListener('message', onMsg);
       return () => window.removeEventListener('message', onMsg);
-    }, [createImageFromUrl, getMeshIDbyName, addItemImage, removeItem, items, productObject?.selections?.bottle?.name, product?.areas, setCameraByName, setFromUploadDesign, steps, selectOption, productObject?.selections?.bottle, productObject?.selections?.liquid, productObject?.selections?.closure, productObject?.selections?.label, labelRequestKind, labelMode, labelForm.prompt, promptOverride, guidedEditNotes]);
+    }, [createImageFromUrl, getMeshIDbyName, addItemImage, removeItem, items, productObject?.selections?.bottle?.name, product?.areas, setCameraByName, setFromUploadDesign, steps, selectOption, productObject?.selections?.bottle, productObject?.selections?.liquid, productObject?.selections?.closure, productObject?.selections?.label, labelRequestKind, labelMode, labelForm.prompt, labelForm.title, promptOverride, guidedEditNotes]);
 
 
     // --- Clear items when bottle changes ---
@@ -1697,6 +1705,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
         bottleName: (miniBottle?.name || '').trim(),
         liquidName: (miniLiquid?.name || '').trim(),
         closureName: (miniClosure?.name || '').trim(),
+        displayName: labelForm.title.trim(),
         title: labelForm.title.trim(),
         subtitle,
         prompt: finalPrompt,
@@ -1774,6 +1783,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
         bottleName: (miniBottle?.name || '').trim(),
         liquidName: (miniLiquid?.name || '').trim(),
         closureName: (miniClosure?.name || '').trim(),
+        displayName: inheritedTitle,
         title: inheritedTitle,
         subtitle: inheritedSubtitle,
         prompt: inheritedPrompt,
@@ -1927,11 +1937,19 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                 const labelTemplateUrl = labelUploadLater
                   ? String(frontDesign?.templateUrl || frontDesign?.frontS3Url || frontDesign?.s3url || frontDesign?.url || '')
                   : '';
+                const displayName = String(
+                  frontDesign?.displayName ||
+                  frontDesign?.aiInput?.title ||
+                  frontDesign?.title ||
+                  labelForm.title ||
+                  ''
+                ).trim();
 
                 console.log("postMessage Content:", {
                     customMessageType: "AddToCart",
                     message: {
                         sessionId: resolveSessionId(),
+                        displayName,
                         preview: data.preview,
                         quantity: data.quantity,
                         compositionId: data.composition,
@@ -1952,6 +1970,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                     customMessageType: "AddToCart",
                     message: {
                         sessionId: resolveSessionId(),
+                        displayName,
                         preview: data.preview,
                         quantity: data.quantity,
                         compositionId: data.composition,
