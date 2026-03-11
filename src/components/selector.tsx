@@ -201,6 +201,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
     const selectGuardTimerRef = useRef<number | null>(null);
     const [isInitialUiReady, setIsInitialUiReady] = useState(false);
     const [labelMode, setLabelMode] = useState<'form' | 'guided' | 'upload'>('form');
+    const [ignoreAddToCartLoading, setIgnoreAddToCartLoading] = useState(false);
 
     useEffect(() => {
       if (!isLiteMode) return;
@@ -1121,6 +1122,14 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
       const onMsg = async (e: MessageEvent) => {
         if (!trustedMessageOrigins.has(e.origin)) {
           console.warn('[postMessage] Ignored untrusted origin:', e.origin);
+          return;
+        }
+
+        if (
+          e.data?.customMessageType === 'resetAddToCartButton' ||
+          e.data?.customMessageType === 'resetAddToCartLoading'
+        ) {
+          setIgnoreAddToCartLoading(true);
           return;
         }
 
@@ -2228,6 +2237,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
     };
     
     const frontLabelDesigned = Boolean(labelDesigns.front);
+    const isSaveOrderBusy = isAddToCartLoading && !ignoreAddToCartLoading;
     const showAddToCartButton =
       productObject.valid &&
       frontLabelDesigned &&
@@ -2257,6 +2267,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
         return <LoadingSpinner />;
     
     const handleAddToCart = async () => {
+    setIgnoreAddToCartLoading(false);
     try {
         const bottleCameraKey = toBottleCameraKey(
           String(productObject?.selections?.bottle?.name || miniBottle?.name || defaultBottleName || '')
@@ -3094,9 +3105,9 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                               className="configurator-button guided-action save-order-button"
                               type="button"
                               onClick={handleAddToCart}
-                              disabled={isAddToCartLoading}
+                              disabled={isSaveOrderBusy}
                             >
-                              {isAddToCartLoading ? <ClipLoader color="#FFFFFF" size={24} loading={true} /> : 'SAVE AND ORDER'}
+                              {isSaveOrderBusy ? <ClipLoader color="#FFFFFF" size={24} loading={true} /> : 'SAVE AND ORDER'}
                             </button>
                           )}
                         </GuidedActionRow>
@@ -3134,9 +3145,9 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                             className="configurator-button guided-action save-order-button"
                             type="button"
                             onClick={handleAddToCart}
-                            disabled={isAddToCartLoading}
+                            disabled={isSaveOrderBusy}
                           >
-                            {isAddToCartLoading ? <ClipLoader color="#FFFFFF" size={20} loading={true} /> : 'SAVE AND ORDER'}
+                            {isSaveOrderBusy ? <ClipLoader color="#FFFFFF" size={20} loading={true} /> : 'SAVE AND ORDER'}
                           </button>
                         )}
                       </GuidedActionRow>
@@ -3199,9 +3210,9 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                             className="configurator-button guided-action save-order-button"
                             type="button"
                             onClick={handleAddToCart}
-                            disabled={isAddToCartLoading}
+                            disabled={isSaveOrderBusy}
                           >
-                            {isAddToCartLoading ? <ClipLoader color="#FFFFFF" size={24} loading={true} /> : 'SAVE AND ORDER'}
+                            {isSaveOrderBusy ? <ClipLoader color="#FFFFFF" size={24} loading={true} /> : 'SAVE AND ORDER'}
                           </button>
                         )}
                       </GuidedActionRow>
@@ -3338,9 +3349,9 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                         className="configurator-button save-order-button"
                         type="button"
                         onClick={handleAddToCart}
-                        disabled={isAddToCartLoading}
+                        disabled={isSaveOrderBusy}
                       >
-                        {isAddToCartLoading ? <ClipLoader color="#FFFFFF" size={24} loading={true} /> : 'SAVE AND ORDER'}
+                        {isSaveOrderBusy ? <ClipLoader color="#FFFFFF" size={24} loading={true} /> : 'SAVE AND ORDER'}
                       </button>
                     </ActionsCenter>
                   )}
