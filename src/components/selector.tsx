@@ -63,7 +63,6 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
         product,
         items,
         getMeshIDbyName,
-        isAreaVisible,
         createImageFromUrl, 
         addItemImage,
         removeItem,
@@ -522,24 +521,52 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
       } as const;
     }, [price, product?.sku, selections, getMeshIDbyName, labelDesigns, miniBottle, miniClosure, miniLiquid]);
 
-    const visibleAreas = useMemo(() => {
+    const labelAreaIds = useMemo(() => {
       const areas = product?.areas ?? [];
-      if (isSceneLoading || !areas.length || typeof isAreaVisible !== 'function') return [];
+      if (!areas.length) {
+        return { front: null, back: null } as const;
+      }
 
-      return areas.filter(a => {
-        try { return isAreaVisible(a.id); } catch { return false; }
-      });
-    }, [isSceneLoading, product?.areas, isAreaVisible]);
+      const bottleNameRaw = String(
+        (miniBottle?.name || selections.bottle?.name || '').trim().toLowerCase()
+      );
+      const bottleNameNormalized = bottleNameRaw.replace(/\s+/g, '_');
+      const bottleTokens = Array.from(
+        new Set([bottleNameRaw, bottleNameNormalized].filter(Boolean))
+      );
 
-    const labelAreas = useMemo(() => {
-      const byName = (needle: string) =>
-      visibleAreas.find(a => (a.name || '').toLowerCase().includes(needle)) || null;
+      const exactFrontNames = bottleTokens.map((token) => `${token}_label_front`);
+      const exactBackNames = bottleTokens.map((token) => `${token}_label_back`);
 
-      const front = byName('front');
-      const back  = byName('back');
+      const findExactAreaId = (expectedNames: string[]) => {
+        if (!expectedNames.length) return null;
+        const wanted = new Set(expectedNames.map((name) => name.toLowerCase()));
+        const area = areas.find((entry) =>
+          wanted.has(String(entry?.name || '').toLowerCase())
+        );
+        return area?.id ?? null;
+      };
 
-      return { front, back } as const;
-    }, [visibleAreas]);
+      const frontExact = findExactAreaId(exactFrontNames);
+      const backExact = findExactAreaId(exactBackNames);
+      if (frontExact || backExact) {
+        return { front: frontExact, back: backExact } as const;
+      }
+
+      // Fallback for legacy area naming that does not include bottle token.
+      const frontFallback =
+        areas.find((entry) => {
+          const name = String(entry?.name || '').toLowerCase();
+          return name.includes('label') && name.includes('front');
+        })?.id ?? null;
+      const backFallback =
+        areas.find((entry) => {
+          const name = String(entry?.name || '').toLowerCase();
+          return name.includes('label') && name.includes('back');
+        })?.id ?? null;
+
+      return { front: frontFallback, back: backFallback } as const;
+    }, [product?.areas, miniBottle?.name, selections.bottle?.name]);
 
     const promptLoadingMessages = useMemo(() => ([
       'Translating your choices into a creative brief…',
@@ -573,8 +600,8 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
 
     const hasLabelOnBottle = useMemo(() => {
       if (!liveItems.length) return false;
-      const frontId = labelAreas.front?.id;
-      const backId = labelAreas.back?.id;
+      const frontId = labelAreaIds.front;
+      const backId = labelAreaIds.back;
       if (frontId || backId) {
         return liveItems.some((it: any) => (
           it?.areaId === frontId ||
@@ -584,7 +611,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
         ));
       }
       return liveItems.length > 0;
-    }, [liveItems, labelAreas.front?.id, labelAreas.back?.id]);
+    }, [liveItems, labelAreaIds.front, labelAreaIds.back]);
 
     const labelPreviewUrl = useMemo(() => {
       const front = (labelDesigns as any)?.front || null;
