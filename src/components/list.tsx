@@ -776,6 +776,20 @@ export const LabelPreviewImage = styled.img`
   user-select: none;
 `;
 
+export const LabelPreviewReveal = styled.div<{ $visible: boolean }>`
+  width: 100%;
+  max-width: 520px;
+  overflow: hidden;
+  transform-origin: top;
+  max-height: ${({ $visible }) => ($visible ? '720px' : '0')};
+  opacity: ${({ $visible }) => ($visible ? 1 : 0)};
+  transform: ${({ $visible }) => ($visible ? 'scaleY(1)' : 'scaleY(0.96)')};
+  transition:
+    max-height 420ms cubic-bezier(0.2, 0.85, 0.2, 1),
+    opacity 260ms ease,
+    transform 420ms cubic-bezier(0.2, 0.85, 0.2, 1);
+`;
+
 export const WizardHeader = styled.div`
   display: grid;
   grid-template-columns: 1fr auto 1fr;

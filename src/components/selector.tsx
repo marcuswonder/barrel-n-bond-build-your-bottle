@@ -1,7 +1,7 @@
 import React, { FunctionComponent, useEffect, useMemo, useRef, useState, useCallback, useLayoutEffect } from 'react';
 // import styled from 'styled-components';
 import { useZakeke } from 'zakeke-configurator-react';
-import { LayoutWrapper, ContentWrapper, Container,  OptionListItem, NavButton, LoadingSpinner, NotesWrapper, CartBar, StepNav, OptionsWrap, OptionText, OptionTitle, OptionDescription, ClosureSections, SectionTitle, SwatchGrid, SwatchButton, SwatchNoneLabel, ActionsCenter, LabelDesignWrap, LabelTabs, LabelTabButton, LabelForm, LabelDetails, LabelSummary, LabelSummaryMeta, LabelRow, LabelRowTight, LabelField, LabelInput, LabelTextarea, LabelDescription, LabelHelperText, FileNameRow, FileRemoveButton, LabelCheckboxRow, WizardWrap, WizardStepTitle, WizardOptions, WizardOptionButton, WizardNav, WizardHeader, WizardHeaderSide, RestartButton, PromptLoading, PromptSpinner, PromptFadeText, ConfigWarning, ViewportSpacer, GuidedActionRow, LabelPreviewImage } from './list';
+import { LayoutWrapper, ContentWrapper, Container,  OptionListItem, NavButton, LoadingSpinner, NotesWrapper, CartBar, StepNav, OptionsWrap, OptionText, OptionTitle, OptionDescription, ClosureSections, SectionTitle, SwatchGrid, SwatchButton, SwatchNoneLabel, ActionsCenter, LabelDesignWrap, LabelTabs, LabelTabButton, LabelForm, LabelDetails, LabelSummary, LabelSummaryMeta, LabelRow, LabelRowTight, LabelField, LabelInput, LabelTextarea, LabelDescription, LabelHelperText, FileNameRow, FileRemoveButton, LabelCheckboxRow, WizardWrap, WizardStepTitle, WizardOptions, WizardOptionButton, WizardNav, WizardHeader, WizardHeaderSide, RestartButton, PromptLoading, PromptSpinner, PromptFadeText, ConfigWarning, ViewportSpacer, GuidedActionRow, LabelPreviewImage, LabelPreviewReveal } from './list';
 // import { List, StepListItem, , ListItemImage } from './list';
 import { optionNotes } from '../data/option-notes';
 import ClipLoader from 'react-spinners/ClipLoader';
@@ -315,6 +315,8 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
     const [labelLoadingIndex, setLabelLoadingIndex] = useState(0);
     const [labelRequestKind, setLabelRequestKind] = useState<'create' | 'edit' | 'uploadLater' | null>(null);
     const [activeDesignSide, setActiveDesignSide] = useState<'front' | 'back'>('front');
+    const [loadedLabelPreviewUrl, setLoadedLabelPreviewUrl] = useState('');
+    const [showLoadedLabelPreview, setShowLoadedLabelPreview] = useState(false);
     const [hideLabelTabs, setHideLabelTabs] = useState(false);
     const [promptOverride, setPromptOverride] = useState('');
     const [labelWizard, setLabelWizard] = useState<LabelWizardState>({
@@ -629,6 +631,36 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
         ''
       );
     }, [labelDesigns]);
+
+    useEffect(() => {
+      if (!labelPreviewUrl) {
+        setLoadedLabelPreviewUrl('');
+        setShowLoadedLabelPreview(false);
+        return;
+      }
+
+      let cancelled = false;
+      const preload = new Image();
+      preload.onload = () => {
+        if (cancelled) return;
+        setLoadedLabelPreviewUrl(labelPreviewUrl);
+        setShowLoadedLabelPreview(false);
+        requestAnimationFrame(() => {
+          if (!cancelled) setShowLoadedLabelPreview(true);
+        });
+      };
+      preload.onerror = () => {
+        if (cancelled) return;
+        setShowLoadedLabelPreview(false);
+      };
+      preload.src = labelPreviewUrl;
+
+      return () => {
+        cancelled = true;
+      };
+    }, [labelPreviewUrl]);
+
+    const isCurrentLabelPreviewLoaded = Boolean(labelPreviewUrl) && loadedLabelPreviewUrl === labelPreviewUrl;
 
     useEffect(() => {
       if (guidedGenerating && hasLabelOnBottle && labelRequestKind !== 'edit') {
@@ -2147,7 +2179,12 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
 };
 
     const frontLabelDesigned = Boolean(labelDesigns.front);
-    const showAddToCartButton = productObject.valid && frontLabelDesigned;
+    const showAddToCartButton =
+      productObject.valid &&
+      frontLabelDesigned &&
+      hasLabelOnBottle &&
+      isCurrentLabelPreviewLoaded &&
+      !guidedGenerating;
 
     return (
       <>
@@ -2866,23 +2903,32 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
 
                   {isAiLabelMode && hasLabelOnBottle && !guidedEditMode && (
                     <WizardWrap>
-                      {labelPreviewUrl && (
-                        <LabelPreviewImage
-                          src={labelPreviewUrl}
-                          alt="Generated label preview"
-                          draggable={false}
-                          onContextMenu={(event) => event.preventDefault()}
-                        />
+                      {isCurrentLabelPreviewLoaded && (
+                        <LabelPreviewReveal $visible={showLoadedLabelPreview}>
+                          <LabelPreviewImage
+                            src={loadedLabelPreviewUrl}
+                            alt="Generated label preview"
+                            draggable={false}
+                            onContextMenu={(event) => event.preventDefault()}
+                          />
+                        </LabelPreviewReveal>
                       )}
-                      <GuidedActionRow>
-                        <button
-                          className="wizard-ghost guided-action"
-                          type="button"
-                          onClick={() => setGuidedEditMode(true)}
-                        >
-                          Make Edits
-                        </button>
-                      </GuidedActionRow>
+                      {!isCurrentLabelPreviewLoaded && (
+                        <PromptLoading>
+                          <div>Finalising label preview…</div>
+                        </PromptLoading>
+                      )}
+                      {isCurrentLabelPreviewLoaded && (
+                        <GuidedActionRow>
+                          <button
+                            className="wizard-ghost guided-action"
+                            type="button"
+                            onClick={() => setGuidedEditMode(true)}
+                          >
+                            Make Edits
+                          </button>
+                        </GuidedActionRow>
+                      )}
                     </WizardWrap>
                   )}
 
