@@ -189,20 +189,19 @@ export const ContentWrapper = styled.div`
   position: relative;
   flex: 1 1 auto;
   min-height: 0;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
 `;
 
 export const Container = styled.div`
   border-top: 6px solid black;
   width: 100%;
-  height: 100%;
-  max-height: 100%;
-  min-height: 0;
+  min-height: 100%;
   padding: 24px;
   padding-top: calc(24px + var(--safe-top));
   padding-bottom: 24px;
   box-sizing: border-box;
-  overflow: hidden;
+  overflow: visible;
   display: flex;
   flex-direction: column;
 
@@ -558,9 +557,14 @@ export const LabelForm = styled.form`
   margin: 0 auto;
   display: flex;
   flex-direction: column;
+  align-items: center;
   gap: 16px;
   min-height: 0;
   overflow: hidden;
+
+  > * {
+    width: 100%;
+  }
 `;
 
 export const LabelDetails = styled.details`
@@ -778,8 +782,12 @@ export const GuidedActionRow = styled.div`
   flex-wrap: wrap;
 
   & .guided-action {
-    flex: 0 1 240px;
+    flex: 0 0 240px;
     width: 240px;
+    min-width: 240px;
+    max-width: 240px;
+    height: 48px;
+    box-sizing: border-box;
     max-width: 100%;
   }
 

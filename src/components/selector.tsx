@@ -1702,7 +1702,13 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
     // Step validation helpers
     const stepNameLc = (selectedStep?.name || '').toLowerCase();
     const isBottleStep  = stepNameLc.includes('bottle');
-    const isLiquidStep  = stepNameLc.includes('gin') || stepNameLc.includes('liquid');
+    const isLiquidStep  =
+      stepNameLc.includes('spirit') ||
+      stepNameLc.includes('gin') ||
+      stepNameLc.includes('liquid') ||
+      stepNameLc.includes('vodka') ||
+      stepNameLc.includes('whiskey') ||
+      stepNameLc.includes('rum');
     const isClosureStep = stepNameLc.includes('closure');
     const hasValidSelection = !!(selectedAttribute?.options?.some(o => o.selected && o.name !== 'No Selection'));
 
@@ -2352,7 +2358,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                       >
                         <OptionText>
                           <OptionTitle $selected={!!option.selected}>{option.name}</OptionTitle>
-                          {selectedStep?.name === 'Select your Gin' && option.description && (
+                          {isLiquidStep && option.description && (
                             <OptionDescription>{option.description}</OptionDescription>
                           )}
                         </OptionText>
@@ -3263,7 +3269,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
 
             {(() => {
               const stepName = (selectedStep?.name || '').toLowerCase();
-              const notesAllowed = /bottle|gin|liquid/.test(stepName);
+              const notesAllowed = /bottle|spirit|gin|liquid|vodka|whiskey|rum/.test(stepName);
               return notesAllowed && selectedStep?.name && selectedAttribute && selectedAttribute.options.find(opt => opt.selected && opt.name !== "No Selection");
             })() && (
               <NotesWrapper>
@@ -3273,6 +3279,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
 
                     if (stepName.includes('bottle')) return 'Bottle Style';
                     if (
+                      stepName.includes('spirit') ||
                       stepName.includes('gin') || 
                       stepName.includes('vodka') ||
                       stepName.includes('whiskey') ||
@@ -3291,7 +3298,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                     const stepName = (selectedStep?.name || '').toLowerCase();
                     const category =
                       stepName.includes('bottle') ? 'bottles' :
-                        stepName.includes('gin') || stepName.includes('liquid') ? 'liquids' :
+                        stepName.includes('spirit') || stepName.includes('gin') || stepName.includes('liquid') || stepName.includes('vodka') || stepName.includes('whiskey') || stepName.includes('rum') ? 'liquids' :
                           stepName.includes('closure') ? 'closures' :
                             null as 'bottles' | 'liquids' | 'closures' | null;
 
