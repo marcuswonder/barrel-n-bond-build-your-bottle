@@ -75,6 +75,7 @@ type AppMode = 'full' | 'lite';
 
 const LITE_PRODUCT_CODES = new Set([
   '10532134027610',
+  '10781413704026'
 ]);
 
 const FULL_PRODUCT_CODES = new Set([
