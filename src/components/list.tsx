@@ -808,6 +808,7 @@ export const GuidedActionRow = styled.div`
 export const LabelPreviewImage = styled.img`
   width: 100%;
   max-width: 520px;
+  margin: 0 auto;
   border: 1px solid #222;
   background: #0b0b0b;
   display: block;
@@ -829,6 +830,9 @@ export const LabelPreviewImage = styled.img`
 export const LabelPreviewReveal = styled.div<{ $visible: boolean }>`
   width: 100%;
   max-width: 520px;
+  margin: 0 auto;
+  display: flex;
+  justify-content: center;
   overflow: hidden;
   transform-origin: top;
   max-height: ${({ $visible }) => ($visible ? '720px' : '0')};

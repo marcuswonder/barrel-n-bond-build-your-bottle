@@ -3073,7 +3073,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                             handleSendRevision(guidedEditNotes);
                           }}
                         >
-                          Generate Edits
+                          GENERATE EDITS
                         </button>
                         {showAddToCartButton && (
                           <button
