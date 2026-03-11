@@ -2525,11 +2525,12 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                           const options = currentStep.options || [];
                           const mergedOptions = currentStep.extraOptions ? [...options, ...currentStep.extraOptions] : options;
 
-                          const goNext = () => {
+                          const goNext = (context?: { selectedTheme?: string }) => {
                             setWizardStepIndex((prev) => {
                               let next = Math.min(prev + 1, steps.length - 1);
                               const nextStep = steps[next];
-                              if (nextStep?.key === 'subTheme' && (!labelWizard.theme || labelWizard.theme === 'Other')) {
+                              const effectiveTheme = context?.selectedTheme ?? labelWizard.theme;
+                              if (nextStep?.key === 'subTheme' && (!effectiveTheme || effectiveTheme === 'Other')) {
                                 next = Math.min(next + 1, steps.length - 1);
                               }
                               if (nextStep?.key === 'review' && (labelForm.logoFile || labelForm.characterFile)) {
@@ -2673,6 +2674,10 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                                               if (opt === 'Other' || opt === 'Upload my own') return;
                                               if (currentStep.key === 'paletteVibe' && opt === 'Pick my own') return;
                                               setTimeout(() => {
+                                                if (currentStep.key === 'theme') {
+                                                  goNext({ selectedTheme: opt });
+                                                  return;
+                                                }
                                                 goNext();
                                               }, 200);
                                             }}
