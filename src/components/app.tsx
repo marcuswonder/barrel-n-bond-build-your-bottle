@@ -38,21 +38,30 @@ function getBootstrapParameters(): Record<string, any> {
 const Layout = styled.div`
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  grid-gap: 40px;
+  grid-gap: clamp(10px, 2vw, 24px);
+  width: 100%;
   height: 100%;
   max-height: 100%;
-  padding: 40px;
+  min-height: 0;
+  padding: clamp(10px, 2vw, 24px);
+  box-sizing: border-box;
+  overflow: hidden;
 
   @media (max-width: 767px) {
     display: flex;
     flex-direction: column;
-    padding: 16px;
+    padding: 10px;
     gap: 12px;
   }
 `;
 
 const SelectorPanel = styled.div`
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  max-height: 100%;
   min-height: 0;
+  overflow: hidden;
 
   @media (max-width: 767px) {
     order: 1;
@@ -61,11 +70,58 @@ const SelectorPanel = styled.div`
 `;
 
 const ViewerPanel = styled.div`
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  max-height: 100%;
   min-height: 0;
+  overflow: hidden;
 
   @media (max-width: 767px) {
     order: 0;
     flex: 0 0 60%;
+  }
+`;
+
+const ViewerStage = styled.div`
+  position: relative;
+  flex: 1 1 auto;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+
+  * {
+    scrollbar-width: none;
+  }
+
+  *::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+    display: none;
+  }
+
+  > div {
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden !important;
+  }
+
+  [id^='zakeke-canvas-viewer3D-div-'] {
+    position: absolute !important;
+    inset: 0;
+    width: 100% !important;
+    height: 100% !important;
+    overflow: hidden !important;
+  }
+
+  canvas[id^='zakeke-canvas-viewer3D-'] {
+    display: block;
+    width: 100% !important;
+    height: 100% !important;
+    max-width: 100% !important;
+    max-height: 100% !important;
   }
 `;
 
@@ -114,7 +170,9 @@ const App: FunctionComponent<{}> = () => {
                 <Selector mode={mode} defaultBottleName={defaultBottleName} />
             </SelectorPanel>
             <ViewerPanel>
-                <ZakekeViewer />
+                <ViewerStage>
+                    <ZakekeViewer />
+                </ViewerStage>
             </ViewerPanel>
         </Layout>
     </ZakekeProvider>;

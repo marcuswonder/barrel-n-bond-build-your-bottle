@@ -178,20 +178,33 @@ export const LayoutWrapper = styled.div`
   display: flex;
   flex-direction: column;
   position: relative;
+  width: 100%;
   height: 100%;
   max-height: 100%;
+  min-height: 0;
+  overflow: hidden;
 `;
 
 export const ContentWrapper = styled.div`
   position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
 `;
 
 export const Container = styled.div`
   border-top: 6px solid black;
+  width: 100%;
+  height: 100%;
+  max-height: 100%;
+  min-height: 0;
   padding: 24px;
   padding-top: calc(24px + var(--safe-top));
   padding-bottom: 24px;
   box-sizing: border-box;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 
   @media (max-width: 767px) {
     padding: 16px;
@@ -510,6 +523,8 @@ export const LabelDesignWrap = styled.div`
   display: flex;
   flex-direction: column;
   gap: 16px;
+  min-height: 0;
+  overflow: hidden;
 `;
 
 export const LabelTabs = styled.div`
@@ -539,11 +554,13 @@ export const LabelTabButton = styled.button<{ $active?: boolean }>`
 
 export const LabelForm = styled.form`
   width: 100%;
-  max-width: 560px;
+  max-width: min(560px, 100%);
   margin: 0 auto;
   display: flex;
   flex-direction: column;
   gap: 16px;
+  min-height: 0;
+  overflow: hidden;
 `;
 
 export const LabelDetails = styled.details`
@@ -770,6 +787,7 @@ export const GuidedActionRow = styled.div`
     width: 100%;
     max-width: 520px;
     justify-content: space-between;
+    padding-bottom: 12px;
   }
 
   @media (max-width: 767px) {
@@ -786,6 +804,18 @@ export const LabelPreviewImage = styled.img`
   background: #0b0b0b;
   display: block;
   user-select: none;
+
+  @media (max-height: 900px) {
+    max-width: 460px;
+  }
+
+  @media (max-height: 780px) {
+    max-width: 400px;
+  }
+
+  @media (max-height: 700px) {
+    max-width: 340px;
+  }
 `;
 
 export const LabelPreviewReveal = styled.div<{ $visible: boolean }>`
@@ -800,6 +830,18 @@ export const LabelPreviewReveal = styled.div<{ $visible: boolean }>`
     max-height 420ms cubic-bezier(0.2, 0.85, 0.2, 1),
     opacity 260ms ease,
     transform 420ms cubic-bezier(0.2, 0.85, 0.2, 1);
+
+  @media (max-height: 900px) {
+    max-width: 460px;
+  }
+
+  @media (max-height: 780px) {
+    max-width: 400px;
+  }
+
+  @media (max-height: 700px) {
+    max-width: 340px;
+  }
 `;
 
 export const WizardHeader = styled.div`

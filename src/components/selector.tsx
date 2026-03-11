@@ -3031,12 +3031,12 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                           </button>
                           {showAddToCartButton && (
                             <button
-                              className="configurator-button guided-action"
+                              className="configurator-button guided-action save-order-button"
                               type="button"
                               onClick={handleAddToCart}
                               disabled={isAddToCartLoading}
                             >
-                              {isAddToCartLoading ? <ClipLoader color="#FFFFFF" size={24} loading={true} /> : 'Save and Order'}
+                              {isAddToCartLoading ? <ClipLoader color="#FFFFFF" size={24} loading={true} /> : 'SAVE AND ORDER'}
                             </button>
                           )}
                         </GuidedActionRow>
@@ -3071,12 +3071,12 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                         </button>
                         {showAddToCartButton && (
                           <button
-                            className="wizard-ghost guided-action"
+                            className="configurator-button guided-action save-order-button"
                             type="button"
                             onClick={handleAddToCart}
                             disabled={isAddToCartLoading}
                           >
-                            {isAddToCartLoading ? <ClipLoader color="#FFFFFF" size={20} loading={true} /> : 'Save and Order'}
+                            {isAddToCartLoading ? <ClipLoader color="#FFFFFF" size={20} loading={true} /> : 'SAVE AND ORDER'}
                           </button>
                         )}
                       </GuidedActionRow>
@@ -3248,12 +3248,12 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                   {!isAiLabelMode && showAddToCartButton && (
                     <ActionsCenter>
                       <button
-                        className="configurator-button"
+                        className="configurator-button save-order-button"
                         type="button"
                         onClick={handleAddToCart}
                         disabled={isAddToCartLoading}
                       >
-                        {isAddToCartLoading ? <ClipLoader color="#FFFFFF" size={24} loading={true} /> : 'Save and Order'}
+                        {isAddToCartLoading ? <ClipLoader color="#FFFFFF" size={24} loading={true} /> : 'SAVE AND ORDER'}
                       </button>
                     </ActionsCenter>
                   )}
