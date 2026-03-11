@@ -1,7 +1,7 @@
 import React, { FunctionComponent, useEffect, useMemo, useRef, useState, useCallback, useLayoutEffect } from 'react';
 // import styled from 'styled-components';
 import { useZakeke } from 'zakeke-configurator-react';
-import { LayoutWrapper, ContentWrapper, Container,  OptionListItem, NavButton, LoadingSpinner, NotesWrapper, CartBar, StepNav, OptionsWrap, OptionText, OptionTitle, OptionDescription, ClosureSections, SectionTitle, SwatchGrid, SwatchButton, SwatchNoneLabel, ActionsCenter, LabelDesignWrap, LabelTabs, LabelTabButton, LabelForm, LabelDetails, LabelSummary, LabelSummaryMeta, LabelRow, LabelRowTight, LabelField, LabelInput, LabelTextarea, LabelDescription, LabelHelperText, FileNameRow, FileRemoveButton, LabelCheckboxRow, WizardWrap, WizardStepTitle, WizardOptions, WizardOptionButton, WizardNav, WizardHeader, WizardHeaderSide, RestartButton, PromptLoading, PromptSpinner, PromptFadeText, ConfigWarning, ViewportSpacer, GuidedActionRow, LabelPreviewImage, LabelPreviewReveal } from './list';
+import { LayoutWrapper, ContentWrapper, Container,  OptionListItem, NavButton, LoadingSpinner, NotesWrapper, StepNav, OptionsWrap, OptionText, OptionTitle, OptionDescription, ClosureSections, SectionTitle, SwatchGrid, SwatchButton, SwatchNoneLabel, ActionsCenter, LabelDesignWrap, LabelTabs, LabelTabButton, LabelForm, LabelDetails, LabelSummary, LabelSummaryMeta, LabelRow, LabelRowTight, LabelField, LabelInput, LabelTextarea, LabelDescription, LabelHelperText, FileNameRow, FileRemoveButton, LabelCheckboxRow, WizardWrap, WizardStepTitle, WizardOptions, WizardOptionButton, WizardNav, WizardHeader, WizardHeaderSide, RestartButton, PromptLoading, PromptSpinner, PromptFadeText, ConfigWarning, ViewportSpacer, GuidedActionRow, LabelPreviewImage, LabelPreviewReveal } from './list';
 // import { List, StepListItem, , ListItemImage } from './list';
 import { optionNotes } from '../data/option-notes';
 import ClipLoader from 'react-spinners/ClipLoader';
@@ -3021,7 +3021,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                         </LabelHelperText>
                       )}
                       {isLabelPreviewReady && (
-                        <GuidedActionRow>
+                        <GuidedActionRow className="preview-actions">
                           <button
                             className="wizard-ghost guided-action"
                             type="button"
@@ -3029,6 +3029,16 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                           >
                             Make Edits
                           </button>
+                          {showAddToCartButton && (
+                            <button
+                              className="configurator-button guided-action"
+                              type="button"
+                              onClick={handleAddToCart}
+                              disabled={isAddToCartLoading}
+                            >
+                              {isAddToCartLoading ? <ClipLoader color="#FFFFFF" size={24} loading={true} /> : 'Save and Order'}
+                            </button>
+                          )}
                         </GuidedActionRow>
                       )}
                     </WizardWrap>
@@ -3059,6 +3069,16 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                         >
                           Generate Edits
                         </button>
+                        {showAddToCartButton && (
+                          <button
+                            className="wizard-ghost guided-action"
+                            type="button"
+                            onClick={handleAddToCart}
+                            disabled={isAddToCartLoading}
+                          >
+                            {isAddToCartLoading ? <ClipLoader color="#FFFFFF" size={20} loading={true} /> : 'Save and Order'}
+                          </button>
+                        )}
                       </GuidedActionRow>
                     </WizardWrap>
                   )}
@@ -3225,6 +3245,18 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                       </PromptLoading>
                     </ActionsCenter>
                   )}
+                  {!isAiLabelMode && showAddToCartButton && (
+                    <ActionsCenter>
+                      <button
+                        className="configurator-button"
+                        type="button"
+                        onClick={handleAddToCart}
+                        disabled={isAddToCartLoading}
+                      >
+                        {isAddToCartLoading ? <ClipLoader color="#FFFFFF" size={24} loading={true} /> : 'Save and Order'}
+                      </button>
+                    </ActionsCenter>
+                  )}
                 </LabelForm>
               </LabelDesignWrap>
             )}
@@ -3273,13 +3305,6 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
           </Container>
         </ContentWrapper>
         <ViewportSpacer />
-        <CartBar
-          price={price}
-          showButton={showAddToCartButton}
-          loading={isAddToCartLoading}
-          onAdd={handleAddToCart}
-          renderSpinner={<ClipLoader color="#FFFFFF" size={40} loading={true} />}
-        />
         </LayoutWrapper>
       </>
     );

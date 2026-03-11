@@ -765,6 +765,18 @@ export const GuidedActionRow = styled.div`
     width: 240px;
     max-width: 100%;
   }
+
+  &.preview-actions {
+    width: 100%;
+    max-width: 520px;
+    justify-content: space-between;
+  }
+
+  @media (max-width: 767px) {
+    &.preview-actions {
+      justify-content: center;
+    }
+  }
 `;
 
 export const LabelPreviewImage = styled.img`
