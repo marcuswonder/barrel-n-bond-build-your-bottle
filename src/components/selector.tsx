@@ -392,7 +392,12 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
       }
 
       // We ARE on the label step → map bottle -> specific label option by code suffix
-      const bottleName = (bottleSel?.name || '').trim().toLowerCase();
+      // In lite mode there is no bottle step selection, so map labels from default bottle name.
+      const bottleName = (
+        isLiteMode
+          ? (defaultBottleName || '')
+          : (bottleSel?.name || '')
+      ).trim().toLowerCase();
       const bottleKey = bottleName.replace(/\s+/g, '_'); // e.g. 'Polo' -> 'polo'
 
       if (!bottleKey) {
@@ -410,7 +415,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
       if (!match && noSel && active?.id !== noSel.id) {
         selectOption(noSel.id);
       }
-    }, [steps, labelStepIdx, selectedStepId, selectedStep?.name, bottleSel?.name, selectOption]);
+    }, [steps, labelStepIdx, selectedStepId, selectedStep?.name, bottleSel?.name, isLiteMode, defaultBottleName, selectOption]);
 
     const toMini = (o: any) => (o ? ({ id: o.id, guid: o.guid, name: o.name, selected: !!o.selected }) : null);
 
@@ -827,6 +832,34 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
         }
       };
 
+      const ensureLabelOptionVisible = async () => {
+        const labelStep = steps[labelStepIdx];
+        if (!labelStep) return;
+        const attrs: any[] = Array.isArray(labelStep?.attributes) ? labelStep.attributes : [];
+        const attr = attrs[0] || null;
+        if (!attr) return;
+        const opts: any[] = Array.isArray(attr?.options) ? attr.options : [];
+        if (!opts.length) return;
+
+        const active = opts.find((o: any) => !!o?.selected) || null;
+        const bottleName = (
+          isLiteMode
+            ? (defaultBottleName || '')
+            : (bottleSel?.name || '')
+        ).trim().toLowerCase();
+        const bottleKey = bottleName.replace(/\s+/g, '_');
+        if (!bottleKey) return;
+
+        const match = opts.find((o: any) =>
+          typeof o?.code === 'string' && o.code.toLowerCase().endsWith(`_${bottleKey}`)
+        );
+        if (match && active?.id !== match.id) {
+          selectOption(match.id);
+          // Allow scene actions (show/hide meshes) to settle before adding design items.
+          await wait(220);
+        }
+      };
+
       const resolveVersionKind = (designExport: any): 'Initial' | 'Edit' | 'Upload' => {
         if (labelRequestKind === 'edit') return 'Edit';
         if (
@@ -1062,6 +1095,8 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
           const bottleName = productObject?.selections?.bottle?.name?.toLowerCase() ?? '';
           const areaName = `${bottleName}_label_${resolvedSide}`;
 
+          await ensureLabelOptionVisible();
+
           const area = product?.areas?.find(a => a.name === areaName);
           if (!area) {
             console.warn('No area found', { areaName });
@@ -1089,7 +1124,15 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
             // console.log("frontAreaId", frontAreaId);
             
             if (frontImage?.imageID && frontAreaId) {
-              await addItemImage(frontImage.imageID, frontAreaId);
+              const addedGuid = await addItemImage(frontImage.imageID, frontAreaId);
+              if (!addedGuid) {
+                console.warn('[uploadDesign] addItemImage returned no guid', {
+                  designSide: resolvedSide,
+                  imageId: frontImage.imageID,
+                  areaId: frontAreaId
+                });
+                return;
+              }
               // Treat a successful addItemImage as completion even if item-list sync lags.
               setGuidedGenerating(false);
               setLabelRequestKind(null);
@@ -1159,7 +1202,15 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
             // console.log("backAreaId", backAreaId);
   
             if (backImage?.imageID && backAreaId) {
-              await addItemImage(backImage.imageID, backAreaId);
+              const addedGuid = await addItemImage(backImage.imageID, backAreaId);
+              if (!addedGuid) {
+                console.warn('[uploadDesign] addItemImage returned no guid', {
+                  designSide: resolvedSide,
+                  imageId: backImage.imageID,
+                  areaId: backAreaId
+                });
+                return;
+              }
               // Treat a successful addItemImage as completion even if item-list sync lags.
               setGuidedGenerating(false);
               setLabelRequestKind(null);
@@ -1230,7 +1281,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
       };
       window.addEventListener('message', onMsg);
       return () => window.removeEventListener('message', onMsg);
-    }, [createImageFromUrl, getMeshIDbyName, addItemImage, removeItem, items, productObject?.selections?.bottle?.name, product?.areas, setCameraByName, setFromUploadDesign, steps, selectOption, productObject?.selections?.bottle, productObject?.selections?.liquid, productObject?.selections?.closure, productObject?.selections?.label, labelRequestKind, labelMode, labelForm.prompt, labelForm.title, promptOverride, guidedEditNotes]);
+    }, [createImageFromUrl, getMeshIDbyName, addItemImage, removeItem, items, productObject?.selections?.bottle?.name, product?.areas, setCameraByName, setFromUploadDesign, steps, selectOption, productObject?.selections?.bottle, productObject?.selections?.liquid, productObject?.selections?.closure, productObject?.selections?.label, labelRequestKind, labelMode, labelForm.prompt, labelForm.title, promptOverride, guidedEditNotes, isLiteMode, defaultBottleName, bottleSel?.name, labelStepIdx]);
 
 
     // --- Clear items when bottle changes ---
