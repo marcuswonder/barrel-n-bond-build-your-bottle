@@ -848,6 +848,51 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
         return null;
       };
 
+      const firstImageRef = (...values: Array<unknown>): string | null => {
+        for (const value of values) {
+          if (typeof value !== 'string') continue;
+          const text = value.trim();
+          if (!text) continue;
+          if (/^https?:\/\//i.test(text)) return text;
+          if (/^data:image\//i.test(text)) return text;
+        }
+        return null;
+      };
+
+      const compactDesignExport = (designExport: any, side: 'front' | 'back') => {
+        const s3Url = firstHttp(
+          designExport?.outputS3Url,
+          side === 'front' ? designExport?.frontS3Url : designExport?.backS3Url,
+          designExport?.s3url,
+          designExport?.url,
+          Array.isArray(designExport?.s3Uploads) ? designExport.s3Uploads[0]?.url : null
+        );
+        const imageRef = firstImageRef(
+          s3Url,
+          side === 'front' ? designExport?.frontImage : designExport?.backImage,
+          designExport?.imageDataUrl,
+          Array.isArray(designExport?.images) ? designExport.images[0] : null,
+          Array.isArray(designExport?.imageUrls) ? designExport.imageUrls[0] : null
+        );
+
+        return {
+          ...designExport,
+          s3url: s3Url || designExport?.s3url || '',
+          url: s3Url || designExport?.url || '',
+          frontS3Url: side === 'front' ? (s3Url || designExport?.frontS3Url || '') : (designExport?.frontS3Url || ''),
+          backS3Url: side === 'back' ? (s3Url || designExport?.backS3Url || '') : (designExport?.backS3Url || ''),
+          frontImage: side === 'front'
+            ? (imageRef || designExport?.frontImage || '')
+            : (designExport?.frontImage || ''),
+          backImage: side === 'back'
+            ? (imageRef || designExport?.backImage || '')
+            : (designExport?.backImage || ''),
+          images: imageRef ? [imageRef] : [],
+          imageUrls: s3Url ? [s3Url] : (Array.isArray(designExport?.imageUrls) ? designExport.imageUrls : []),
+          imageDataUrl: imageRef && /^data:image\//i.test(imageRef) ? imageRef : ''
+        };
+      };
+
       const buildLabelPersistence = (side: 'front' | 'back', designExport: any) => {
         const aiInput =
           (designExport?.aiInput && typeof designExport.aiInput === 'object')
@@ -989,16 +1034,18 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
           console.log("Received uploadDesign message:", e.data.message);
           
           const { designExport, designSide } = e.data.message || {};
-          console.log("designExport", designExport)
-          console.log("designSide", designSide)
+          const resolvedSide: 'front' | 'back' = String(designSide).toLowerCase() === 'back' ? 'back' : 'front';
+          const safeDesignExport = compactDesignExport(designExport || {}, resolvedSide);
+          console.log("designExport", safeDesignExport)
+          console.log("designSide", resolvedSide)
           const parentOrder = e.data.message?.order;
           if (designSide) {
-            setActiveDesignSide(String(designSide).toLowerCase() === 'back' ? 'back' : 'front');
+            setActiveDesignSide(resolvedSide);
             // Persist to zustand so UI flips to "Edit [side] label" and save gating can use it
             setFromUploadDesign({
               order: parentOrder,
-              designSide,
-              designExport,
+              designSide: resolvedSide,
+              designExport: safeDesignExport,
             });
             
             const bottleName = productObject?.selections?.bottle?.name?.toLowerCase() ?? '';
@@ -1013,7 +1060,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
           if (!designSide ) return;
 
           const bottleName = productObject?.selections?.bottle?.name?.toLowerCase() ?? '';
-          const areaName = `${bottleName}_label_${designSide}`;
+          const areaName = `${bottleName}_label_${resolvedSide}`;
 
           const area = product?.areas?.find(a => a.name === areaName);
           if (!area) {
@@ -1021,8 +1068,19 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
             return;
           }
 
-          if(designSide === "front") {
-            const frontImage = await createImageFromUrl(designExport.s3url);
+          if(resolvedSide === "front") {
+            const frontSource = firstImageRef(
+              safeDesignExport?.frontS3Url,
+              safeDesignExport?.s3url,
+              safeDesignExport?.url,
+              safeDesignExport?.frontImage,
+              Array.isArray(safeDesignExport?.images) ? safeDesignExport.images[0] : null
+            );
+            if (!frontSource) {
+              console.warn('[uploadDesign] Missing front image source in designExport');
+              return;
+            }
+            const frontImage = await createImageFromUrl(frontSource);
             // const frontImage = await createImageFromUrl("https://barrel-n-bond.s3.eu-west-2.amazonaws.com/public/Front+Label+for+the+Polo+Bottle+inc+Bleed.jpg");
             // const frontMeshId = getMeshIDbyName(`${productObject?.selections?.bottle?.name.toLowerCase()}_label_front`);
             // console.log("frontMeshId", frontMeshId);
@@ -1038,7 +1096,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                 setGuidedEditMode(false);
                 setGuidedEditNotes('');
               }
-              const labelPersistence = buildLabelPersistence('front', designExport);
+              const labelPersistence = buildLabelPersistence('front', safeDesignExport);
 
               console.log("postMessage Content:", {
                 customMessageType: 'labelAdded',
@@ -1050,8 +1108,8 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                     'label': productObject.selections.label,
                     'closureExtras': productObject.selections.closureExtras,
                   },
-                  'designSide': designSide,
-                  'designExport': designExport,
+                  'designSide': resolvedSide,
+                  'designExport': safeDesignExport,
                   'productSku': product?.sku ?? null,
                   ...labelPersistence,
                 }
@@ -1067,8 +1125,8 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                     'label': productObject.selections.label,
                     'closureExtras': productObject.selections.closureExtras,
                   },
-                  'designSide': designSide,
-                  'designExport': designExport,
+                  'designSide': resolvedSide,
+                  'designExport': safeDesignExport,
                   'productSku': product?.sku ?? null,
                   ...labelPersistence,
                 }
@@ -1076,8 +1134,19 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
 
             }
           
-          } else if(designSide === "back") {
-            const backImage = await createImageFromUrl(designExport.s3url);
+          } else if(resolvedSide === "back") {
+            const backSource = firstImageRef(
+              safeDesignExport?.backS3Url,
+              safeDesignExport?.s3url,
+              safeDesignExport?.url,
+              safeDesignExport?.backImage,
+              Array.isArray(safeDesignExport?.images) ? safeDesignExport.images[0] : null
+            );
+            if (!backSource) {
+              console.warn('[uploadDesign] Missing back image source in designExport');
+              return;
+            }
+            const backImage = await createImageFromUrl(backSource);
             // const backImage = await createImageFromUrl("https://barrel-n-bond.s3.eu-west-2.amazonaws.com/public/Front+Label+for+the+Polo+Bottle+inc+Bleed.jpg");
   
             // const backMeshId = getMeshIDbyName(`${productObject?.selections?.bottle?.name.toLowerCase()}_label_back`);
@@ -1095,7 +1164,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                 setGuidedEditMode(false);
                 setGuidedEditNotes('');
               }
-              const labelPersistence = buildLabelPersistence('back', designExport);
+              const labelPersistence = buildLabelPersistence('back', safeDesignExport);
 
               console.log("postMessage Content:", {
                 customMessageType: 'labelAdded',
@@ -1107,8 +1176,8 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                     'label': productObject.selections.label,
                     'closureExtras': productObject.selections.closureExtras,
                   },
-                  'designSide': designSide,
-                  'designExport': designExport,
+                  'designSide': resolvedSide,
+                  'designExport': safeDesignExport,
                   'productSku': product?.sku ?? null,
                   ...labelPersistence,
                 }
@@ -1124,8 +1193,8 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                     'label': productObject.selections.label,
                     'closureExtras': productObject.selections.closureExtras,
                   },
-                  'designSide': designSide,
-                  'designExport': designExport,
+                  'designSide': resolvedSide,
+                  'designExport': safeDesignExport,
                   'productSku': product?.sku ?? null,
                   ...labelPersistence,
                 }
