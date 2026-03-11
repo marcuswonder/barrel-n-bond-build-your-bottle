@@ -3343,18 +3343,6 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                       </PromptLoading>
                     </ActionsCenter>
                   )}
-                  {!isAiLabelMode && showAddToCartButton && (
-                    <ActionsCenter>
-                      <button
-                        className="configurator-button save-order-button"
-                        type="button"
-                        onClick={handleAddToCart}
-                        disabled={isSaveOrderBusy}
-                      >
-                        {isSaveOrderBusy ? <ClipLoader color="#FFFFFF" size={24} loading={true} /> : 'SAVE AND ORDER'}
-                      </button>
-                    </ActionsCenter>
-                  )}
                 </LabelForm>
               </LabelDesignWrap>
             )}
