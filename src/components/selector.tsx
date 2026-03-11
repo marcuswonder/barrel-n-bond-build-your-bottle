@@ -598,7 +598,6 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
     const uploadDesignProgressMessages = useMemo(() => ([
       'Preparing the label for your approval',
       'Applying your label to the bottle',
-      'Almost there...',
     ]), []);
 
     const labelEditLoadingMessages = useMemo(() => ([
@@ -823,13 +822,19 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
     const isAiLabelMode = labelMode === 'guided' || labelMode === 'form';
     const hasUploadLaterTemplateOnBottle = Boolean((labelDesigns as any)?.front?.uploadLaterTemplate);
     const isUploadLaterRequest = labelMode === 'upload' && guidedGenerating && labelRequestKind === 'uploadLater';
+    const isUploadFileRequest = labelMode === 'upload' && guidedGenerating && labelRequestKind === 'create';
     const showLabelLoadingState =
       guidedGenerating &&
       (
         (isAiLabelMode && (labelRequestKind === 'edit' || !hasLabelOnBottle)) ||
-        isUploadLaterRequest
+        isUploadLaterRequest ||
+        isUploadFileRequest
       );
-    const showUploadLabelForm = labelMode === 'upload' && !isUploadLaterRequest && !hasUploadLaterTemplateOnBottle;
+    const showUploadLabelForm =
+      labelMode === 'upload' &&
+      !isUploadLaterRequest &&
+      !isUploadFileRequest &&
+      !hasUploadLaterTemplateOnBottle;
     const showLabelErrorState = (isAiLabelMode || labelMode === 'upload') && labelError && !guidedGenerating;
     const showPromptFormBuilder =
       labelMode === 'form' && !guidedGenerating && !hasLabelOnBottle && !guidedEditMode && !labelError;
@@ -1855,6 +1860,15 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
 
     const handleUploadLabelSubmit = async () => {
       if (!uploadLabelFile) return;
+      if (!canDesign) {
+        setWarning(`Please select ${requireBottle ? 'a bottle, ' : ''}a liquid and a closure before designing labels.`);
+        return;
+      }
+      setLabelError(false);
+      setLabelRequestKind('create');
+      setGuidedGenerating(true);
+      setIsUploadDesignApplying(true);
+      setLabelLoadingIndex(0);
       setActiveDesignSide('front');
       let dataUrl = '';
       try {
@@ -2445,7 +2459,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                         $active={labelMode === 'upload'}
                         onClick={() => setLabelMode('upload')}
                       >
-                        Upload Label
+                        UPLOAD LABEL
                       </LabelTabButton>
                     </LabelTabs>
                   ) : null}
@@ -3107,22 +3121,24 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                           Upload a PNG, JPG, or PDF label file.
                         </LabelHelperText>
                       </LabelField>
-                      <WizardNav>
-                        <button
-                          className="configurator-button"
-                          type="button"
-                          onClick={handleUploadLabelLater}
-                        >
-                          Upload Label Later
-                        </button>
-                        <button
-                          className="configurator-button"
-                          type="button"
-                          disabled={!uploadLabelFile}
-                          onClick={handleUploadLabelSubmit}
-                        >
-                          Upload Label
-                        </button>
+                      <WizardNav style={{ justifyContent: 'flex-end' }}>
+                        {!uploadLabelFile ? (
+                          <button
+                            className="configurator-button"
+                            type="button"
+                            onClick={handleUploadLabelLater}
+                          >
+                            UPLOAD LABEL LATER
+                          </button>
+                        ) : (
+                          <button
+                            className="configurator-button"
+                            type="button"
+                            onClick={handleUploadLabelSubmit}
+                          >
+                            UPLOAD LABEL
+                          </button>
+                        )}
                       </WizardNav>
                     </WizardWrap>
                   )}
