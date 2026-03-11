@@ -313,9 +313,12 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
     const [labelError, setLabelError] = useState(false);
     const [promptLoadingIndex, setPromptLoadingIndex] = useState(0);
     const [labelLoadingIndex, setLabelLoadingIndex] = useState(0);
+    const [isUploadDesignApplying, setIsUploadDesignApplying] = useState(false);
+    const [pendingFinalCameraTarget, setPendingFinalCameraTarget] = useState<string | null>(null);
     const [labelRequestKind, setLabelRequestKind] = useState<'create' | 'edit' | 'uploadLater' | null>(null);
     const [activeDesignSide, setActiveDesignSide] = useState<'front' | 'back'>('front');
     const [loadedLabelPreviewUrl, setLoadedLabelPreviewUrl] = useState('');
+    const [labelPreviewLoadMode, setLabelPreviewLoadMode] = useState<'none' | 'loaded' | 'fallback'>('none');
     const [showLoadedLabelPreview, setShowLoadedLabelPreview] = useState(false);
     const [hideLabelTabs, setHideLabelTabs] = useState(false);
     const [promptOverride, setPromptOverride] = useState('');
@@ -592,6 +595,12 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
       'Almost ready…',
     ]), []);
 
+    const uploadDesignProgressMessages = useMemo(() => ([
+      'Preparing the label for your approval',
+      'Applying your label to the bottle',
+      'Almost there...',
+    ]), []);
+
     const labelEditLoadingMessages = useMemo(() => ([
       'Rebalancing the blend…',
       'Adjusting notes and finish…',
@@ -636,31 +645,72 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
       if (!labelPreviewUrl) {
         setLoadedLabelPreviewUrl('');
         setShowLoadedLabelPreview(false);
-        return;
+        if (!hasLabelOnBottle) {
+          setLabelPreviewLoadMode('none');
+          return;
+        }
+
+        // If label is on the bottle but preview URL is still missing, unblock after 2s.
+        setLabelPreviewLoadMode('none');
+        let cancelled = false;
+        const fallbackTimer = window.setTimeout(() => {
+          if (!cancelled) {
+            setLabelPreviewLoadMode('fallback');
+          }
+        }, 2000);
+        return () => {
+          cancelled = true;
+          window.clearTimeout(fallbackTimer);
+        };
       }
 
       let cancelled = false;
-      const preload = new Image();
-      preload.onload = () => {
-        if (cancelled) return;
+      let resolved = false;
+      const revealPreview = (mode: 'loaded' | 'fallback') => {
+        if (cancelled || resolved) return;
+        resolved = true;
         setLoadedLabelPreviewUrl(labelPreviewUrl);
+        setLabelPreviewLoadMode(mode);
         setShowLoadedLabelPreview(false);
         requestAnimationFrame(() => {
           if (!cancelled) setShowLoadedLabelPreview(true);
         });
       };
+
+      const preload = new Image();
+      preload.onload = () => {
+        revealPreview('loaded');
+      };
       preload.onerror = () => {
-        if (cancelled) return;
-        setShowLoadedLabelPreview(false);
+        // If direct preload fails but label is already on bottle, unblock the preview.
+        if (hasLabelOnBottle) {
+          revealPreview('fallback');
+        }
       };
       preload.src = labelPreviewUrl;
+      const fallbackTimer = window.setTimeout(() => {
+        if (!resolved && hasLabelOnBottle) {
+          revealPreview('fallback');
+        }
+      }, 2000);
 
       return () => {
         cancelled = true;
+        window.clearTimeout(fallbackTimer);
       };
-    }, [labelPreviewUrl]);
+    }, [labelPreviewUrl, hasLabelOnBottle]);
 
     const isCurrentLabelPreviewLoaded = Boolean(labelPreviewUrl) && loadedLabelPreviewUrl === labelPreviewUrl;
+    const isLabelPreviewReady =
+      isCurrentLabelPreviewLoaded ||
+      (labelPreviewLoadMode === 'fallback' && hasLabelOnBottle);
+    const activeLabelLoadingMessages = isUploadDesignApplying
+      ? uploadDesignProgressMessages
+      : (labelRequestKind === 'edit' ? labelEditLoadingMessages : labelLoadingMessages);
+    const activeLabelLoadingMessage =
+      activeLabelLoadingMessages[
+        Math.min(labelLoadingIndex, activeLabelLoadingMessages.length - 1)
+      ] || 'Almost ready...';
 
     useEffect(() => {
       if (guidedGenerating && hasLabelOnBottle && labelRequestKind !== 'edit') {
@@ -691,15 +741,24 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
     }, [isPromptGenerating, promptLoadingMessages.length]);
 
     useEffect(() => {
-      if (!guidedGenerating) return;
+      if (!guidedGenerating && !isUploadDesignApplying) return;
       setLabelLoadingIndex(0);
-      const messages = labelRequestKind === 'edit' ? labelEditLoadingMessages : labelLoadingMessages;
+      const messages = isUploadDesignApplying
+        ? uploadDesignProgressMessages
+        : (labelRequestKind === 'edit' ? labelEditLoadingMessages : labelLoadingMessages);
       const max = messages.length - 1;
       const id = window.setInterval(() => {
         setLabelLoadingIndex((prev) => (prev >= max ? max : prev + 1));
       }, 3500);
       return () => window.clearInterval(id);
-    }, [guidedGenerating, labelLoadingMessages.length, labelEditLoadingMessages.length, labelRequestKind]);
+    }, [
+      guidedGenerating,
+      isUploadDesignApplying,
+      labelLoadingMessages,
+      labelEditLoadingMessages,
+      uploadDesignProgressMessages,
+      labelRequestKind
+    ]);
 
     useEffect(() => {
       if (!guidedGenerating) return;
@@ -707,9 +766,16 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
       const timeout = window.setTimeout(() => {
         setGuidedGenerating(false);
         setLabelError(true);
+        setIsUploadDesignApplying(false);
       }, 90000);
       return () => window.clearTimeout(timeout);
     }, [guidedGenerating, hasLabelOnBottle, labelRequestKind]);
+
+    useEffect(() => {
+      if (!isUploadDesignApplying) return;
+      if (!hasLabelOnBottle || !isLabelPreviewReady) return;
+      setIsUploadDesignApplying(false);
+    }, [isUploadDesignApplying, hasLabelOnBottle, isLabelPreviewReady]);
 
     useEffect(() => {
       if (!isPromptGenerating) return;
@@ -1097,6 +1163,8 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
 
         if (e.data?.customMessageType === 'uploadDesign') {
           console.log("Received uploadDesign message:", e.data.message);
+          setIsUploadDesignApplying(true);
+          setLabelLoadingIndex(0);
           
           const { designExport, designSide } = e.data.message || {};
           const resolvedSide: 'front' | 'back' = String(designSide).toLowerCase() === 'back' ? 'back' : 'front';
@@ -1113,8 +1181,15 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
               designExport: safeDesignExport,
             });
             
-            const bottleName = productObject?.selections?.bottle?.name?.toLowerCase() ?? '';
-            setCameraByName(`${bottleName}_full_front`)
+            const cameraBottleName = String(
+              productObject?.selections?.bottle?.name || defaultBottleName || ''
+            )
+              .trim()
+              .toLowerCase()
+              .replace(/\s+/g, '_');
+            if (cameraBottleName) {
+              setPendingFinalCameraTarget(`${cameraBottleName}_full_front`);
+            }
           }
 
           // items.forEach(item => {
@@ -1309,11 +1384,13 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
         ) {
           setLabelError(true);
           setGuidedGenerating(false);
+          setIsUploadDesignApplying(false);
+          setPendingFinalCameraTarget(null);
         }
       };
       window.addEventListener('message', onMsg);
       return () => window.removeEventListener('message', onMsg);
-    }, [createImageFromUrl, getMeshIDbyName, addItemImage, removeItem, items, productObject?.selections?.bottle?.name, product?.areas, setCameraByName, setFromUploadDesign, steps, selectOption, productObject?.selections?.bottle, productObject?.selections?.liquid, productObject?.selections?.closure, productObject?.selections?.label, labelRequestKind, labelMode, labelForm.prompt, labelForm.title, promptOverride, guidedEditNotes, isLiteMode, defaultBottleName, bottleSel?.name, labelStepIdx]);
+    }, [createImageFromUrl, getMeshIDbyName, addItemImage, removeItem, items, productObject?.selections?.bottle?.name, product?.areas, setFromUploadDesign, steps, selectOption, productObject?.selections?.bottle, productObject?.selections?.liquid, productObject?.selections?.closure, productObject?.selections?.label, labelRequestKind, labelMode, labelForm.prompt, labelForm.title, promptOverride, guidedEditNotes, isLiteMode, defaultBottleName, bottleSel?.name, labelStepIdx]);
 
 
     // --- Clear items when bottle changes ---
@@ -2090,6 +2167,31 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
       });
     };
     
+    const frontLabelDesigned = Boolean(labelDesigns.front);
+    const showAddToCartButton =
+      productObject.valid &&
+      frontLabelDesigned &&
+      hasLabelOnBottle &&
+      isLabelPreviewReady &&
+      !guidedGenerating;
+
+    useEffect(() => {
+      if (!pendingFinalCameraTarget) return;
+      if (!showAddToCartButton) return;
+      let cancelled = false;
+      (async () => {
+        try {
+          await setCameraByName(pendingFinalCameraTarget);
+        } finally {
+          if (!cancelled) {
+            setPendingFinalCameraTarget(null);
+          }
+        }
+      })();
+      return () => {
+        cancelled = true;
+      };
+    }, [pendingFinalCameraTarget, showAddToCartButton, setCameraByName]);
 
     if (!isInitialUiReady || !groups || groups.length === 0)
         return <LoadingSpinner />;
@@ -2177,14 +2279,6 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
         console.error('Error during addToCart:', error);
     }
 };
-
-    const frontLabelDesigned = Boolean(labelDesigns.front);
-    const showAddToCartButton =
-      productObject.valid &&
-      frontLabelDesigned &&
-      hasLabelOnBottle &&
-      isCurrentLabelPreviewLoaded &&
-      !guidedGenerating;
 
     return (
       <>
@@ -2379,12 +2473,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                       <PromptLoading>
                         <PromptSpinner />
                         <PromptFadeText>
-                          {(labelRequestKind === 'edit' ? labelEditLoadingMessages : labelLoadingMessages)[
-                            Math.min(
-                              labelLoadingIndex,
-                              (labelRequestKind === 'edit' ? labelEditLoadingMessages.length : labelLoadingMessages.length) - 1
-                            )
-                          ]}
+                          {activeLabelLoadingMessage}
                         </PromptFadeText>
                       </PromptLoading>
                     </ActionsCenter>
@@ -2918,12 +3007,20 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                           />
                         </LabelPreviewReveal>
                       )}
-                      {!isCurrentLabelPreviewLoaded && (
+                      {!isLabelPreviewReady && (
                         <PromptLoading>
-                          <div>Finalising label preview…</div>
+                          <PromptSpinner />
+                          <PromptFadeText>
+                            {isUploadDesignApplying ? activeLabelLoadingMessage : 'Finalising label preview...'}
+                          </PromptFadeText>
                         </PromptLoading>
                       )}
-                      {isCurrentLabelPreviewLoaded && (
+                      {labelPreviewLoadMode === 'fallback' && !isCurrentLabelPreviewLoaded && (
+                        <LabelHelperText>
+                          Preview is taking longer than expected. You can continue and we will keep loading it.
+                        </LabelHelperText>
+                      )}
+                      {isLabelPreviewReady && (
                         <GuidedActionRow>
                           <button
                             className="wizard-ghost guided-action"
