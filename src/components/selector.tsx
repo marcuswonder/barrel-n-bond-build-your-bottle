@@ -1090,9 +1090,11 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
             
             if (frontImage?.imageID && frontAreaId) {
               await addItemImage(frontImage.imageID, frontAreaId);
+              // Treat a successful addItemImage as completion even if item-list sync lags.
+              setGuidedGenerating(false);
+              setLabelRequestKind(null);
+              setLabelError(false);
               if (labelRequestKind === 'edit') {
-                setGuidedGenerating(false);
-                setLabelRequestKind(null);
                 setGuidedEditMode(false);
                 setGuidedEditNotes('');
               }
@@ -1158,9 +1160,11 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
   
             if (backImage?.imageID && backAreaId) {
               await addItemImage(backImage.imageID, backAreaId);
+              // Treat a successful addItemImage as completion even if item-list sync lags.
+              setGuidedGenerating(false);
+              setLabelRequestKind(null);
+              setLabelError(false);
               if (labelRequestKind === 'edit') {
-                setGuidedGenerating(false);
-                setLabelRequestKind(null);
                 setGuidedEditMode(false);
                 setGuidedEditNotes('');
               }
