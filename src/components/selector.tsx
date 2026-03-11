@@ -266,6 +266,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
       hasCharacterPermission: false,
     });
     const [uploadLabelFile, setUploadLabelFile] = useState<File | null>(null);
+    const uploadLabelInputRef = useRef<HTMLInputElement | null>(null);
 
     type LabelWizardState = {
       outputGoal: string;
@@ -834,7 +835,8 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
       labelMode === 'upload' &&
       !isUploadLaterRequest &&
       !isUploadFileRequest &&
-      !hasUploadLaterTemplateOnBottle;
+      !hasUploadLaterTemplateOnBottle &&
+      !hasLabelOnBottle;
     const showLabelErrorState = (isAiLabelMode || labelMode === 'upload') && labelError && !guidedGenerating;
     const showPromptFormBuilder =
       labelMode === 'form' && !guidedGenerating && !hasLabelOnBottle && !guidedEditMode && !labelError;
@@ -1811,6 +1813,13 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
       setUploadLabelFile(file);
     };
 
+    const resetUploadLabelForm = () => {
+      setUploadLabelFile(null);
+      if (uploadLabelInputRef.current) {
+        uploadLabelInputRef.current.value = '';
+      }
+    };
+
     const handleUploadLabelLater = async () => {
       if (!canDesign) {
         setWarning(`Please select ${requireBottle ? 'a bottle, ' : ''}a liquid and a closure before designing labels.`);
@@ -1902,6 +1911,37 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
           dataUrl,
         },
       });
+    };
+
+    const handleChangeUploadLabel = async () => {
+      const currentItems = (Array.isArray(items) ? items : []).filter((it: any) => !it?.deleted);
+      const frontAreaId = labelAreaIds.front;
+      const frontLabelItems = currentItems.filter((it: any) => {
+        const itemAreaId = it?.areaId ?? it?.area?.id ?? null;
+        if (frontAreaId != null) {
+          return itemAreaId === frontAreaId;
+        }
+        const areaName = String(it?.area?.name || '').toLowerCase();
+        return areaName.includes('label') && areaName.includes('front');
+      });
+
+      for (const it of frontLabelItems) {
+        try {
+          await removeItem(it.guid);
+        } catch (error) {
+          console.warn('[upload label] Failed to remove front label item', it?.guid, error);
+        }
+      }
+
+      setLabelDesign('front', null);
+      setLabelError(false);
+      setGuidedGenerating(false);
+      setIsUploadDesignApplying(false);
+      setLabelRequestKind(null);
+      setLoadedLabelPreviewUrl('');
+      setShowLoadedLabelPreview(false);
+      setLabelPreviewLoadMode('none');
+      resetUploadLabelForm();
     };
 
     const fileToDataUrl = (file: File) =>
@@ -3113,6 +3153,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                       <LabelField>
                         Upload your label file
                         <LabelInput
+                          ref={uploadLabelInputRef}
                           type="file"
                           accept="image/*,.pdf"
                           onChange={handleUploadLabelFileChange}
@@ -3140,6 +3181,30 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                           </button>
                         )}
                       </WizardNav>
+                    </WizardWrap>
+                  )}
+
+                  {labelMode === 'upload' && hasLabelOnBottle && !showLabelLoadingState && (
+                    <WizardWrap>
+                      <GuidedActionRow className="preview-actions">
+                        <button
+                          className="wizard-ghost guided-action"
+                          type="button"
+                          onClick={handleChangeUploadLabel}
+                        >
+                          Change Label
+                        </button>
+                        {showAddToCartButton && (
+                          <button
+                            className="configurator-button guided-action save-order-button"
+                            type="button"
+                            onClick={handleAddToCart}
+                            disabled={isAddToCartLoading}
+                          >
+                            {isAddToCartLoading ? <ClipLoader color="#FFFFFF" size={24} loading={true} /> : 'SAVE AND ORDER'}
+                          </button>
+                        )}
+                      </GuidedActionRow>
                     </WizardWrap>
                   )}
 
