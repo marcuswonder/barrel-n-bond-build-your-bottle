@@ -5,6 +5,21 @@ export type Mini = { id: number; guid: string; name: string; selected: boolean }
 // VistaCreate publish payload (use a stricter type if you have one)
 export type LabelDesign = any;
 export type LabelDesigns = { front: LabelDesign | null; back: LabelDesign | null };
+export type LabelHistorySide = 'front' | 'back';
+export type LabelVersionKind = 'Initial' | 'Edit' | 'Upload';
+export type LabelHistoryEntry = {
+  id: string;
+  dedupeKey: string;
+  side: LabelHistorySide;
+  previewUrl: string;
+  promptText: string | null;
+  editPromptText: string | null;
+  versionKind: LabelVersionKind;
+  createdAt: string;
+  designExport: LabelDesign;
+};
+export type LabelHistory = { front: LabelHistoryEntry[]; back: LabelHistoryEntry[] };
+export type SelectedHistoryId = { front: string | null; back: string | null };
 
 export type ClosurePick = { name: string; hex: string } | null;
 export type ClosureChoices = { wood: ClosurePick; wax: ClosurePick };
@@ -34,6 +49,8 @@ export type Order = {
 export type OrderState = {
   order: Order;
   labelDesigns: LabelDesigns;
+  labelHistory: LabelHistory;
+  selectedHistoryId: SelectedHistoryId;
   closureChoices: ClosureChoices;
   setClosureWood: (pick: ClosurePick) => void;
   setClosureWax: (pick: ClosurePick) => void;
@@ -51,6 +68,18 @@ export type OrderState = {
   setLabelDesign: (side: 'front' | 'back', design: LabelDesign | null) => void;
   /** clear both designs (useful when bottle changes or user resets) */
   clearLabelDesigns: () => void;
+  pushLabelHistory: (payload: {
+    side: LabelHistorySide;
+    previewUrl: string;
+    promptText?: string | null;
+    editPromptText?: string | null;
+    versionKind: LabelVersionKind;
+    designExport: LabelDesign;
+    dedupeKey?: string | null;
+    createdAt?: string;
+  }) => void;
+  selectLabelHistory: (side: LabelHistorySide, id: string) => void;
+  clearLabelHistory: (side?: LabelHistorySide) => void;
   /** convenience: handle the exact parent postMessage payload you showed */
   setFromUploadDesign: (payload: {
     order: ParentOrderPayload;
@@ -73,6 +102,8 @@ export const useOrderStore = create<OrderState>((set, get) => ({
     label: null,
   },
   labelDesigns: { front: null, back: null },
+  labelHistory: { front: [], back: [] },
+  selectedHistoryId: { front: null, back: null },
   closureChoices: { wood: null, wax: null },
 
   setClosureWood: (pick) => set((state) => ({
@@ -117,6 +148,8 @@ export const useOrderStore = create<OrderState>((set, get) => ({
         return {
           order: next,
           labelDesigns: { front: null, back: null },
+          labelHistory: { front: [], back: [] },
+          selectedHistoryId: { front: null, back: null },
           closureChoices: { wood: null, wax: null },
         };
       }
@@ -125,9 +158,88 @@ export const useOrderStore = create<OrderState>((set, get) => ({
     }),
 
   setLabelDesign: (side, design) =>
-    set((state) => ({ labelDesigns: { ...state.labelDesigns, [side]: design } })),
+    set((state) => ({
+      labelDesigns: { ...state.labelDesigns, [side]: design },
+      selectedHistoryId: { ...state.selectedHistoryId, [side]: null },
+    })),
 
-  clearLabelDesigns: () => set({ labelDesigns: { front: null, back: null } }),
+  clearLabelDesigns: () =>
+    set({
+      labelDesigns: { front: null, back: null },
+      labelHistory: { front: [], back: [] },
+      selectedHistoryId: { front: null, back: null },
+    }),
+
+  pushLabelHistory: ({
+    side,
+    previewUrl,
+    promptText = null,
+    editPromptText = null,
+    versionKind,
+    designExport,
+    dedupeKey = '',
+    createdAt,
+  }) =>
+    set((state) => {
+      const key = String(dedupeKey || previewUrl || '').trim();
+      const list = [...state.labelHistory[side]];
+      const existingIndex = key ? list.findIndex((entry) => entry.dedupeKey === key) : -1;
+      const existing = existingIndex >= 0 ? list[existingIndex] : null;
+      const entry: LabelHistoryEntry = {
+        id:
+          existing?.id ||
+          `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        dedupeKey: key || `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        side,
+        previewUrl: String(previewUrl || '').trim(),
+        promptText: promptText ? String(promptText).trim() : null,
+        editPromptText: editPromptText ? String(editPromptText).trim() : null,
+        versionKind,
+        createdAt: createdAt || existing?.createdAt || new Date().toISOString(),
+        designExport,
+      };
+
+      if (existingIndex >= 0) {
+        list[existingIndex] = entry;
+      } else {
+        list.push(entry);
+      }
+
+      const MAX_HISTORY = 12;
+      while (list.length > MAX_HISTORY) {
+        list.shift();
+      }
+
+      return {
+        labelDesigns: { ...state.labelDesigns, [side]: designExport },
+        labelHistory: { ...state.labelHistory, [side]: list },
+        selectedHistoryId: { ...state.selectedHistoryId, [side]: entry.id },
+      };
+    }),
+
+  selectLabelHistory: (side, id) =>
+    set((state) => {
+      const entry = state.labelHistory[side].find((version) => version.id === id);
+      if (!entry) return state;
+      return {
+        labelDesigns: { ...state.labelDesigns, [side]: entry.designExport },
+        selectedHistoryId: { ...state.selectedHistoryId, [side]: id },
+      };
+    }),
+
+  clearLabelHistory: (side) =>
+    set((state) => {
+      if (!side) {
+        return {
+          labelHistory: { front: [], back: [] },
+          selectedHistoryId: { front: null, back: null },
+        };
+      }
+      return {
+        labelHistory: { ...state.labelHistory, [side]: [] },
+        selectedHistoryId: { ...state.selectedHistoryId, [side]: null },
+      };
+    }),
 
   setFromUploadDesign: ({ order: parentOrder, designSide, designExport }) => {
     // 1) persist design
@@ -152,7 +264,12 @@ export const useOrderStore = create<OrderState>((set, get) => ({
       };
 
       return bottleChanged
-        ? { order: merged, labelDesigns: { front: null, back: null, [designSide]: designExport } as LabelDesigns }
+        ? {
+          order: merged,
+          labelDesigns: { front: null, back: null, [designSide]: designExport } as LabelDesigns,
+          labelHistory: { front: [], back: [] },
+          selectedHistoryId: { front: null, back: null },
+        }
         : { order: merged };
     });
   },

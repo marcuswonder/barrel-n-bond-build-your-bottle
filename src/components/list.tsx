@@ -856,6 +856,149 @@ export const LabelPreviewReveal = styled.div<{ $visible: boolean }>`
   }
 `;
 
+export const LabelHistorySection = styled.div`
+  width: 100%;
+  max-width: 560px;
+  margin: 8px auto 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+`;
+
+export const LabelHistoryTitle = styled.div`
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11px;
+  letter-spacing: 0.08rem;
+  text-transform: uppercase;
+  color: #b9b9b9;
+`;
+
+export const LabelHistoryRailWrap = styled.div`
+  position: relative;
+
+  &::before,
+  &::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 24px;
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  &::before {
+    left: 0;
+    background: linear-gradient(90deg, rgba(11, 11, 11, 0.95), rgba(11, 11, 11, 0));
+  }
+
+  &::after {
+    right: 0;
+    background: linear-gradient(270deg, rgba(11, 11, 11, 0.95), rgba(11, 11, 11, 0));
+  }
+`;
+
+export const LabelHistoryRail = styled.div`
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(148px, 148px);
+  gap: 10px;
+  overflow-x: auto;
+  padding: 4px 6px 8px;
+  margin: 0 -6px;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: #3c3c3c transparent;
+
+  &::-webkit-scrollbar {
+    height: 6px;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: #3c3c3c;
+    border-radius: 999px;
+  }
+
+  @media (max-width: 767px) {
+    grid-auto-columns: minmax(136px, 136px);
+    gap: 8px;
+    padding-bottom: 6px;
+  }
+`;
+
+export const LabelHistoryCard = styled.button<{ $active?: boolean }>`
+  border: 1px solid ${({ $active }) => ($active ? '#ff73c6' : '#2a2a2a')};
+  border-radius: 12px;
+  background: ${({ $active }) => ($active ? 'linear-gradient(180deg, #1f1420 0%, #101010 100%)' : '#101010')};
+  color: #fff;
+  padding: 6px;
+  min-height: 176px;
+  width: 100%;
+  display: grid;
+  grid-template-rows: 1fr auto;
+  gap: 8px;
+  cursor: pointer;
+  text-align: left;
+  scroll-snap-align: start;
+  transition: border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease;
+  box-shadow: ${({ $active }) => ($active ? '0 0 0 1px rgba(255, 115, 198, 0.25), 0 10px 24px rgba(244, 36, 146, 0.28)' : 'none')};
+
+  &:hover {
+    border-color: #ff73c6;
+    transform: translateY(-1px);
+  }
+
+  &:focus-visible {
+    outline: 2px solid #ff73c6;
+    outline-offset: 2px;
+  }
+
+  @media (max-width: 767px) {
+    min-height: 164px;
+    border-radius: 10px;
+  }
+`;
+
+export const LabelHistoryThumb = styled.img`
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid #232323;
+  background: radial-gradient(circle at 20% 20%, #262626 0%, #121212 65%);
+  display: block;
+  user-select: none;
+`;
+
+export const LabelHistoryMeta = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+`;
+
+export const LabelHistoryVersion = styled.div`
+  font-size: 11px;
+  letter-spacing: 0.07rem;
+  text-transform: uppercase;
+  color: #f0f0f0;
+  line-height: 1.2;
+`;
+
+export const LabelHistoryKind = styled.div`
+  font-size: 10px;
+  letter-spacing: 0.06rem;
+  text-transform: uppercase;
+  color: #a9a9a9;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+`;
+
 export const WizardHeader = styled.div`
   display: grid;
   grid-template-columns: 1fr auto 1fr;

@@ -1,7 +1,68 @@
 import React, { FunctionComponent, useEffect, useMemo, useRef, useState, useCallback, useLayoutEffect } from 'react';
 // import styled from 'styled-components';
 import { useZakeke } from 'zakeke-configurator-react';
-import { LayoutWrapper, ContentWrapper, Container,  OptionListItem, NavButton, LoadingSpinner, NotesWrapper, StepNav, OptionsWrap, OptionText, OptionTitle, OptionDescription, ClosureSections, SectionTitle, SwatchGrid, SwatchButton, SwatchNoneLabel, ActionsCenter, LabelDesignWrap, LabelTabs, LabelTabButton, LabelForm, LabelDetails, LabelSummary, LabelSummaryMeta, LabelRow, LabelRowTight, LabelField, LabelInput, LabelTextarea, LabelDescription, LabelHelperText, FileNameRow, FileRemoveButton, LabelCheckboxRow, WizardWrap, WizardStepTitle, WizardOptions, WizardOptionButton, WizardNav, WizardHeader, WizardHeaderSide, RestartButton, PromptLoading, PromptSpinner, PromptFadeText, ConfigWarning, ViewportSpacer, GuidedActionRow, LabelPreviewImage, LabelPreviewReveal } from './list';
+import {
+  LayoutWrapper,
+  ContentWrapper,
+  Container,
+  OptionListItem,
+  NavButton,
+  LoadingSpinner,
+  NotesWrapper,
+  StepNav,
+  OptionsWrap,
+  OptionText,
+  OptionTitle,
+  OptionDescription,
+  ClosureSections,
+  SectionTitle,
+  SwatchGrid,
+  SwatchButton,
+  SwatchNoneLabel,
+  ActionsCenter,
+  LabelDesignWrap,
+  LabelTabs,
+  LabelTabButton,
+  LabelForm,
+  LabelDetails,
+  LabelSummary,
+  LabelSummaryMeta,
+  LabelRow,
+  LabelRowTight,
+  LabelField,
+  LabelInput,
+  LabelTextarea,
+  LabelDescription,
+  LabelHelperText,
+  FileNameRow,
+  FileRemoveButton,
+  LabelCheckboxRow,
+  WizardWrap,
+  WizardStepTitle,
+  WizardOptions,
+  WizardOptionButton,
+  WizardNav,
+  WizardHeader,
+  WizardHeaderSide,
+  RestartButton,
+  PromptLoading,
+  PromptSpinner,
+  PromptFadeText,
+  ConfigWarning,
+  ViewportSpacer,
+  GuidedActionRow,
+  LabelPreviewImage,
+  LabelPreviewReveal,
+  LabelHistorySection,
+  LabelHistoryTitle,
+  LabelHistoryRailWrap,
+  LabelHistoryRail,
+  LabelHistoryCard,
+  LabelHistoryThumb,
+  LabelHistoryMeta,
+  LabelHistoryVersion,
+  LabelHistoryKind,
+} from './list';
 // import { List, StepListItem, , ListItemImage } from './list';
 import { optionNotes } from '../data/option-notes';
 import ClipLoader from 'react-spinners/ClipLoader';
@@ -46,6 +107,18 @@ const resolveSessionId = (): string =>
   sessionStorage.getItem('ss_session_id') ||
   (window as any).SS?.getSessionId?.() ||
   String(Date.now());
+
+const resolveDesignPreviewUrl = (design: any): string =>
+  String(
+    design?.frontS3Url ||
+    design?.outputS3Url ||
+    design?.s3url ||
+    design?.url ||
+    design?.frontImage ||
+    (Array.isArray(design?.imageUrls) ? design.imageUrls[0] : '') ||
+    (Array.isArray(design?.images) ? design.images[0] : '') ||
+    ''
+  ).trim();
 
 const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }> = ({
   mode = 'full',
@@ -440,8 +513,12 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
     const {
       setFromSelections,
       labelDesigns,
+      labelHistory,
+      selectedHistoryId,
       setFromUploadDesign,
       setLabelDesign,
+      pushLabelHistory,
+      selectLabelHistory,
       closureChoices,
       setClosureWood,
       setClosureWax
@@ -841,6 +918,50 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
     const showLabelErrorState = (isAiLabelMode || labelMode === 'upload') && labelError && !guidedGenerating;
     const showPromptFormBuilder =
       labelMode === 'form' && !guidedGenerating && !hasLabelOnBottle && !guidedEditMode && !labelError;
+    const frontLabelHistory = labelHistory.front;
+    const selectedFrontHistoryId = selectedHistoryId.front;
+    const selectedFrontHistory = useMemo(
+      () => frontLabelHistory.find((entry: any) => entry.id === selectedFrontHistoryId) || null,
+      [frontLabelHistory, selectedFrontHistoryId]
+    );
+    const showLabelHistoryCarousel = isAiLabelMode && frontLabelHistory.length > 1;
+
+    const handleSelectHistoryVersion = useCallback((historyId: string) => {
+      const selectedVersion = frontLabelHistory.find((entry: any) => entry.id === historyId);
+      if (!selectedVersion) return;
+
+      setLabelError(false);
+      setGuidedEditMode(false);
+      setGuidedEditNotes('');
+      setActiveDesignSide('front');
+      selectLabelHistory('front', historyId);
+
+      window.postMessage(
+        {
+          customMessageType: 'uploadDesign',
+          message: {
+            order: {
+              bottle: productObject.selections.bottle,
+              liquid: productObject.selections.liquid,
+              closure: productObject.selections.closure,
+              label: productObject.selections.label,
+              closureExtras: productObject.selections.closureExtras,
+            },
+            designSide: 'front',
+            designExport: selectedVersion.designExport,
+          },
+        },
+        window.location.origin
+      );
+    }, [
+      frontLabelHistory,
+      selectLabelHistory,
+      productObject.selections.bottle,
+      productObject.selections.liquid,
+      productObject.selections.closure,
+      productObject.selections.label,
+      productObject.selections.closureExtras,
+    ]);
 
 
 
@@ -1265,6 +1386,25 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                 setGuidedEditNotes('');
               }
               const labelPersistence = buildLabelPersistence('front', safeDesignExport);
+              const persistedPreviewUrl =
+                labelPersistence.outputS3Url ||
+                labelPersistence.outputImageUrl ||
+                resolveDesignPreviewUrl(safeDesignExport);
+
+              pushLabelHistory({
+                side: 'front',
+                previewUrl: persistedPreviewUrl,
+                promptText: labelPersistence.promptText,
+                editPromptText: labelPersistence.editPromptText,
+                versionKind: labelPersistence.versionKind,
+                designExport: safeDesignExport,
+                dedupeKey:
+                  labelPersistence.outputS3Key ||
+                  labelPersistence.outputS3Url ||
+                  labelPersistence.outputImageUrl ||
+                  persistedPreviewUrl,
+                createdAt: new Date().toISOString(),
+              });
 
               console.log("postMessage Content:", {
                 customMessageType: 'labelAdded',
@@ -1343,6 +1483,25 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                 setGuidedEditNotes('');
               }
               const labelPersistence = buildLabelPersistence('back', safeDesignExport);
+              const persistedPreviewUrl =
+                labelPersistence.outputS3Url ||
+                labelPersistence.outputImageUrl ||
+                resolveDesignPreviewUrl(safeDesignExport);
+
+              pushLabelHistory({
+                side: 'back',
+                previewUrl: persistedPreviewUrl,
+                promptText: labelPersistence.promptText,
+                editPromptText: labelPersistence.editPromptText,
+                versionKind: labelPersistence.versionKind,
+                designExport: safeDesignExport,
+                dedupeKey:
+                  labelPersistence.outputS3Key ||
+                  labelPersistence.outputS3Url ||
+                  labelPersistence.outputImageUrl ||
+                  persistedPreviewUrl,
+                createdAt: new Date().toISOString(),
+              });
 
               console.log("postMessage Content:", {
                 customMessageType: 'labelAdded',
@@ -1406,7 +1565,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
       };
       window.addEventListener('message', onMsg);
       return () => window.removeEventListener('message', onMsg);
-    }, [createImageFromUrl, getMeshIDbyName, addItemImage, removeItem, items, productObject?.selections?.bottle?.name, product?.areas, setFromUploadDesign, steps, selectOption, productObject?.selections?.bottle, productObject?.selections?.liquid, productObject?.selections?.closure, productObject?.selections?.label, labelRequestKind, labelMode, labelForm.prompt, labelForm.title, promptOverride, guidedEditNotes, isLiteMode, defaultBottleName, bottleSel?.name, labelStepIdx]);
+    }, [createImageFromUrl, getMeshIDbyName, addItemImage, removeItem, items, productObject?.selections?.bottle?.name, product?.areas, setFromUploadDesign, pushLabelHistory, steps, selectOption, productObject?.selections?.bottle, productObject?.selections?.liquid, productObject?.selections?.closure, productObject?.selections?.label, productObject?.selections?.closureExtras, labelRequestKind, labelMode, labelForm.prompt, labelForm.title, promptOverride, guidedEditNotes, isLiteMode, defaultBottleName, bottleSel?.name, labelStepIdx]);
 
 
     // --- Clear items when bottle changes ---
@@ -2078,7 +2237,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
         return;
       }
       setActiveDesignSide('front');
-      const prev = labelDesigns?.front || null;
+      const prev = selectedFrontHistory?.designExport || labelDesigns?.front || null;
       const prevInput = (prev?.aiInput && typeof prev.aiInput === 'object') ? prev.aiInput : {};
       const previousDataUrlCandidate =
         (typeof prev?.frontImage === 'string' && prev.frontImage.startsWith('data:') ? prev.frontImage : '') ||
@@ -3090,6 +3249,55 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                         <LabelHelperText>
                           Preview is taking longer than expected. You can continue and we will keep loading it.
                         </LabelHelperText>
+                      )}
+                      {showLabelHistoryCarousel && isLabelPreviewReady && (
+                        <LabelHistorySection>
+                          <LabelHistoryTitle>
+                            <span>Version history</span>
+                            <span>{frontLabelHistory.length} versions</span>
+                          </LabelHistoryTitle>
+                          <LabelHistoryRailWrap>
+                            <LabelHistoryRail>
+                              {frontLabelHistory.map((entry: any, index: number) => {
+                                const entryPreviewUrl =
+                                  String(entry?.previewUrl || '').trim() ||
+                                  resolveDesignPreviewUrl(entry?.designExport);
+                                const fallbackPreviewUrl =
+                                  entryPreviewUrl ||
+                                  labelPreviewUrl ||
+                                  loadedLabelPreviewUrl ||
+                                  'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==';
+                                const isActive =
+                                  entry.id === selectedFrontHistoryId ||
+                                  (!selectedFrontHistoryId && index === frontLabelHistory.length - 1);
+                                return (
+                                  <LabelHistoryCard
+                                    key={entry.id}
+                                    type="button"
+                                    $active={isActive}
+                                    aria-pressed={isActive}
+                                    aria-label={`Use label version ${index + 1}`}
+                                    onClick={() => {
+                                      if (isActive) return;
+                                      handleSelectHistoryVersion(entry.id);
+                                    }}
+                                  >
+                                    <LabelHistoryThumb
+                                      src={fallbackPreviewUrl}
+                                      alt={`Label version ${index + 1}`}
+                                      draggable={false}
+                                      onContextMenu={(event) => event.preventDefault()}
+                                    />
+                                    <LabelHistoryMeta>
+                                      <LabelHistoryVersion>{`v${index + 1}${isActive ? ' · Active' : ''}`}</LabelHistoryVersion>
+                                      <LabelHistoryKind>{entry.versionKind || 'Version'}</LabelHistoryKind>
+                                    </LabelHistoryMeta>
+                                  </LabelHistoryCard>
+                                );
+                              })}
+                            </LabelHistoryRail>
+                          </LabelHistoryRailWrap>
+                        </LabelHistorySection>
                       )}
                       {isLabelPreviewReady && (
                         <GuidedActionRow className="preview-actions">
