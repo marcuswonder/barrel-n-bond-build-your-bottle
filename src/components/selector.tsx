@@ -2654,18 +2654,41 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
       isLabelPreviewReady &&
       !guidedGenerating;
     const selectedLabelVersion = useMemo(() => {
+      const frontDesign = (labelDesigns as any)?.front || null;
+      const frontDesignOutputImageUrl =
+        String(
+          frontDesign?.outputImageUrl ||
+          resolveDesignPreviewUrl(frontDesign) ||
+          ''
+        ).trim() || null;
+      const frontDesignOutputPdfUrl =
+        String(
+          frontDesign?.outputPdfUrl ||
+          frontDesign?.pdfUrl ||
+          ''
+        ).trim() || null;
+
       const selected = selectedLabelVersions.front;
       const selectedRecordId = resolveLabelVersionRecordId(selected?.recordId);
-      if (selected && selectedRecordId) {
+      if (selected) {
         return {
           recordId: selectedRecordId,
-          designSide: selected.designSide,
-          versionNumber: selected.versionNumber,
-          versionKind: selected.versionKind,
-          outputImageUrl: selected.outputImageUrl,
-          outputPdfUrl: selected.outputPdfUrl,
-          selectedAt: selected.selectedAt,
-          source: selected.source,
+          designSide: selected.designSide || 'front',
+          versionNumber: selected.versionNumber ?? null,
+          versionKind: selected.versionKind || 'Initial',
+          outputImageUrl:
+            selected.outputImageUrl ||
+            selectedFrontHistory?.outputImageUrl ||
+            selectedFrontHistory?.previewUrl ||
+            frontDesignOutputImageUrl,
+          outputPdfUrl:
+            selected.outputPdfUrl ||
+            selectedFrontHistory?.outputPdfUrl ||
+            frontDesignOutputPdfUrl,
+          selectedAt: selected.selectedAt || new Date().toISOString(),
+          source: selected.source || 'selected-state',
+          historyId: selected.historyId || selectedFrontHistory?.id || null,
+          dedupeKey: selectedFrontHistory?.dedupeKey || null,
         };
       }
 
@@ -2689,10 +2712,31 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
           outputPdfUrl: selectedFrontHistory.outputPdfUrl || null,
           selectedAt: new Date().toISOString(),
           source: 'history-fallback',
+          historyId: selectedFrontHistory.id,
+          dedupeKey: selectedFrontHistory.dedupeKey || null,
         };
       }
 
-      const frontDesign = (labelDesigns as any)?.front || null;
+      if (selectedFrontHistory) {
+        return {
+          recordId: null,
+          designSide: 'front' as const,
+          versionNumber: selectedFrontHistory.versionNumber ?? null,
+          versionKind: selectedFrontHistory.versionKind || 'Initial',
+          outputImageUrl:
+            selectedFrontHistory.outputImageUrl ||
+            selectedFrontHistory.previewUrl ||
+            frontDesignOutputImageUrl,
+          outputPdfUrl:
+            selectedFrontHistory.outputPdfUrl ||
+            frontDesignOutputPdfUrl,
+          selectedAt: new Date().toISOString(),
+          source: 'history-fallback-missing-record',
+          historyId: selectedFrontHistory.id,
+          dedupeKey: selectedFrontHistory.dedupeKey || null,
+        };
+      }
+
       if (!frontDesign) return null;
 
       let frontDesignRecordId = resolveLabelVersionRecordId(
@@ -2736,7 +2780,6 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
           matchedHistoryVersion?.designExport?.id
         );
       }
-      if (!frontDesignRecordId) return null;
 
       const frontDesignVersionKindRaw = String(
         frontDesign?.versionKind ||
@@ -2770,6 +2813,8 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
           ).trim() || null,
         selectedAt: new Date().toISOString(),
         source: 'design-fallback',
+        historyId: null,
+        dedupeKey: null,
       };
     }, [selectedLabelVersions.front, selectedFrontHistory, labelDesigns, frontLabelHistory]);
 
