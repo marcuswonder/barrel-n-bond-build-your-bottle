@@ -104,8 +104,23 @@ const postToParent = (payload: unknown): void => {
   }
 };
 
+const resolveSessionIdFromLocation = (): string => {
+  try {
+    const params = new URLSearchParams(window.location.search || '');
+    const fromQuery =
+      params.get('sessionId') ||
+      params.get('session_id') ||
+      params.get('sessionid') ||
+      '';
+    return String(fromQuery || '').trim();
+  } catch {
+    return '';
+  }
+};
+
 const resolveSessionId = (): string =>
   sessionStorage.getItem('ss_session_id') ||
+  resolveSessionIdFromLocation() ||
   (window as any).SS?.getSessionId?.() ||
   String(Date.now());
 
@@ -455,6 +470,14 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
     const [hideLabelTabs, setHideLabelTabs] = useState(false);
     const [promptOverride, setPromptOverride] = useState('');
     const [hideLabelHistory, setHideLabelHistory] = useState(false);
+
+    useEffect(() => {
+      const sessionFromLocation = resolveSessionIdFromLocation();
+      if (!sessionFromLocation) return;
+      const existing = String(sessionStorage.getItem('ss_session_id') || '').trim();
+      if (existing) return;
+      sessionStorage.setItem('ss_session_id', sessionFromLocation);
+    }, []);
     const [labelWizard, setLabelWizard] = useState<LabelWizardState>({
       outputGoal: '',
       theme: '',
@@ -578,6 +601,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
       setLabelDesign,
       pushLabelHistory,
       selectLabelHistory,
+      patchLabelHistoryEntry,
       closureChoices,
       setClosureWood,
       setClosureWax
@@ -1057,7 +1081,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
         String(entry?.dedupeKey || '') === String(selectedVersion?.dedupeKey || '') &&
         resolveLabelVersionRecordId(entry?.labelVersionRecordId)
       )?.labelVersionRecordId;
-      const selectedRecordId = resolveLabelVersionRecordId(
+      let selectedRecordId = resolveLabelVersionRecordId(
         selectedVersion.labelVersionRecordId,
         fallbackRecordIdByKey,
         selectedVersion.designExport?.labelVersionRecordId,
@@ -1084,6 +1108,35 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
           selectedVersion.designExport?.pdfUrl ||
           ''
         ).trim() || null;
+      if (!selectedRecordId && outputImageUrl) {
+        const matchedHistoryEntry = [...frontLabelHistory]
+          .reverse()
+          .find((entry: any) => {
+            const entryRecordId = resolveLabelVersionRecordId(
+              entry?.labelVersionRecordId,
+              entry?.designExport?.labelVersionRecordId,
+              entry?.designExport?.label_version_record_id,
+              entry?.designExport?.recordId,
+              entry?.designExport?.record_id
+            );
+            if (!entryRecordId) return false;
+            const entryOutputImageUrl =
+              String(
+                entry?.outputImageUrl ||
+                entry?.previewUrl ||
+                resolveDesignPreviewUrl(entry?.designExport) ||
+                ''
+              ).trim() || null;
+            return Boolean(entryOutputImageUrl && entryOutputImageUrl === outputImageUrl);
+          });
+        selectedRecordId = resolveLabelVersionRecordId(
+          matchedHistoryEntry?.labelVersionRecordId,
+          matchedHistoryEntry?.designExport?.labelVersionRecordId,
+          matchedHistoryEntry?.designExport?.label_version_record_id,
+          matchedHistoryEntry?.designExport?.recordId,
+          matchedHistoryEntry?.designExport?.record_id
+        );
+      }
 
       setLabelError(false);
       setGuidedEditMode(false);
@@ -1108,6 +1161,8 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
           versionKind: selectedVersion.versionKind || 'Initial',
           outputImageUrl,
           outputPdfUrl,
+          historyId: selectedVersion.id || null,
+          dedupeKey: String(selectedVersion.dedupeKey || '').trim() || null,
           source: 'configurator-carousel',
           selectedAt,
         };
@@ -1460,6 +1515,84 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
           return;
         }
 
+        if (e.data?.customMessageType === 'labelVersionPersisted') {
+          const message = e.data?.message || {};
+          const persistedSide: 'front' | 'back' =
+            String(message?.designSide || '').toLowerCase() === 'back' ? 'back' : 'front';
+          const persistedRecordId = resolveLabelVersionRecordId(
+            message?.labelVersionRecordId,
+            message?.label_version_record_id,
+            message?.recordId,
+            message?.record_id
+          );
+          if (!persistedRecordId) return;
+
+          const persistedHistoryId = String(message?.historyId || '').trim();
+          const persistedDedupeKey = String(message?.dedupeKey || '').trim();
+          const persistedOutputImageUrl =
+            String(
+              message?.outputImageUrl ||
+              message?.output_image_url ||
+              message?.outputS3Url ||
+              message?.output_s3_url ||
+              ''
+            ).trim() || null;
+          const persistedOutputPdfUrl =
+            String(message?.outputPdfUrl || message?.output_pdf_url || '').trim() || null;
+          const persistedVersionNumber = resolveVersionNumber(
+            message?.versionNumber,
+            message?.version_number
+          );
+          const persistedVersionKindRaw = String(message?.versionKind || message?.version_kind || '').trim();
+          const persistedVersionKind: 'Initial' | 'Edit' | 'Upload' =
+            persistedVersionKindRaw === 'Edit' || persistedVersionKindRaw === 'Upload'
+              ? persistedVersionKindRaw
+              : 'Initial';
+
+          const snapshot = useOrderStore.getState();
+          const sideHistory = [...(snapshot.labelHistory[persistedSide] || [])];
+          const normalizeUrl = (value: unknown) =>
+            String(value || '').trim().replace(/\/+$/, '');
+          let targetEntry =
+            (persistedHistoryId
+              ? sideHistory.find((entry: any) => entry.id === persistedHistoryId)
+              : null) ||
+            (persistedDedupeKey
+              ? sideHistory.find((entry: any) => String(entry?.dedupeKey || '').trim() === persistedDedupeKey)
+              : null) ||
+            (persistedOutputImageUrl
+              ? [...sideHistory]
+                  .reverse()
+                  .find((entry: any) => {
+                    const entryUrl = normalizeUrl(
+                      entry?.outputImageUrl ||
+                      entry?.previewUrl ||
+                      resolveDesignPreviewUrl(entry?.designExport)
+                    );
+                    return entryUrl && entryUrl === normalizeUrl(persistedOutputImageUrl);
+                  }) || null
+              : null);
+
+          if (!targetEntry) {
+            targetEntry =
+              [...sideHistory]
+                .reverse()
+                .find((entry: any) => !resolveLabelVersionRecordId(entry?.labelVersionRecordId))
+                || null;
+          }
+
+          if (!targetEntry) return;
+
+          patchLabelHistoryEntry(persistedSide, targetEntry.id, {
+            recordId: persistedRecordId,
+            versionNumber: persistedVersionNumber,
+            versionKind: persistedVersionKind,
+            outputImageUrl: persistedOutputImageUrl,
+            outputPdfUrl: persistedOutputPdfUrl,
+          });
+          return;
+        }
+
         if (e.data?.customMessageType === 'studioEditBootstrap') {
           const payload = e.data?.message || {};
           await applyBootstrapSelections(payload);
@@ -1649,38 +1782,35 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                   createdAt: new Date().toISOString(),
                 });
 
+                const frontStoreSnapshot = useOrderStore.getState();
+                const persistedFrontHistoryId = frontStoreSnapshot.selectedHistoryId.front;
+                const persistedFrontHistoryEntry =
+                  frontStoreSnapshot.labelHistory.front.find((entry: any) => entry.id === persistedFrontHistoryId) || null;
+                const labelAddedPayload = {
+                  'order': {
+                    'bottle': productObject.selections.bottle,
+                    'liquid': productObject.selections.liquid,
+                    'closure': productObject.selections.closure,
+                    'label': productObject.selections.label,
+                    'closureExtras': productObject.selections.closureExtras,
+                  },
+                  'designSide': resolvedSide,
+                  'designExport': safeDesignExport,
+                  'productSku': product?.sku ?? null,
+                  historyId: persistedFrontHistoryId || null,
+                  dedupeKey: String(persistedFrontHistoryEntry?.dedupeKey || '').trim() || null,
+                  previewUrl: persistedFrontHistoryEntry?.previewUrl || persistedPreviewUrl || null,
+                  ...labelPersistence,
+                };
+
                 console.log("postMessage Content:", {
                   customMessageType: 'labelAdded',
-                  message: {
-                    'order': {
-                      'bottle': productObject.selections.bottle,
-                      'liquid': productObject.selections.liquid,
-                      'closure': productObject.selections.closure,
-                      'label': productObject.selections.label,
-                      'closureExtras': productObject.selections.closureExtras,
-                    },
-                    'designSide': resolvedSide,
-                    'designExport': safeDesignExport,
-                    'productSku': product?.sku ?? null,
-                    ...labelPersistence,
-                  }
+                  message: labelAddedPayload
                 });
 
                 postToParent({
                   customMessageType: 'labelAdded',
-                  message: {
-                    'order': {
-                      'bottle': productObject.selections.bottle,
-                      'liquid': productObject.selections.liquid,
-                      'closure': productObject.selections.closure,
-                      'label': productObject.selections.label,
-                      'closureExtras': productObject.selections.closureExtras,
-                    },
-                    'designSide': resolvedSide,
-                    'designExport': safeDesignExport,
-                    'productSku': product?.sku ?? null,
-                    ...labelPersistence,
-                  }
+                  message: labelAddedPayload
                 });
               }
 
@@ -1752,38 +1882,35 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                   createdAt: new Date().toISOString(),
                 });
 
+                const backStoreSnapshot = useOrderStore.getState();
+                const persistedBackHistoryId = backStoreSnapshot.selectedHistoryId.back;
+                const persistedBackHistoryEntry =
+                  backStoreSnapshot.labelHistory.back.find((entry: any) => entry.id === persistedBackHistoryId) || null;
+                const labelAddedPayload = {
+                  'order': {
+                    'bottle': productObject.selections.bottle,
+                    'liquid': productObject.selections.liquid,
+                    'closure': productObject.selections.closure,
+                    'label': productObject.selections.label,
+                    'closureExtras': productObject.selections.closureExtras,
+                  },
+                  'designSide': resolvedSide,
+                  'designExport': safeDesignExport,
+                  'productSku': product?.sku ?? null,
+                  historyId: persistedBackHistoryId || null,
+                  dedupeKey: String(persistedBackHistoryEntry?.dedupeKey || '').trim() || null,
+                  previewUrl: persistedBackHistoryEntry?.previewUrl || persistedPreviewUrl || null,
+                  ...labelPersistence,
+                };
+
                 console.log("postMessage Content:", {
                   customMessageType: 'labelAdded',
-                  message: {
-                    'order': {
-                      'bottle': productObject.selections.bottle,
-                      'liquid': productObject.selections.liquid,
-                      'closure': productObject.selections.closure,
-                      'label': productObject.selections.label,
-                      'closureExtras': productObject.selections.closureExtras,
-                    },
-                    'designSide': resolvedSide,
-                    'designExport': safeDesignExport,
-                    'productSku': product?.sku ?? null,
-                    ...labelPersistence,
-                  }
+                  message: labelAddedPayload
                 });
 
                 postToParent({
                   customMessageType: 'labelAdded',
-                  message: {
-                    'order': {
-                      'bottle': productObject.selections.bottle,
-                      'liquid': productObject.selections.liquid,
-                      'closure': productObject.selections.closure,
-                      'label': productObject.selections.label,
-                      'closureExtras': productObject.selections.closureExtras,
-                    },
-                    'designSide': resolvedSide,
-                    'designExport': safeDesignExport,
-                    'productSku': product?.sku ?? null,
-                    ...labelPersistence,
-                  }
+                  message: labelAddedPayload
                 });
               }
 
@@ -1815,7 +1942,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
       };
       window.addEventListener('message', onMsg);
       return () => window.removeEventListener('message', onMsg);
-    }, [createImageFromUrl, getMeshIDbyName, addItemImage, removeItem, items, productObject?.selections?.bottle?.name, product?.areas, setFromUploadDesign, pushLabelHistory, steps, selectOption, productObject?.selections?.bottle, productObject?.selections?.liquid, productObject?.selections?.closure, productObject?.selections?.label, productObject?.selections?.closureExtras, labelRequestKind, labelMode, labelForm.prompt, labelForm.title, promptOverride, guidedEditNotes, isLiteMode, defaultBottleName, bottleSel?.name, labelStepIdx]);
+    }, [createImageFromUrl, getMeshIDbyName, addItemImage, removeItem, items, productObject?.selections?.bottle?.name, product?.areas, setFromUploadDesign, pushLabelHistory, patchLabelHistoryEntry, steps, selectOption, productObject?.selections?.bottle, productObject?.selections?.liquid, productObject?.selections?.closure, productObject?.selections?.label, productObject?.selections?.closureExtras, labelRequestKind, labelMode, labelForm.prompt, labelForm.title, promptOverride, guidedEditNotes, isLiteMode, defaultBottleName, bottleSel?.name, labelStepIdx]);
 
 
     // --- Clear items when bottle changes ---
@@ -2669,18 +2796,72 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
         ).trim() || null;
 
       const selected = selectedLabelVersions.front;
-      const selectedRecordId = resolveLabelVersionRecordId(selected?.recordId);
+      const selectedHistoryRecordId = resolveLabelVersionRecordId(
+        selectedFrontHistory?.labelVersionRecordId,
+        selectedFrontHistory?.designExport?.labelVersionRecordId,
+        selectedFrontHistory?.designExport?.label_version_record_id,
+        selectedFrontHistory?.designExport?.labelVersionId,
+        selectedFrontHistory?.designExport?.label_version_id,
+        selectedFrontHistory?.designExport?.recordId,
+        selectedFrontHistory?.designExport?.record_id,
+        selectedFrontHistory?.designExport?.id
+      );
+      const selectedOutputImageUrl =
+        String(
+          selected?.outputImageUrl ||
+          selectedFrontHistory?.outputImageUrl ||
+          selectedFrontHistory?.previewUrl ||
+          frontDesignOutputImageUrl ||
+          ''
+        ).trim() || null;
+      let selectedRecordId = resolveLabelVersionRecordId(
+        selected?.recordId,
+        selectedHistoryRecordId,
+        selectedFrontHistory?.designExport?.labelVersionRecordId,
+        selectedFrontHistory?.designExport?.label_version_record_id,
+        selectedFrontHistory?.designExport?.recordId,
+        selectedFrontHistory?.designExport?.record_id,
+        frontDesign?.labelVersionRecordId,
+        frontDesign?.label_version_record_id,
+        frontDesign?.recordId,
+        frontDesign?.record_id
+      );
+      if (!selectedRecordId && selectedOutputImageUrl) {
+        const matchedEntry = [...frontLabelHistory]
+          .reverse()
+          .find((entry: any) => {
+            const entryRecordId = resolveLabelVersionRecordId(
+              entry?.labelVersionRecordId,
+              entry?.designExport?.labelVersionRecordId,
+              entry?.designExport?.label_version_record_id,
+              entry?.designExport?.recordId,
+              entry?.designExport?.record_id
+            );
+            if (!entryRecordId) return false;
+            const entryOutputImageUrl =
+              String(
+                entry?.outputImageUrl ||
+                entry?.previewUrl ||
+                resolveDesignPreviewUrl(entry?.designExport) ||
+                ''
+              ).trim() || null;
+            return Boolean(entryOutputImageUrl && entryOutputImageUrl === selectedOutputImageUrl);
+          });
+        selectedRecordId = resolveLabelVersionRecordId(
+          matchedEntry?.labelVersionRecordId,
+          matchedEntry?.designExport?.labelVersionRecordId,
+          matchedEntry?.designExport?.label_version_record_id,
+          matchedEntry?.designExport?.recordId,
+          matchedEntry?.designExport?.record_id
+        );
+      }
       if (selected) {
         return {
           recordId: selectedRecordId,
           designSide: selected.designSide || 'front',
           versionNumber: selected.versionNumber ?? null,
           versionKind: selected.versionKind || 'Initial',
-          outputImageUrl:
-            selected.outputImageUrl ||
-            selectedFrontHistory?.outputImageUrl ||
-            selectedFrontHistory?.previewUrl ||
-            frontDesignOutputImageUrl,
+          outputImageUrl: selectedOutputImageUrl,
           outputPdfUrl:
             selected.outputPdfUrl ||
             selectedFrontHistory?.outputPdfUrl ||
@@ -2692,16 +2873,6 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
         };
       }
 
-      const selectedHistoryRecordId = resolveLabelVersionRecordId(
-        selectedFrontHistory?.labelVersionRecordId,
-        selectedFrontHistory?.designExport?.labelVersionRecordId,
-        selectedFrontHistory?.designExport?.label_version_record_id,
-        selectedFrontHistory?.designExport?.labelVersionId,
-        selectedFrontHistory?.designExport?.label_version_id,
-        selectedFrontHistory?.designExport?.recordId,
-        selectedFrontHistory?.designExport?.record_id,
-        selectedFrontHistory?.designExport?.id
-      );
       if (selectedFrontHistory && selectedHistoryRecordId) {
         return {
           recordId: selectedHistoryRecordId,

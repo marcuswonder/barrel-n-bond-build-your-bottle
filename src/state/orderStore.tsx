@@ -109,6 +109,13 @@ export type OrderState = {
     outputImageUrl?: string | null;
     outputPdfUrl?: string | null;
   }) => void;
+  patchLabelHistoryEntry: (side: LabelHistorySide, id: string, updates?: {
+    recordId?: string | null;
+    versionNumber?: number | null;
+    versionKind?: LabelVersionKind;
+    outputImageUrl?: string | null;
+    outputPdfUrl?: string | null;
+  }) => void;
   clearLabelHistory: (side?: LabelHistorySide) => void;
   /** convenience: handle the exact parent postMessage payload you showed */
   setFromUploadDesign: (payload: {
@@ -380,6 +387,85 @@ export const useOrderStore = create<OrderState>((set, get) => ({
         labelHistory: { ...state.labelHistory, [side]: list },
         selectedHistoryId: { ...state.selectedHistoryId, [side]: id },
         selectedLabelVersions: { ...state.selectedLabelVersions, [side]: nextSelection },
+      };
+    }),
+
+  patchLabelHistoryEntry: (side, id, updates) =>
+    set((state) => {
+      const list = [...state.labelHistory[side]];
+      const entryIndex = list.findIndex((version) => version.id === id);
+      if (entryIndex < 0) return state;
+
+      const entry = list[entryIndex];
+      if (!entry) return state;
+
+      const resolvedRecordId =
+        normalizeLabelVersionRecordId(updates?.recordId) ||
+        normalizeLabelVersionRecordId(entry.labelVersionRecordId);
+      const resolvedVersionNumber =
+        normalizeVersionNumber(updates?.versionNumber) ??
+        normalizeVersionNumber(entry.versionNumber) ??
+        null;
+      const resolvedVersionKind = updates?.versionKind || entry.versionKind;
+      const resolvedOutputImageUrl =
+        normalizeText(updates?.outputImageUrl) ||
+        normalizeText(entry.outputImageUrl) ||
+        normalizeText(entry.previewUrl) ||
+        null;
+      const resolvedOutputPdfUrl =
+        normalizeText(updates?.outputPdfUrl) ||
+        normalizeText(entry.outputPdfUrl) ||
+        null;
+
+      const nextDesignExport =
+        entry.designExport && typeof entry.designExport === 'object'
+          ? {
+              ...entry.designExport,
+              ...(resolvedRecordId
+                ? {
+                    labelVersionRecordId: resolvedRecordId,
+                    label_version_record_id: resolvedRecordId,
+                  }
+                : {}),
+              ...(resolvedVersionNumber
+                ? {
+                    versionNumber: resolvedVersionNumber,
+                    version_number: resolvedVersionNumber,
+                  }
+                : {}),
+              ...(resolvedOutputImageUrl ? { outputImageUrl: resolvedOutputImageUrl } : {}),
+              ...(resolvedOutputPdfUrl ? { outputPdfUrl: resolvedOutputPdfUrl } : {}),
+            }
+          : entry.designExport;
+
+      const nextEntry: LabelHistoryEntry = {
+        ...entry,
+        labelVersionRecordId: resolvedRecordId,
+        versionNumber: resolvedVersionNumber,
+        versionKind: resolvedVersionKind,
+        outputImageUrl: resolvedOutputImageUrl,
+        outputPdfUrl: resolvedOutputPdfUrl,
+        designExport: nextDesignExport,
+      };
+      list[entryIndex] = nextEntry;
+
+      const selectedForSide = state.selectedLabelVersions[side];
+      const selectedHistoryForSide = state.selectedHistoryId[side];
+      const selectedPatch =
+        selectedForSide && selectedHistoryForSide === id
+          ? {
+              ...selectedForSide,
+              recordId: nextEntry.labelVersionRecordId,
+              versionNumber: nextEntry.versionNumber,
+              versionKind: nextEntry.versionKind,
+              outputImageUrl: nextEntry.outputImageUrl || nextEntry.previewUrl || null,
+              outputPdfUrl: nextEntry.outputPdfUrl,
+            }
+          : selectedForSide;
+
+      return {
+        labelHistory: { ...state.labelHistory, [side]: list },
+        selectedLabelVersions: { ...state.selectedLabelVersions, [side]: selectedPatch },
       };
     }),
 
