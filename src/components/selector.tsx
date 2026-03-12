@@ -55,6 +55,7 @@ import {
   LabelPreviewReveal,
   LabelHistorySection,
   LabelHistoryTitle,
+  LabelHistoryToggle,
   LabelHistoryRailWrap,
   LabelHistoryRail,
   LabelHistoryCard,
@@ -397,6 +398,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
     const [showLoadedLabelPreview, setShowLoadedLabelPreview] = useState(false);
     const [hideLabelTabs, setHideLabelTabs] = useState(false);
     const [promptOverride, setPromptOverride] = useState('');
+    const [hideLabelHistory, setHideLabelHistory] = useState(false);
     const [labelWizard, setLabelWizard] = useState<LabelWizardState>({
       outputGoal: '',
       theme: '',
@@ -949,6 +951,8 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
             },
             designSide: 'front',
             designExport: selectedVersion.designExport,
+            fromHistorySelection: true,
+            skipVersionPersistence: true,
           },
         },
         window.location.origin
@@ -1303,7 +1307,12 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
           setIsUploadDesignApplying(true);
           setLabelLoadingIndex(0);
           
-          const { designExport, designSide } = e.data.message || {};
+          const {
+            designExport,
+            designSide,
+            fromHistorySelection = false,
+            skipVersionPersistence = false,
+          } = e.data.message || {};
           const resolvedSide: 'front' | 'back' = String(designSide).toLowerCase() === 'back' ? 'back' : 'front';
           const safeDesignExport = compactDesignExport(designExport || {}, resolvedSide);
           console.log("designExport", safeDesignExport)
@@ -1386,59 +1395,61 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                 setGuidedEditNotes('');
               }
               const labelPersistence = buildLabelPersistence('front', safeDesignExport);
-              const persistedPreviewUrl =
-                labelPersistence.outputS3Url ||
-                labelPersistence.outputImageUrl ||
-                resolveDesignPreviewUrl(safeDesignExport);
-
-              pushLabelHistory({
-                side: 'front',
-                previewUrl: persistedPreviewUrl,
-                promptText: labelPersistence.promptText,
-                editPromptText: labelPersistence.editPromptText,
-                versionKind: labelPersistence.versionKind,
-                designExport: safeDesignExport,
-                dedupeKey:
-                  labelPersistence.outputS3Key ||
+              if (!skipVersionPersistence && !fromHistorySelection) {
+                const persistedPreviewUrl =
                   labelPersistence.outputS3Url ||
                   labelPersistence.outputImageUrl ||
-                  persistedPreviewUrl,
-                createdAt: new Date().toISOString(),
-              });
+                  resolveDesignPreviewUrl(safeDesignExport);
 
-              console.log("postMessage Content:", {
-                customMessageType: 'labelAdded',
-                message: {
-                  'order': {
-                    'bottle': productObject.selections.bottle,
-                    'liquid': productObject.selections.liquid,
-                    'closure': productObject.selections.closure,
-                    'label': productObject.selections.label,
-                    'closureExtras': productObject.selections.closureExtras,
-                  },
-                  'designSide': resolvedSide,
-                  'designExport': safeDesignExport,
-                  'productSku': product?.sku ?? null,
-                  ...labelPersistence,
-                }
-              });
+                pushLabelHistory({
+                  side: 'front',
+                  previewUrl: persistedPreviewUrl,
+                  promptText: labelPersistence.promptText,
+                  editPromptText: labelPersistence.editPromptText,
+                  versionKind: labelPersistence.versionKind,
+                  designExport: safeDesignExport,
+                  dedupeKey:
+                    labelPersistence.outputS3Key ||
+                    labelPersistence.outputS3Url ||
+                    labelPersistence.outputImageUrl ||
+                    persistedPreviewUrl,
+                  createdAt: new Date().toISOString(),
+                });
 
-              postToParent({
-                customMessageType: 'labelAdded',
-                message: {
-                  'order': {
-                    'bottle': productObject.selections.bottle,
-                    'liquid': productObject.selections.liquid,
-                    'closure': productObject.selections.closure,
-                    'label': productObject.selections.label,
-                    'closureExtras': productObject.selections.closureExtras,
-                  },
-                  'designSide': resolvedSide,
-                  'designExport': safeDesignExport,
-                  'productSku': product?.sku ?? null,
-                  ...labelPersistence,
-                }
-              });
+                console.log("postMessage Content:", {
+                  customMessageType: 'labelAdded',
+                  message: {
+                    'order': {
+                      'bottle': productObject.selections.bottle,
+                      'liquid': productObject.selections.liquid,
+                      'closure': productObject.selections.closure,
+                      'label': productObject.selections.label,
+                      'closureExtras': productObject.selections.closureExtras,
+                    },
+                    'designSide': resolvedSide,
+                    'designExport': safeDesignExport,
+                    'productSku': product?.sku ?? null,
+                    ...labelPersistence,
+                  }
+                });
+
+                postToParent({
+                  customMessageType: 'labelAdded',
+                  message: {
+                    'order': {
+                      'bottle': productObject.selections.bottle,
+                      'liquid': productObject.selections.liquid,
+                      'closure': productObject.selections.closure,
+                      'label': productObject.selections.label,
+                      'closureExtras': productObject.selections.closureExtras,
+                    },
+                    'designSide': resolvedSide,
+                    'designExport': safeDesignExport,
+                    'productSku': product?.sku ?? null,
+                    ...labelPersistence,
+                  }
+                });
+              }
 
             }
           
@@ -1483,59 +1494,61 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                 setGuidedEditNotes('');
               }
               const labelPersistence = buildLabelPersistence('back', safeDesignExport);
-              const persistedPreviewUrl =
-                labelPersistence.outputS3Url ||
-                labelPersistence.outputImageUrl ||
-                resolveDesignPreviewUrl(safeDesignExport);
-
-              pushLabelHistory({
-                side: 'back',
-                previewUrl: persistedPreviewUrl,
-                promptText: labelPersistence.promptText,
-                editPromptText: labelPersistence.editPromptText,
-                versionKind: labelPersistence.versionKind,
-                designExport: safeDesignExport,
-                dedupeKey:
-                  labelPersistence.outputS3Key ||
+              if (!skipVersionPersistence && !fromHistorySelection) {
+                const persistedPreviewUrl =
                   labelPersistence.outputS3Url ||
                   labelPersistence.outputImageUrl ||
-                  persistedPreviewUrl,
-                createdAt: new Date().toISOString(),
-              });
+                  resolveDesignPreviewUrl(safeDesignExport);
 
-              console.log("postMessage Content:", {
-                customMessageType: 'labelAdded',
-                message: {
-                  'order': {
-                    'bottle': productObject.selections.bottle,
-                    'liquid': productObject.selections.liquid,
-                    'closure': productObject.selections.closure,
-                    'label': productObject.selections.label,
-                    'closureExtras': productObject.selections.closureExtras,
-                  },
-                  'designSide': resolvedSide,
-                  'designExport': safeDesignExport,
-                  'productSku': product?.sku ?? null,
-                  ...labelPersistence,
-                }
-              });
+                pushLabelHistory({
+                  side: 'back',
+                  previewUrl: persistedPreviewUrl,
+                  promptText: labelPersistence.promptText,
+                  editPromptText: labelPersistence.editPromptText,
+                  versionKind: labelPersistence.versionKind,
+                  designExport: safeDesignExport,
+                  dedupeKey:
+                    labelPersistence.outputS3Key ||
+                    labelPersistence.outputS3Url ||
+                    labelPersistence.outputImageUrl ||
+                    persistedPreviewUrl,
+                  createdAt: new Date().toISOString(),
+                });
 
-              postToParent({
-                customMessageType: 'labelAdded',
-                message: {
-                  'order': {
-                    'bottle': productObject.selections.bottle,
-                    'liquid': productObject.selections.liquid,
-                    'closure': productObject.selections.closure,
-                    'label': productObject.selections.label,
-                    'closureExtras': productObject.selections.closureExtras,
-                  },
-                  'designSide': resolvedSide,
-                  'designExport': safeDesignExport,
-                  'productSku': product?.sku ?? null,
-                  ...labelPersistence,
-                }
-              });
+                console.log("postMessage Content:", {
+                  customMessageType: 'labelAdded',
+                  message: {
+                    'order': {
+                      'bottle': productObject.selections.bottle,
+                      'liquid': productObject.selections.liquid,
+                      'closure': productObject.selections.closure,
+                      'label': productObject.selections.label,
+                      'closureExtras': productObject.selections.closureExtras,
+                    },
+                    'designSide': resolvedSide,
+                    'designExport': safeDesignExport,
+                    'productSku': product?.sku ?? null,
+                    ...labelPersistence,
+                  }
+                });
+
+                postToParent({
+                  customMessageType: 'labelAdded',
+                  message: {
+                    'order': {
+                      'bottle': productObject.selections.bottle,
+                      'liquid': productObject.selections.liquid,
+                      'closure': productObject.selections.closure,
+                      'label': productObject.selections.label,
+                      'closureExtras': productObject.selections.closureExtras,
+                    },
+                    'designSide': resolvedSide,
+                    'designExport': safeDesignExport,
+                    'productSku': product?.sku ?? null,
+                    ...labelPersistence,
+                  }
+                });
+              }
 
             }
           }
@@ -3250,53 +3263,62 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                           Preview is taking longer than expected. You can continue and we will keep loading it.
                         </LabelHelperText>
                       )}
-                      {showLabelHistoryCarousel && isLabelPreviewReady && (
+                      {showLabelHistoryCarousel && (
                         <LabelHistorySection>
                           <LabelHistoryTitle>
                             <span>Version history</span>
-                            <span>{frontLabelHistory.length} versions</span>
+                            <LabelHistoryToggle
+                              type="button"
+                              onClick={() => setHideLabelHistory((prev) => !prev)}
+                              aria-expanded={!hideLabelHistory}
+                              aria-label={hideLabelHistory ? 'Show version list' : 'Hide version list'}
+                            >
+                              {hideLabelHistory ? `Show (${frontLabelHistory.length})` : 'Hide'}
+                            </LabelHistoryToggle>
                           </LabelHistoryTitle>
-                          <LabelHistoryRailWrap>
-                            <LabelHistoryRail>
-                              {frontLabelHistory.map((entry: any, index: number) => {
-                                const entryPreviewUrl =
-                                  String(entry?.previewUrl || '').trim() ||
-                                  resolveDesignPreviewUrl(entry?.designExport);
-                                const fallbackPreviewUrl =
-                                  entryPreviewUrl ||
-                                  labelPreviewUrl ||
-                                  loadedLabelPreviewUrl ||
-                                  'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==';
-                                const isActive =
-                                  entry.id === selectedFrontHistoryId ||
-                                  (!selectedFrontHistoryId && index === frontLabelHistory.length - 1);
-                                return (
-                                  <LabelHistoryCard
-                                    key={entry.id}
-                                    type="button"
-                                    $active={isActive}
-                                    aria-pressed={isActive}
-                                    aria-label={`Use label version ${index + 1}`}
-                                    onClick={() => {
-                                      if (isActive) return;
-                                      handleSelectHistoryVersion(entry.id);
-                                    }}
-                                  >
-                                    <LabelHistoryThumb
-                                      src={fallbackPreviewUrl}
-                                      alt={`Label version ${index + 1}`}
-                                      draggable={false}
-                                      onContextMenu={(event) => event.preventDefault()}
-                                    />
-                                    <LabelHistoryMeta>
-                                      <LabelHistoryVersion>{`v${index + 1}${isActive ? ' · Active' : ''}`}</LabelHistoryVersion>
-                                      <LabelHistoryKind>{entry.versionKind || 'Version'}</LabelHistoryKind>
-                                    </LabelHistoryMeta>
-                                  </LabelHistoryCard>
-                                );
-                              })}
-                            </LabelHistoryRail>
-                          </LabelHistoryRailWrap>
+                          {!hideLabelHistory && (
+                            <LabelHistoryRailWrap>
+                              <LabelHistoryRail>
+                                {frontLabelHistory.map((entry: any, index: number) => {
+                                  const entryPreviewUrl =
+                                    String(entry?.previewUrl || '').trim() ||
+                                    resolveDesignPreviewUrl(entry?.designExport);
+                                  const fallbackPreviewUrl =
+                                    entryPreviewUrl ||
+                                    labelPreviewUrl ||
+                                    loadedLabelPreviewUrl ||
+                                    'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==';
+                                  const isActive =
+                                    entry.id === selectedFrontHistoryId ||
+                                    (!selectedFrontHistoryId && index === frontLabelHistory.length - 1);
+                                  return (
+                                    <LabelHistoryCard
+                                      key={entry.id}
+                                      type="button"
+                                      $active={isActive}
+                                      aria-pressed={isActive}
+                                      aria-label={`Use label version ${index + 1}`}
+                                      onClick={() => {
+                                        if (isActive) return;
+                                        handleSelectHistoryVersion(entry.id);
+                                      }}
+                                    >
+                                      <LabelHistoryThumb
+                                        src={fallbackPreviewUrl}
+                                        alt={`Label version ${index + 1}`}
+                                        draggable={false}
+                                        onContextMenu={(event) => event.preventDefault()}
+                                      />
+                                      <LabelHistoryMeta>
+                                        <LabelHistoryVersion>{`v${index + 1}${isActive ? ' · Active' : ''}`}</LabelHistoryVersion>
+                                        <LabelHistoryKind>{entry.versionKind || 'Version'}</LabelHistoryKind>
+                                      </LabelHistoryMeta>
+                                    </LabelHistoryCard>
+                                  );
+                                })}
+                              </LabelHistoryRail>
+                            </LabelHistoryRailWrap>
+                          )}
                         </LabelHistorySection>
                       )}
                       {isLabelPreviewReady && (

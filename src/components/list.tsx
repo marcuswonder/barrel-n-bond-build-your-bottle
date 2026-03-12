@@ -876,6 +876,31 @@ export const LabelHistoryTitle = styled.div`
   color: #b9b9b9;
 `;
 
+export const LabelHistoryToggle = styled.button`
+  border: 1px solid #3a3a3a;
+  border-radius: 999px;
+  background: #131313;
+  color: #f2f2f2;
+  font-size: 10px;
+  letter-spacing: 0.08rem;
+  text-transform: uppercase;
+  padding: 6px 10px;
+  line-height: 1;
+  min-height: 44px;
+  cursor: pointer;
+  transition: border-color 160ms ease, background-color 160ms ease;
+
+  &:hover {
+    border-color: #ff73c6;
+    background: #1a1a1a;
+  }
+
+  &:focus-visible {
+    outline: 2px solid #ff73c6;
+    outline-offset: 2px;
+  }
+`;
+
 export const LabelHistoryRailWrap = styled.div`
   position: relative;
 
