@@ -1762,6 +1762,9 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                   labelPersistence.outputS3Url ||
                   labelPersistence.outputImageUrl ||
                   resolveDesignPreviewUrl(safeDesignExport);
+                const historyDedupeKey =
+                  String(labelPersistence.labelVersionRecordId || '').trim() ||
+                  `front:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`;
 
                 pushLabelHistory({
                   side: 'front',
@@ -1774,11 +1777,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                   outputImageUrl: labelPersistence.outputImageUrl,
                   outputPdfUrl: labelPersistence.outputPdfUrl,
                   designExport: safeDesignExport,
-                  dedupeKey:
-                    labelPersistence.outputS3Key ||
-                    labelPersistence.outputS3Url ||
-                    labelPersistence.outputImageUrl ||
-                    persistedPreviewUrl,
+                  dedupeKey: historyDedupeKey,
                   createdAt: new Date().toISOString(),
                 });
 
@@ -1862,6 +1861,9 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                   labelPersistence.outputS3Url ||
                   labelPersistence.outputImageUrl ||
                   resolveDesignPreviewUrl(safeDesignExport);
+                const historyDedupeKey =
+                  String(labelPersistence.labelVersionRecordId || '').trim() ||
+                  `back:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`;
 
                 pushLabelHistory({
                   side: 'back',
@@ -1874,11 +1876,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                   outputImageUrl: labelPersistence.outputImageUrl,
                   outputPdfUrl: labelPersistence.outputPdfUrl,
                   designExport: safeDesignExport,
-                  dedupeKey:
-                    labelPersistence.outputS3Key ||
-                    labelPersistence.outputS3Url ||
-                    labelPersistence.outputImageUrl ||
-                    persistedPreviewUrl,
+                  dedupeKey: historyDedupeKey,
                   createdAt: new Date().toISOString(),
                 });
 
