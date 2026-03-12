@@ -121,12 +121,49 @@ const resolveDesignPreviewUrl = (design: any): string =>
     ''
   ).trim();
 
+const AIRTABLE_RECORD_ID_RE = /^rec[a-zA-Z0-9]{6,}$/;
+
+const tryExtractLabelVersionRecordId = (value: unknown, depth = 0): string | null => {
+  if (depth > 3 || value == null) return null;
+
+  if (typeof value === 'string') {
+    const raw = value.trim();
+    return AIRTABLE_RECORD_ID_RE.test(raw) ? raw : null;
+  }
+
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const resolved = tryExtractLabelVersionRecordId(item, depth + 1);
+      if (resolved) return resolved;
+    }
+    return null;
+  }
+
+  if (typeof value === 'object') {
+    const obj = value as Record<string, unknown>;
+    const candidateKeys = [
+      'labelVersionRecordId',
+      'label_version_record_id',
+      'labelVersionId',
+      'label_version_id',
+      'recordId',
+      'record_id',
+      'id',
+    ];
+    for (const key of candidateKeys) {
+      if (!(key in obj)) continue;
+      const resolved = tryExtractLabelVersionRecordId(obj[key], depth + 1);
+      if (resolved) return resolved;
+    }
+  }
+
+  return null;
+};
+
 const resolveLabelVersionRecordId = (...values: Array<unknown>): string | null => {
   for (const value of values) {
-    const raw = String(value || '').trim();
-    if (!raw) continue;
-    if (/^rec[a-zA-Z0-9]+$/.test(raw)) return raw;
-    if (raw.length >= 6) return raw;
+    const resolved = tryExtractLabelVersionRecordId(value);
+    if (resolved) return resolved;
   }
   return null;
 };
@@ -948,6 +985,66 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
     );
     const showLabelHistoryCarousel = isAiLabelMode && frontLabelHistory.length > 1;
 
+    const persistSelectedLabelVersion = useCallback(async (payload: {
+      sessionId: string;
+      designSide: 'front' | 'back';
+      labelVersionRecordId: string;
+      versionNumber: number | null;
+      versionKind: string;
+      outputImageUrl: string | null;
+      outputPdfUrl: string | null;
+      source: string;
+      selectedAt: string;
+    }) => {
+      const endpointCandidates: string[] = [];
+      const pushCandidate = (value: string) => {
+        const endpoint = String(value || '').trim();
+        if (!endpoint) return;
+        if (!endpointCandidates.includes(endpoint)) {
+          endpointCandidates.push(endpoint);
+        }
+      };
+
+      const baseOrigins = Array.from(
+        new Set(
+          [window.location.origin, parentTargetOrigin]
+            .map((origin) => String(origin || '').trim().replace(/\/$/, ''))
+            .filter(Boolean)
+        )
+      );
+
+      baseOrigins.forEach((origin) => {
+        pushCandidate(`${origin}/apps/ss/studio/select-label-version`);
+        pushCandidate(`${origin}/.netlify/functions/select-label-version`);
+      });
+
+      for (const endpoint of endpointCandidates) {
+        try {
+          const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify(payload),
+          });
+
+          if (response.ok) {
+            return true;
+          }
+
+          const errorText = await response.text().catch(() => '');
+          console.warn('[labelVersionSelected] persistence endpoint returned non-OK response', {
+            endpoint,
+            status: response.status,
+            body: errorText.slice(0, 160),
+          });
+        } catch (error) {
+          console.warn('[labelVersionSelected] persistence endpoint request failed', { endpoint, error });
+        }
+      }
+
+      return false;
+    }, []);
+
     const handleSelectHistoryVersion = useCallback((historyId: string) => {
       const selectedVersion = frontLabelHistory.find((entry: any) => entry.id === historyId);
       if (!selectedVersion) return;
@@ -995,23 +1092,32 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
       selectLabelHistory('front', historyId, {
         selectedAt,
         source: 'configurator-carousel',
+        recordId: selectedRecordId,
+        versionNumber: selectedVersionNumber,
+        versionKind: selectedVersion.versionKind || 'Initial',
+        outputImageUrl,
+        outputPdfUrl,
       });
 
       if (selectedRecordId) {
+        const selectionPayload = {
+          sessionId,
+          designSide: 'front' as const,
+          labelVersionRecordId: selectedRecordId,
+          versionNumber: selectedVersionNumber,
+          versionKind: selectedVersion.versionKind || 'Initial',
+          outputImageUrl,
+          outputPdfUrl,
+          source: 'configurator-carousel',
+          selectedAt,
+        };
+
         postToParent({
           customMessageType: 'labelVersionSelected',
-          message: {
-            sessionId,
-            designSide: 'front',
-            labelVersionRecordId: selectedRecordId,
-            versionNumber: selectedVersionNumber,
-            versionKind: selectedVersion.versionKind || 'Initial',
-            outputImageUrl,
-            outputPdfUrl,
-            source: 'configurator-carousel',
-            selectedAt,
-          }
+          message: selectionPayload
         });
+
+        void persistSelectedLabelVersion(selectionPayload);
       } else {
         console.warn('[labelVersionSelected] skipped: missing labelVersionRecordId for selected history item', {
           historyId: selectedVersion.id,
@@ -1046,6 +1152,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
       productObject.selections.closure,
       productObject.selections.label,
       productObject.selections.closureExtras,
+      persistSelectedLabelVersion,
     ]);
 
 
@@ -1446,6 +1553,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
               order: parentOrder,
               designSide: resolvedSide,
               designExport: safeDesignExport,
+              preserveHistory: fromHistorySelection,
             });
             
             const cameraBottleName = String(
@@ -2547,9 +2655,10 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
       !guidedGenerating;
     const selectedLabelVersion = useMemo(() => {
       const selected = selectedLabelVersions.front;
-      if (selected?.recordId) {
+      const selectedRecordId = resolveLabelVersionRecordId(selected?.recordId);
+      if (selected && selectedRecordId) {
         return {
-          recordId: selected.recordId,
+          recordId: selectedRecordId,
           designSide: selected.designSide,
           versionNumber: selected.versionNumber,
           versionKind: selected.versionKind,
@@ -2560,9 +2669,19 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
         };
       }
 
-      if (selectedFrontHistory?.labelVersionRecordId) {
+      const selectedHistoryRecordId = resolveLabelVersionRecordId(
+        selectedFrontHistory?.labelVersionRecordId,
+        selectedFrontHistory?.designExport?.labelVersionRecordId,
+        selectedFrontHistory?.designExport?.label_version_record_id,
+        selectedFrontHistory?.designExport?.labelVersionId,
+        selectedFrontHistory?.designExport?.label_version_id,
+        selectedFrontHistory?.designExport?.recordId,
+        selectedFrontHistory?.designExport?.record_id,
+        selectedFrontHistory?.designExport?.id
+      );
+      if (selectedFrontHistory && selectedHistoryRecordId) {
         return {
-          recordId: selectedFrontHistory.labelVersionRecordId,
+          recordId: selectedHistoryRecordId,
           designSide: 'front' as const,
           versionNumber: selectedFrontHistory.versionNumber ?? null,
           versionKind: selectedFrontHistory.versionKind,
@@ -2576,14 +2695,47 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
       const frontDesign = (labelDesigns as any)?.front || null;
       if (!frontDesign) return null;
 
-      const frontDesignRecordId = resolveLabelVersionRecordId(
+      let frontDesignRecordId = resolveLabelVersionRecordId(
         frontDesign?.labelVersionRecordId,
         frontDesign?.label_version_record_id,
         frontDesign?.labelVersionId,
         frontDesign?.label_version_id,
         frontDesign?.recordId,
-        frontDesign?.record_id
+        frontDesign?.record_id,
+        frontDesign?.id,
+        frontDesign?.labelVersion,
+        frontDesign?.labelVersions
       );
+      if (!frontDesignRecordId) {
+        const frontDesignPreviewUrl = resolveDesignPreviewUrl(frontDesign);
+        const matchedHistoryVersion = frontLabelHistory.find((entry: any) => {
+          const entryRecordId = resolveLabelVersionRecordId(
+            entry?.labelVersionRecordId,
+            entry?.designExport?.labelVersionRecordId,
+            entry?.designExport?.label_version_record_id,
+            entry?.designExport?.recordId,
+            entry?.designExport?.record_id,
+            entry?.designExport?.id
+          );
+          if (!entryRecordId) return false;
+          const entryPreviewUrl = String(
+            entry?.outputImageUrl ||
+            entry?.previewUrl ||
+            resolveDesignPreviewUrl(entry?.designExport) ||
+            ''
+          ).trim();
+          if (!entryPreviewUrl || !frontDesignPreviewUrl) return false;
+          return entryPreviewUrl === frontDesignPreviewUrl;
+        });
+        frontDesignRecordId = resolveLabelVersionRecordId(
+          matchedHistoryVersion?.labelVersionRecordId,
+          matchedHistoryVersion?.designExport?.labelVersionRecordId,
+          matchedHistoryVersion?.designExport?.label_version_record_id,
+          matchedHistoryVersion?.designExport?.recordId,
+          matchedHistoryVersion?.designExport?.record_id,
+          matchedHistoryVersion?.designExport?.id
+        );
+      }
       if (!frontDesignRecordId) return null;
 
       const frontDesignVersionKindRaw = String(
@@ -2619,7 +2771,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
         selectedAt: new Date().toISOString(),
         source: 'design-fallback',
       };
-    }, [selectedLabelVersions.front, selectedFrontHistory, labelDesigns]);
+    }, [selectedLabelVersions.front, selectedFrontHistory, labelDesigns, frontLabelHistory]);
 
     useEffect(() => {
       if (!pendingFinalCameraTarget) return;

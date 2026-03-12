@@ -103,6 +103,11 @@ export type OrderState = {
   selectLabelHistory: (side: LabelHistorySide, id: string, options?: {
     selectedAt?: string;
     source?: string;
+    recordId?: string | null;
+    versionNumber?: number | null;
+    versionKind?: LabelVersionKind;
+    outputImageUrl?: string | null;
+    outputPdfUrl?: string | null;
   }) => void;
   clearLabelHistory: (side?: LabelHistorySide) => void;
   /** convenience: handle the exact parent postMessage payload you showed */
@@ -110,7 +115,28 @@ export type OrderState = {
     order: ParentOrderPayload;
     designSide: 'front' | 'back';
     designExport: LabelDesign;
+    preserveHistory?: boolean;
   }) => void;
+};
+
+const AIRTABLE_RECORD_ID_RE = /^rec[a-zA-Z0-9]{6,}$/;
+
+const normalizeLabelVersionRecordId = (value: unknown): string | null => {
+  const raw = String(value || '').trim();
+  if (!raw) return null;
+  return AIRTABLE_RECORD_ID_RE.test(raw) ? raw : null;
+};
+
+const normalizeVersionNumber = (value: unknown): number | null => {
+  if (value == null || value === '') return null;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return null;
+  return Math.floor(parsed);
+};
+
+const normalizeText = (value: unknown): string | null => {
+  const raw = String(value || '').trim();
+  return raw || null;
 };
 
 export const useOrderStore = create<OrderState>((set, get) => ({
@@ -220,8 +246,8 @@ export const useOrderStore = create<OrderState>((set, get) => ({
       const existingIndex = key ? list.findIndex((entry) => entry.dedupeKey === key) : -1;
       const existing = existingIndex >= 0 ? list[existingIndex] : null;
       const resolvedRecordId =
-        (labelVersionRecordId ? String(labelVersionRecordId).trim() : '') ||
-        (existing?.labelVersionRecordId ? String(existing.labelVersionRecordId).trim() : '') ||
+        normalizeLabelVersionRecordId(labelVersionRecordId) ||
+        normalizeLabelVersionRecordId(existing?.labelVersionRecordId) ||
         null;
       const entry: LabelHistoryEntry = {
         id:
@@ -231,20 +257,17 @@ export const useOrderStore = create<OrderState>((set, get) => ({
         side,
         previewUrl: String(previewUrl || '').trim(),
         labelVersionRecordId: resolvedRecordId,
-        versionNumber:
-          Number.isFinite(Number(versionNumber))
-            ? Number(versionNumber)
-            : (existing?.versionNumber ?? null),
+        versionNumber: normalizeVersionNumber(versionNumber) ?? (existing?.versionNumber ?? null),
         promptText: promptText ? String(promptText).trim() : null,
         editPromptText: editPromptText ? String(editPromptText).trim() : null,
         versionKind,
         outputImageUrl:
-          (outputImageUrl ? String(outputImageUrl).trim() : '') ||
-          existing?.outputImageUrl ||
+          normalizeText(outputImageUrl) ||
+          normalizeText(existing?.outputImageUrl) ||
           null,
         outputPdfUrl:
-          (outputPdfUrl ? String(outputPdfUrl).trim() : '') ||
-          existing?.outputPdfUrl ||
+          normalizeText(outputPdfUrl) ||
+          normalizeText(existing?.outputPdfUrl) ||
           null,
         createdAt: createdAt || existing?.createdAt || new Date().toISOString(),
         designExport,
@@ -284,21 +307,77 @@ export const useOrderStore = create<OrderState>((set, get) => ({
 
   selectLabelHistory: (side, id, options) =>
     set((state) => {
-      const entry = state.labelHistory[side].find((version) => version.id === id);
+      const list = [...state.labelHistory[side]];
+      const entryIndex = list.findIndex((version) => version.id === id);
+      if (entryIndex < 0) return state;
+
+      const entry = list[entryIndex];
       if (!entry) return state;
+
+      const resolvedRecordId =
+        normalizeLabelVersionRecordId(options?.recordId) ||
+        normalizeLabelVersionRecordId(entry.labelVersionRecordId);
+      const resolvedVersionNumber =
+        normalizeVersionNumber(options?.versionNumber) ??
+        normalizeVersionNumber(entry.versionNumber) ??
+        null;
+      const resolvedVersionKind = options?.versionKind || entry.versionKind;
+      const resolvedOutputImageUrl =
+        normalizeText(options?.outputImageUrl) ||
+        normalizeText(entry.outputImageUrl) ||
+        normalizeText(entry.previewUrl) ||
+        null;
+      const resolvedOutputPdfUrl =
+        normalizeText(options?.outputPdfUrl) ||
+        normalizeText(entry.outputPdfUrl) ||
+        null;
+
+      const nextDesignExport =
+        entry.designExport && typeof entry.designExport === 'object'
+          ? {
+              ...entry.designExport,
+              ...(resolvedRecordId
+                ? {
+                    labelVersionRecordId: resolvedRecordId,
+                    label_version_record_id: resolvedRecordId,
+                  }
+                : {}),
+              ...(resolvedVersionNumber
+                ? {
+                    versionNumber: resolvedVersionNumber,
+                    version_number: resolvedVersionNumber,
+                  }
+                : {}),
+              ...(resolvedOutputImageUrl ? { outputImageUrl: resolvedOutputImageUrl } : {}),
+              ...(resolvedOutputPdfUrl ? { outputPdfUrl: resolvedOutputPdfUrl } : {}),
+            }
+          : entry.designExport;
+
+      const nextEntry: LabelHistoryEntry = {
+        ...entry,
+        labelVersionRecordId: resolvedRecordId,
+        versionNumber: resolvedVersionNumber,
+        versionKind: resolvedVersionKind,
+        outputImageUrl: resolvedOutputImageUrl,
+        outputPdfUrl: resolvedOutputPdfUrl,
+        designExport: nextDesignExport,
+      };
+      list[entryIndex] = nextEntry;
+
       const nextSelection: SelectedLabelVersion = {
-        historyId: entry.id,
-        recordId: entry.labelVersionRecordId,
+        historyId: nextEntry.id,
+        recordId: nextEntry.labelVersionRecordId,
         designSide: side,
-        versionNumber: entry.versionNumber,
-        versionKind: entry.versionKind,
-        outputImageUrl: entry.outputImageUrl || entry.previewUrl || null,
-        outputPdfUrl: entry.outputPdfUrl,
+        versionNumber: nextEntry.versionNumber,
+        versionKind: nextEntry.versionKind,
+        outputImageUrl: nextEntry.outputImageUrl || nextEntry.previewUrl || null,
+        outputPdfUrl: nextEntry.outputPdfUrl,
         selectedAt: options?.selectedAt || new Date().toISOString(),
         source: String(options?.source || 'label-history').trim() || 'label-history',
       };
       return {
-        labelDesigns: { ...state.labelDesigns, [side]: entry.designExport },
+        labelDesigns: { ...state.labelDesigns, [side]: nextEntry.designExport },
+        labelHistory: { ...state.labelHistory, [side]: list },
         selectedHistoryId: { ...state.selectedHistoryId, [side]: id },
         selectedLabelVersions: { ...state.selectedLabelVersions, [side]: nextSelection },
       };
@@ -320,7 +399,7 @@ export const useOrderStore = create<OrderState>((set, get) => ({
       };
     }),
 
-  setFromUploadDesign: ({ order: parentOrder, designSide, designExport }) => {
+  setFromUploadDesign: ({ order: parentOrder, designSide, designExport, preserveHistory = false }) => {
     // 1) persist design
     set((state) => ({ labelDesigns: { ...state.labelDesigns, [designSide]: designExport } }));
 
@@ -346,9 +425,13 @@ export const useOrderStore = create<OrderState>((set, get) => ({
         ? {
           order: merged,
           labelDesigns: { front: null, back: null, [designSide]: designExport } as LabelDesigns,
-          labelHistory: { front: [], back: [] },
-          selectedHistoryId: { front: null, back: null },
-          selectedLabelVersions: { front: null, back: null },
+          ...(preserveHistory
+            ? {}
+            : {
+                labelHistory: { front: [], back: [] },
+                selectedHistoryId: { front: null, back: null },
+                selectedLabelVersions: { front: null, back: null },
+              }),
         }
         : { order: merged };
     });
