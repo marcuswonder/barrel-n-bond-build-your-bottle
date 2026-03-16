@@ -1042,6 +1042,16 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
         pushCandidate(`${origin}/.netlify/functions/select-label-version`);
       });
 
+      console.info('[trace:s3:zakeke-full:version-select:persist:start]', {
+        sessionId: payload.sessionId,
+        designSide: payload.designSide,
+        labelVersionRecordId: payload.labelVersionRecordId,
+        outputImageUrl: payload.outputImageUrl,
+        outputPdfUrl: payload.outputPdfUrl,
+        source: payload.source,
+        endpointCandidates,
+      });
+
       for (const endpoint of endpointCandidates) {
         try {
           const response = await fetch(endpoint, {
@@ -1052,6 +1062,13 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
           });
 
           if (response.ok) {
+            console.info('[trace:s3:zakeke-full:version-select:persist:success]', {
+              endpoint,
+              sessionId: payload.sessionId,
+              designSide: payload.designSide,
+              labelVersionRecordId: payload.labelVersionRecordId,
+              outputImageUrl: payload.outputImageUrl,
+            });
             return true;
           }
 
@@ -1075,6 +1092,9 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
 
       const selectedAt = new Date().toISOString();
       const sessionId = resolveSessionId();
+      const previousActiveVersion =
+        frontLabelHistory.find((entry: any) => entry.id === selectedFrontHistoryId) ||
+        (selectedFrontHistoryId ? null : frontLabelHistory[frontLabelHistory.length - 1] || null);
       const fallbackRecordIdByKey = frontLabelHistory.find((entry: any) =>
         entry?.id !== selectedVersion.id &&
         String(entry?.dedupeKey || '') &&
@@ -1105,9 +1125,33 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
         String(
           selectedVersion.outputPdfUrl ||
           selectedVersion.designExport?.outputPdfUrl ||
-          selectedVersion.designExport?.pdfUrl ||
+        selectedVersion.designExport?.pdfUrl ||
           ''
         ).trim() || null;
+      const previousOutputImageUrl =
+        String(
+          previousActiveVersion?.outputImageUrl ||
+          previousActiveVersion?.previewUrl ||
+          resolveDesignPreviewUrl(previousActiveVersion?.designExport) ||
+          ''
+        ).trim() || null;
+      console.info('[trace:s3:zakeke-full:version-select:apply]', {
+        sessionId,
+        previousHistoryId: previousActiveVersion?.id || null,
+        previousRecordId: resolveLabelVersionRecordId(
+          previousActiveVersion?.labelVersionRecordId,
+          previousActiveVersion?.designExport?.labelVersionRecordId,
+          previousActiveVersion?.designExport?.label_version_record_id,
+          previousActiveVersion?.designExport?.recordId,
+          previousActiveVersion?.designExport?.record_id
+        ),
+        previousOutputImageUrl,
+        targetHistoryId: selectedVersion.id,
+        targetRecordId: selectedRecordId,
+        targetOutputImageUrl: outputImageUrl,
+        targetOutputPdfUrl: outputPdfUrl,
+        targetDedupeKey: selectedVersion?.dedupeKey || null,
+      });
       if (!selectedRecordId && outputImageUrl) {
         const matchedHistoryEntry = [...frontLabelHistory]
           .reverse()
@@ -1208,6 +1252,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
       productObject.selections.label,
       productObject.selections.closureExtras,
       persistSelectedLabelVersion,
+      selectedFrontHistoryId,
     ]);
 
 
@@ -1654,6 +1699,41 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
           } = e.data.message || {};
           const resolvedSide: 'front' | 'back' = String(designSide).toLowerCase() === 'back' ? 'back' : 'front';
           const safeDesignExport = compactDesignExport(designExport || {}, resolvedSide);
+          const storeBeforeUploadApply = useOrderStore.getState();
+          const previousAppliedDesign = (storeBeforeUploadApply.labelDesigns as any)?.[resolvedSide] || null;
+          const previousAppliedOutputImageUrl =
+            String(
+              previousAppliedDesign?.outputImageUrl ||
+              previousAppliedDesign?.frontS3Url ||
+              previousAppliedDesign?.backS3Url ||
+              previousAppliedDesign?.s3url ||
+              previousAppliedDesign?.url ||
+              resolveDesignPreviewUrl(previousAppliedDesign) ||
+              ''
+            ).trim() || null;
+          const incomingOutputImageUrl =
+            String(
+              safeDesignExport?.outputImageUrl ||
+              safeDesignExport?.frontS3Url ||
+              safeDesignExport?.backS3Url ||
+              safeDesignExport?.s3url ||
+              safeDesignExport?.url ||
+              ''
+            ).trim() || null;
+          console.info('[trace:s3:zakeke-full:uploadDesign:received]', {
+            designSide: resolvedSide,
+            fromHistorySelection,
+            skipVersionPersistence,
+            previousAppliedOutputImageUrl,
+            incomingOutputImageUrl,
+            incomingOutputS3Key: safeDesignExport?.outputS3Key || null,
+            incomingRecordId: resolveLabelVersionRecordId(
+              safeDesignExport?.labelVersionRecordId,
+              safeDesignExport?.label_version_record_id,
+              safeDesignExport?.recordId,
+              safeDesignExport?.record_id
+            ),
+          });
           const resolvedLabelVersionRecordId = resolveLabelVersionRecordId(
             safeDesignExport?.labelVersionRecordId,
             safeDesignExport?.label_version_record_id,
@@ -1765,6 +1845,31 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                 const historyDedupeKey =
                   String(labelPersistence.labelVersionRecordId || '').trim() ||
                   `front:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`;
+                const snapshotBeforeFrontPush = useOrderStore.getState();
+                const previousFrontHistoryEntry =
+                  snapshotBeforeFrontPush.labelHistory.front[snapshotBeforeFrontPush.labelHistory.front.length - 1] || null;
+                console.info('[trace:s3:zakeke-full:initial-save:front:before-push]', {
+                  previousHistoryId: previousFrontHistoryEntry?.id || null,
+                  previousRecordId: resolveLabelVersionRecordId(
+                    previousFrontHistoryEntry?.labelVersionRecordId,
+                    previousFrontHistoryEntry?.designExport?.labelVersionRecordId,
+                    previousFrontHistoryEntry?.designExport?.label_version_record_id,
+                    previousFrontHistoryEntry?.designExport?.recordId,
+                    previousFrontHistoryEntry?.designExport?.record_id
+                  ),
+                  previousOutputImageUrl:
+                    previousFrontHistoryEntry?.outputImageUrl ||
+                    previousFrontHistoryEntry?.previewUrl ||
+                    resolveDesignPreviewUrl(previousFrontHistoryEntry?.designExport) ||
+                    null,
+                  nextOutputImageUrl: labelPersistence.outputImageUrl,
+                  nextOutputS3Url: labelPersistence.outputS3Url,
+                  nextOutputS3Key: labelPersistence.outputS3Key,
+                  nextRecordId: labelPersistence.labelVersionRecordId,
+                  nextVersionKind: labelPersistence.versionKind,
+                  nextVersionNumber: labelPersistence.versionNumber,
+                  historyDedupeKey,
+                });
 
                 pushLabelHistory({
                   side: 'front',
@@ -1785,6 +1890,22 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                 const persistedFrontHistoryId = frontStoreSnapshot.selectedHistoryId.front;
                 const persistedFrontHistoryEntry =
                   frontStoreSnapshot.labelHistory.front.find((entry: any) => entry.id === persistedFrontHistoryId) || null;
+                console.info('[trace:s3:zakeke-full:initial-save:front:after-push]', {
+                  selectedHistoryId: persistedFrontHistoryId || null,
+                  selectedRecordId: resolveLabelVersionRecordId(
+                    persistedFrontHistoryEntry?.labelVersionRecordId,
+                    persistedFrontHistoryEntry?.designExport?.labelVersionRecordId,
+                    persistedFrontHistoryEntry?.designExport?.label_version_record_id,
+                    persistedFrontHistoryEntry?.designExport?.recordId,
+                    persistedFrontHistoryEntry?.designExport?.record_id
+                  ),
+                  selectedOutputImageUrl:
+                    persistedFrontHistoryEntry?.outputImageUrl ||
+                    persistedFrontHistoryEntry?.previewUrl ||
+                    resolveDesignPreviewUrl(persistedFrontHistoryEntry?.designExport) ||
+                    null,
+                  historyLength: frontStoreSnapshot.labelHistory.front.length,
+                });
                 const labelAddedPayload = {
                   'order': {
                     'bottle': productObject.selections.bottle,
@@ -1864,6 +1985,31 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                 const historyDedupeKey =
                   String(labelPersistence.labelVersionRecordId || '').trim() ||
                   `back:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`;
+                const snapshotBeforeBackPush = useOrderStore.getState();
+                const previousBackHistoryEntry =
+                  snapshotBeforeBackPush.labelHistory.back[snapshotBeforeBackPush.labelHistory.back.length - 1] || null;
+                console.info('[trace:s3:zakeke-full:initial-save:back:before-push]', {
+                  previousHistoryId: previousBackHistoryEntry?.id || null,
+                  previousRecordId: resolveLabelVersionRecordId(
+                    previousBackHistoryEntry?.labelVersionRecordId,
+                    previousBackHistoryEntry?.designExport?.labelVersionRecordId,
+                    previousBackHistoryEntry?.designExport?.label_version_record_id,
+                    previousBackHistoryEntry?.designExport?.recordId,
+                    previousBackHistoryEntry?.designExport?.record_id
+                  ),
+                  previousOutputImageUrl:
+                    previousBackHistoryEntry?.outputImageUrl ||
+                    previousBackHistoryEntry?.previewUrl ||
+                    resolveDesignPreviewUrl(previousBackHistoryEntry?.designExport) ||
+                    null,
+                  nextOutputImageUrl: labelPersistence.outputImageUrl,
+                  nextOutputS3Url: labelPersistence.outputS3Url,
+                  nextOutputS3Key: labelPersistence.outputS3Key,
+                  nextRecordId: labelPersistence.labelVersionRecordId,
+                  nextVersionKind: labelPersistence.versionKind,
+                  nextVersionNumber: labelPersistence.versionNumber,
+                  historyDedupeKey,
+                });
 
                 pushLabelHistory({
                   side: 'back',
@@ -1884,6 +2030,22 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                 const persistedBackHistoryId = backStoreSnapshot.selectedHistoryId.back;
                 const persistedBackHistoryEntry =
                   backStoreSnapshot.labelHistory.back.find((entry: any) => entry.id === persistedBackHistoryId) || null;
+                console.info('[trace:s3:zakeke-full:initial-save:back:after-push]', {
+                  selectedHistoryId: persistedBackHistoryId || null,
+                  selectedRecordId: resolveLabelVersionRecordId(
+                    persistedBackHistoryEntry?.labelVersionRecordId,
+                    persistedBackHistoryEntry?.designExport?.labelVersionRecordId,
+                    persistedBackHistoryEntry?.designExport?.label_version_record_id,
+                    persistedBackHistoryEntry?.designExport?.recordId,
+                    persistedBackHistoryEntry?.designExport?.record_id
+                  ),
+                  selectedOutputImageUrl:
+                    persistedBackHistoryEntry?.outputImageUrl ||
+                    persistedBackHistoryEntry?.previewUrl ||
+                    resolveDesignPreviewUrl(persistedBackHistoryEntry?.designExport) ||
+                    null,
+                  historyLength: backStoreSnapshot.labelHistory.back.length,
+                });
                 const labelAddedPayload = {
                   'order': {
                     'bottle': productObject.selections.bottle,
