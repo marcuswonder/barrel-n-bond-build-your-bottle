@@ -1216,7 +1216,16 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
           message: selectionPayload
         });
 
-        void persistSelectedLabelVersion(selectionPayload);
+        let shouldAttemptDirectPersistence = false;
+        try {
+          shouldAttemptDirectPersistence = window.self === window.top;
+        } catch {
+          shouldAttemptDirectPersistence = false;
+        }
+
+        if (shouldAttemptDirectPersistence) {
+          void persistSelectedLabelVersion(selectionPayload);
+        }
       } else {
         console.warn('[labelVersionSelected] skipped: missing labelVersionRecordId for selected history item', {
           historyId: selectedVersion.id,
