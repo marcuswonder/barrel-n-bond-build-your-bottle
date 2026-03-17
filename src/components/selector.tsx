@@ -74,6 +74,7 @@ import { resolveParentMessagingConfig } from '../utils/postMessage';
 
 
 type AppMode = 'full' | 'lite';
+type LabelMode = 'form' | 'guided' | 'upload';
 
 const normalizebottleName = (value: string) =>
   value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '');
@@ -345,7 +346,8 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
     const [isSelecting, setIsSelecting] = useState(false);
     const selectGuardTimerRef = useRef<number | null>(null);
     const [isInitialUiReady, setIsInitialUiReady] = useState(false);
-    const [labelMode, setLabelMode] = useState<'form' | 'guided' | 'upload'>('form');
+    const [labelMode, setLabelMode] = useState<LabelMode>('form');
+    const [lockedLabelMode, setLockedLabelMode] = useState<LabelMode | null>(null);
     const [ignoreAddToCartLoading, setIgnoreAddToCartLoading] = useState(false);
 
     useEffect(() => {
@@ -402,7 +404,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
       hasCharacterPermission: boolean;
     };
 
-    const [labelForm, setLabelForm] = useState<LabelFormState>({
+    const getEmptyLabelForm = (): LabelFormState => ({
       title: '',
       prompt: '',
       primaryColor: '',
@@ -411,6 +413,8 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
       logoFile: null,
       hasCharacterPermission: false,
     });
+
+    const [labelForm, setLabelForm] = useState<LabelFormState>(getEmptyLabelForm);
     const [uploadLabelFile, setUploadLabelFile] = useState<File | null>(null);
     const uploadLabelInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -448,37 +452,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
       complexity: string;
     };
 
-    const [wizardStepIndex, setWizardStepIndex] = useState(0);
-    const [wizardStarted, setWizardStarted] = useState(false);
-    const [guidedPromptConfirmed, setGuidedPromptConfirmed] = useState(false);
-    const [guidedGenerating, setGuidedGenerating] = useState(false);
-    const [guidedEditMode, setGuidedEditMode] = useState(false);
-    const [guidedEditNotes, setGuidedEditNotes] = useState('');
-    const [reviewImagesVisible, setReviewImagesVisible] = useState(false);
-    const [isPromptGenerating, setIsPromptGenerating] = useState(false);
-    const [promptError, setPromptError] = useState(false);
-    const [labelError, setLabelError] = useState(false);
-    const [promptLoadingIndex, setPromptLoadingIndex] = useState(0);
-    const [labelLoadingIndex, setLabelLoadingIndex] = useState(0);
-    const [isUploadDesignApplying, setIsUploadDesignApplying] = useState(false);
-    const [pendingFinalCameraTarget, setPendingFinalCameraTarget] = useState<string | null>(null);
-    const [labelRequestKind, setLabelRequestKind] = useState<'create' | 'edit' | 'uploadLater' | null>(null);
-    const [activeDesignSide, setActiveDesignSide] = useState<'front' | 'back'>('front');
-    const [loadedLabelPreviewUrl, setLoadedLabelPreviewUrl] = useState('');
-    const [labelPreviewLoadMode, setLabelPreviewLoadMode] = useState<'none' | 'loaded' | 'fallback'>('none');
-    const [showLoadedLabelPreview, setShowLoadedLabelPreview] = useState(false);
-    const [hideLabelTabs, setHideLabelTabs] = useState(false);
-    const [promptOverride, setPromptOverride] = useState('');
-    const [hideLabelHistory, setHideLabelHistory] = useState(false);
-
-    useEffect(() => {
-      const sessionFromLocation = resolveSessionIdFromLocation();
-      if (!sessionFromLocation) return;
-      const existing = String(sessionStorage.getItem('ss_session_id') || '').trim();
-      if (existing) return;
-      sessionStorage.setItem('ss_session_id', sessionFromLocation);
-    }, []);
-    const [labelWizard, setLabelWizard] = useState<LabelWizardState>({
+    const getEmptyLabelWizard = (): LabelWizardState => ({
       outputGoal: '',
       theme: '',
       themeOther: '',
@@ -511,6 +485,38 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
       labelTextSpace: '',
       complexity: '',
     });
+
+    const [wizardStepIndex, setWizardStepIndex] = useState(0);
+    const [wizardStarted, setWizardStarted] = useState(false);
+    const [guidedPromptConfirmed, setGuidedPromptConfirmed] = useState(false);
+    const [guidedGenerating, setGuidedGenerating] = useState(false);
+    const [guidedEditMode, setGuidedEditMode] = useState(false);
+    const [guidedEditNotes, setGuidedEditNotes] = useState('');
+    const [reviewImagesVisible, setReviewImagesVisible] = useState(false);
+    const [isPromptGenerating, setIsPromptGenerating] = useState(false);
+    const [promptError, setPromptError] = useState(false);
+    const [labelError, setLabelError] = useState(false);
+    const [promptLoadingIndex, setPromptLoadingIndex] = useState(0);
+    const [labelLoadingIndex, setLabelLoadingIndex] = useState(0);
+    const [isUploadDesignApplying, setIsUploadDesignApplying] = useState(false);
+    const [pendingFinalCameraTarget, setPendingFinalCameraTarget] = useState<string | null>(null);
+    const [labelRequestKind, setLabelRequestKind] = useState<'create' | 'edit' | 'uploadLater' | null>(null);
+    const [activeDesignSide, setActiveDesignSide] = useState<'front' | 'back'>('front');
+    const [loadedLabelPreviewUrl, setLoadedLabelPreviewUrl] = useState('');
+    const [labelPreviewLoadMode, setLabelPreviewLoadMode] = useState<'none' | 'loaded' | 'fallback'>('none');
+    const [showLoadedLabelPreview, setShowLoadedLabelPreview] = useState(false);
+    const [hideLabelTabs, setHideLabelTabs] = useState(false);
+    const [promptOverride, setPromptOverride] = useState('');
+    const [hideLabelHistory, setHideLabelHistory] = useState(true);
+
+    useEffect(() => {
+      const sessionFromLocation = resolveSessionIdFromLocation();
+      if (!sessionFromLocation) return;
+      const existing = String(sessionStorage.getItem('ss_session_id') || '').trim();
+      if (existing) return;
+      sessionStorage.setItem('ss_session_id', sessionFromLocation);
+    }, []);
+    const [labelWizard, setLabelWizard] = useState<LabelWizardState>(getEmptyLabelWizard);
 
     useEffect(() => {
       if (!labelForm.title.trim()) {
@@ -1008,6 +1014,17 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
       [frontLabelHistory, selectedFrontHistoryId]
     );
     const showLabelHistoryCarousel = isAiLabelMode && frontLabelHistory.length > 1;
+    const isLabelModeLocked = lockedLabelMode !== null;
+    const prevFrontHistoryLengthRef = useRef(frontLabelHistory.length);
+
+    useEffect(() => {
+      const previousLength = prevFrontHistoryLengthRef.current;
+      const currentLength = frontLabelHistory.length;
+      if (currentLength > previousLength && currentLength > 1) {
+        setHideLabelHistory(true);
+      }
+      prevFrontHistoryLengthRef.current = currentLength;
+    }, [frontLabelHistory.length]);
 
     const persistSelectedLabelVersion = useCallback(async (payload: {
       sessionId: string;
@@ -1566,6 +1583,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
           e.data?.customMessageType === 'resetAddToCartLoading'
         ) {
           setIgnoreAddToCartLoading(true);
+          setHideLabelHistory(true);
           return;
         }
 
@@ -2481,19 +2499,31 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
     //   return hit?.id ?? null;
     // };
 
+    const lockLabelMode = (mode: LabelMode) => {
+      setLockedLabelMode((prev) => prev ?? mode);
+    };
+
+    const handleLabelModeSelect = (mode: LabelMode) => {
+      if (lockedLabelMode && lockedLabelMode !== mode) return;
+      setLabelMode(mode);
+    };
+
     const handleLabelFieldChange = (
       key: 'title' | 'prompt' | 'primaryColor' | 'secondaryColor'
     ) => (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
       const value = event.target.value;
+      lockLabelMode(labelMode);
       setLabelForm((prev) => ({ ...prev, [key]: value }));
     };
 
     const handleLabelCheckboxChange = (event: React.ChangeEvent<HTMLInputElement>) => {
       const checked = event.target.checked;
+      lockLabelMode(labelMode);
       setLabelForm((prev) => ({ ...prev, hasCharacterPermission: checked }));
     };
 
     const setWizardField = <K extends keyof LabelWizardState>(key: K, value: LabelWizardState[K]) => {
+      lockLabelMode('guided');
       setLabelWizard((prev) => ({ ...prev, [key]: value }));
     };
 
@@ -2510,6 +2540,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
       key: 'characterFile' | 'logoFile'
     ) => (event: React.ChangeEvent<HTMLInputElement>) => {
       const file = event.target.files?.[0] ?? null;
+      lockLabelMode(labelMode);
       setLabelForm((prev) => ({ ...prev, [key]: file }));
     };
 
@@ -2524,6 +2555,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
 
     const handleUploadLabelFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
       const file = event.target.files?.[0] ?? null;
+      lockLabelMode('upload');
       setUploadLabelFile(file);
     };
 
@@ -2534,7 +2566,39 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
       }
     };
 
+    const resetLabelDesignerFlow = () => {
+      postToParent({
+        customMessageType: 'labelReset',
+        message: {
+          designSide: activeDesignSide,
+          sessionId:
+            sessionStorage.getItem('ss_session_id') ||
+            (window as any).SS?.getSessionId?.() ||
+            String(Date.now()),
+        },
+      });
+      setLabelForm(getEmptyLabelForm());
+      setLabelWizard(getEmptyLabelWizard());
+      setWizardStepIndex(0);
+      setWizardStarted(false);
+      setGuidedPromptConfirmed(false);
+      setGuidedGenerating(false);
+      setReviewImagesVisible(false);
+      setIsPromptGenerating(false);
+      setPromptOverride('');
+      setPromptError(false);
+      setLabelError(false);
+      setGuidedEditMode(false);
+      setGuidedEditNotes('');
+      setIsUploadDesignApplying(false);
+      setLabelRequestKind(null);
+      setHideLabelTabs(false);
+      setLockedLabelMode(null);
+      resetUploadLabelForm();
+    };
+
     const handleUploadLabelLater = async () => {
+      lockLabelMode('upload');
       if (!canDesign) {
         setWarning(`Please select ${requireBottle ? 'a bottle, ' : ''}a liquid and a closure before designing labels.`);
         return;
@@ -2582,6 +2646,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
     };
 
     const handleUploadLabelSubmit = async () => {
+      lockLabelMode('upload');
       if (!uploadLabelFile) return;
       if (!canDesign) {
         setWarning(`Please select ${requireBottle ? 'a bottle, ' : ''}a liquid and a closure before designing labels.`);
@@ -2704,6 +2769,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
     };
 
     const handleGenerateLabel = async (options: { confirmGuidedPrompt?: boolean } = {}) => {
+      lockLabelMode(labelMode);
       if (!canDesign) {
         setWarning(`Please select ${requireBottle ? 'a bottle, ' : ''}a liquid and a closure before designing labels.`);
         return;
@@ -2777,6 +2843,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
     };
 
     const handleSendRevision = (critique: string) => {
+      lockLabelMode('guided');
       const trimmed = (critique || '').trim();
       if (!trimmed) {
         setWarning('Please enter revision notes.');
@@ -2842,6 +2909,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
     };
 
     const handleGeneratePromptViaShopify = () => {
+      lockLabelMode('guided');
       setPromptError(false);
       setIsPromptGenerating(true);
       const payload = {
@@ -3405,29 +3473,47 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
             {onLabelStep && (
               <LabelDesignWrap>
                   {!hideLabelTabs ? (
-                    <LabelTabs>
-                      <LabelTabButton
-                        type="button"
-                        $active={labelMode === 'form'}
-                        onClick={() => setLabelMode('form')}
-                      >
-                        Prompt AI
-                      </LabelTabButton>
-                      <LabelTabButton
-                        type="button"
-                        $active={labelMode === 'guided'}
-                        onClick={() => setLabelMode('guided')}
-                      >
-                        Guided AI Prompt
-                      </LabelTabButton>
-                      <LabelTabButton
-                        type="button"
-                        $active={labelMode === 'upload'}
-                        onClick={() => setLabelMode('upload')}
-                      >
-                        UPLOAD LABEL
-                      </LabelTabButton>
-                    </LabelTabs>
+                    <WizardHeader>
+                      <WizardHeaderSide />
+                      <LabelTabs>
+                        <LabelTabButton
+                          type="button"
+                          $active={labelMode === 'form'}
+                          disabled={isLabelModeLocked && lockedLabelMode !== 'form'}
+                          onClick={() => handleLabelModeSelect('form')}
+                        >
+                          Prompt AI
+                        </LabelTabButton>
+                        <LabelTabButton
+                          type="button"
+                          $active={labelMode === 'guided'}
+                          disabled={isLabelModeLocked && lockedLabelMode !== 'guided'}
+                          onClick={() => handleLabelModeSelect('guided')}
+                        >
+                          Guided AI Prompt
+                        </LabelTabButton>
+                        <LabelTabButton
+                          type="button"
+                          $active={labelMode === 'upload'}
+                          disabled={isLabelModeLocked && lockedLabelMode !== 'upload'}
+                          onClick={() => handleLabelModeSelect('upload')}
+                        >
+                          UPLOAD LABEL
+                        </LabelTabButton>
+                      </LabelTabs>
+                      <WizardHeaderSide $align="right">
+                        {isLabelModeLocked && (
+                          <RestartButton
+                            type="button"
+                            aria-label="Reset label design form"
+                            data-tooltip="Reset"
+                            onClick={resetLabelDesignerFlow}
+                          >
+                            <span className="material-symbols-outlined">replay</span>
+                          </RestartButton>
+                        )}
+                      </WizardHeaderSide>
+                    </WizardHeader>
                   ) : null}
 
                 <LabelForm onSubmit={(event) => event.preventDefault()}>
@@ -3502,6 +3588,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                               type="button"
                               disabled={!labelForm.title.trim()}
                               onClick={() => {
+                                lockLabelMode('guided');
                                 setWizardStarted(true);
                                 setWizardStepIndex(0);
                               }}
@@ -3656,68 +3743,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                                         type="button"
                                         aria-label="Reset"
                                         data-tooltip="Reset"
-                                        onClick={() => {
-                                          postToParent({
-                                            customMessageType: 'labelReset',
-                                            message: {
-                                              designSide: activeDesignSide,
-                                              sessionId:
-                                                sessionStorage.getItem('ss_session_id') ||
-                                                (window as any).SS?.getSessionId?.() ||
-                                                String(Date.now()),
-                                            },
-                                          });
-                                          setLabelForm({
-                                            title: '',
-                                            prompt: '',
-                                            primaryColor: '',
-                                            secondaryColor: '',
-                                            characterFile: null,
-                                            logoFile: null,
-                                            hasCharacterPermission: false,
-                                          });
-                                          setLabelWizard({
-                                            outputGoal: '',
-                                            theme: '',
-                                            themeOther: '',
-                                            subTheme: '',
-                                            settingType: '',
-                                            settingSpecific: '',
-                                            backgroundDepth: '',
-                                            compositionLayout: '',
-                                            framing: '',
-                                            mainSubjectType: '',
-                                            mainSubjectTypeOther: '',
-                                            mainSubject: '',
-                                            mainSubjectOther: '',
-                                            mainStyling: [],
-                                            supportingCount: '',
-                                            supportingType: '',
-                                            action: '',
-                                            actionOther: '',
-                                            energy: '',
-                                            styleFamily: '',
-                                            styleFamilyOther: '',
-                                            styleSubtype: '',
-                                            texture: '',
-                                            lighting: '',
-                                            paletteMode: '',
-                                            paletteVibe: '',
-                                            paletteVibeOther: '',
-                                            accentCount: '',
-                                            accents: [],
-                                            labelTextSpace: '',
-                                            complexity: '',
-                                          });
-                                          setWizardStepIndex(0);
-                                          setWizardStarted(false);
-                                          setGuidedPromptConfirmed(false);
-                                          setGuidedGenerating(false);
-                                          setReviewImagesVisible(false);
-                                          setIsPromptGenerating(false);
-                                          setPromptOverride('');
-                                          setHideLabelTabs(false);
-                                        }}
+                                        onClick={resetLabelDesignerFlow}
                                       >
                                         <span className="material-symbols-outlined">replay</span>
                                       </RestartButton>
@@ -4115,12 +4141,12 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                         </button>
                         {showAddToCartButton && (
                           <button
-                            className="configurator-button guided-action save-order-button"
+                            className="configurator-button guided-action save-order-button edit-label-save-order-button"
                             type="button"
                             onClick={handleAddToCart}
                             disabled={isSaveOrderBusy}
                           >
-                            {isSaveOrderBusy ? <ClipLoader color="#FFFFFF" size={20} loading={true} /> : 'SAVE AND ORDER'}
+                            {isSaveOrderBusy ? <ClipLoader color="#111111" size={20} loading={true} /> : 'SAVE AND ORDER'}
                           </button>
                         )}
                       </GuidedActionRow>

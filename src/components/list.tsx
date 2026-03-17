@@ -549,6 +549,16 @@ export const LabelTabButton = styled.button<{ $active?: boolean }>`
   &:hover {
     border-color: #f42492;
   }
+
+  &:disabled {
+    opacity: 0.45;
+    border-color: #333;
+    cursor: not-allowed;
+  }
+
+  &:disabled:hover {
+    border-color: #333;
+  }
 `;
 
 export const LabelForm = styled.form`
@@ -1039,15 +1049,20 @@ export const WizardHeaderSide = styled.div<{ $align?: 'left' | 'right' }>`
 
 export const RestartButton = styled.button`
   background: transparent;
-  border: none;
+  border: 1px solid #fff;
+  border-radius: 999px;
   color: #fff;
-  width: 24px;
-  height: 24px;
+  width: 28px;
+  height: 28px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   padding: 0;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.08);
+  }
 
   span {
     font-size: 20px;
