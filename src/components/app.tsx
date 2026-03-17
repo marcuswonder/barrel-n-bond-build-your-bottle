@@ -37,6 +37,7 @@ function getBootstrapParameters(): Record<string, any> {
 
 type DragInputMode = 'touch' | 'mouse';
 type DragStep = 'down' | 'move' | 'up';
+type DragDirection = 'right' | 'left';
 
 const VIEWER_CANVAS_SELECTOR = "canvas[id^='zakeke-canvas-viewer3D-']";
 
@@ -217,6 +218,7 @@ const ViewerGestureOverlay = styled.div<{ $visible: boolean }>`
   inset: 0;
   z-index: 5;
   pointer-events: none;
+  background: transparent;
   opacity: ${({ $visible }) => ($visible ? 1 : 0)};
   transition: opacity 220ms ease;
 `;
@@ -351,7 +353,7 @@ const ViewerGestureHint: FunctionComponent<{ stageRef: React.RefObject<HTMLDivEl
     });
   }, []);
 
-  const playSingleDrag = useCallback((canvas: HTMLCanvasElement): Promise<void> => {
+  const playSingleDrag = useCallback((canvas: HTMLCanvasElement, direction: DragDirection): Promise<void> => {
     return new Promise((resolve) => {
       const stage = stageRef.current;
       if (!stage || isStoppedRef.current) {
@@ -362,8 +364,10 @@ const ViewerGestureHint: FunctionComponent<{ stageRef: React.RefObject<HTMLDivEl
       const mode = resolveInputMode();
       const bounds = stage.getBoundingClientRect();
       const touchY = bounds.height * 0.58;
-      const startX = bounds.width * 0.33;
-      const endX = bounds.width * 0.67;
+      const centerX = bounds.width * 0.5;
+      const dragDistance = bounds.width * 0.14;
+      const startX = direction === 'right' ? centerX - dragDistance : centerX + dragDistance;
+      const endX = direction === 'right' ? centerX + dragDistance : centerX - dragDistance;
 
       setInputMode(mode);
       setCursorPoint({ x: startX, y: touchY });
@@ -409,9 +413,10 @@ const ViewerGestureHint: FunctionComponent<{ stageRef: React.RefObject<HTMLDivEl
 
     setIsVisible(true);
 
-    for (let i = 0; i < 2; i += 1) {
+    const directions: DragDirection[] = ['right', 'left'];
+    for (const direction of directions) {
       if (isStoppedRef.current) return;
-      await playSingleDrag(canvas);
+      await playSingleDrag(canvas, direction);
       if (isStoppedRef.current) return;
       await wait(260);
     }
