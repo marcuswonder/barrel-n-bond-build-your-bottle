@@ -8,7 +8,7 @@ export const optionNotes: Record<string, Record<string, string>> = {
     },
     liquids: {
         "Contemporary Gin": "This gin is a citrus-led contemporary spirit that swaps heavy pine notes for the bright, zingy punch of lemongrass and fresh citrus peels. A warm backbone of cardamom and cassia keeps it spicy and balanced, making it much more aromatic and approachable than a traditional gin.",
-        "Classic Gin": "This is a robust, traditional gin where the piney punch of juniper is instantly met by the warm, peppery bite of cardamom and cassia. It finishes with a clean, citrus snap from the lemon and orange peels, making it the perfect partner for a bitter tonic.",
+        "Classic Gin": "This is a robust, traditional London Dry gin where the piney punch of juniper is instantly met by the warm, peppery bite of cardamom and cassia. It finishes with a clean, citrus snap from the lemon and orange peels, making it the perfect partner for a bitter tonic.",
         "Citrus Gin": "This is a high-energy gin defined by the electric zing of Kaffir lime and fresh lemongrass. It’s ultra-crisp, swapping heavy pine for a bright, aromatic citrus punch.",
         "Pink Gin": "This pink gin presents a light and delicate profile, starting with bright juniper that's beautifully softened by the gentle sweetness of blueberries and rhubarb. It’s rounded off with refreshing citrus notes of orange and lemon, adding a vibrant zing to the finish.",
         "Wild Berry Gin": "This gin features a smooth juniper-forward profile enhanced by layers of creamy lemon myrtle and peppermint bark, complemented by warming spices. The experience concludes with a subtle richness from forest berries and cherries, adding depth and complexity to each sip.",
