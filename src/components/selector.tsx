@@ -509,6 +509,15 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
     const [hideLabelTabs, setHideLabelTabs] = useState(false);
     const [promptOverride, setPromptOverride] = useState('');
     const [hideLabelHistory, setHideLabelHistory] = useState(true);
+    const correlationCounterRef = useRef(0);
+    const resetTokenBySideRef = useRef<{ front: string | null; back: string | null }>({
+      front: null,
+      back: null,
+    });
+    const activeRequestTokenBySideRef = useRef<{ front: string | null; back: string | null }>({
+      front: null,
+      back: null,
+    });
 
     useEffect(() => {
       const sessionFromLocation = resolveSessionIdFromLocation();
@@ -609,6 +618,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
       pushLabelHistory,
       selectLabelHistory,
       patchLabelHistoryEntry,
+      clearLabelHistory,
       closureChoices,
       setClosureWood,
       setClosureWax
@@ -971,6 +981,36 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
       console.warn('[Configurator warning]', msg);
     };
 
+    const createCorrelationToken = useCallback(
+      (prefix: string, side: 'front' | 'back') => {
+        correlationCounterRef.current += 1;
+        return `${prefix}:${side}:${Date.now()}:${correlationCounterRef.current}`;
+      },
+      []
+    );
+
+    const getResetTokenForSide = useCallback((side: 'front' | 'back') => (
+      resetTokenBySideRef.current[side]
+    ), []);
+
+    const setResetTokenForSide = useCallback((side: 'front' | 'back', token: string | null) => {
+      resetTokenBySideRef.current[side] = token;
+    }, []);
+
+    const beginSideRequest = useCallback(
+      (side: 'front' | 'back', incomingToken?: unknown) => {
+        const provided = String(incomingToken || '').trim() || null;
+        const nextToken = provided || createCorrelationToken('request', side);
+        activeRequestTokenBySideRef.current[side] = nextToken;
+        return nextToken;
+      },
+      [createCorrelationToken]
+    );
+
+    const clearSideRequest = useCallback((side: 'front' | 'back') => {
+      activeRequestTokenBySideRef.current[side] = null;
+    }, []);
+
     const requireBottle = !isLiteMode;
     const hasSelectionInStep = (stepIdx: number) => {
       const step = steps[stepIdx];
@@ -1268,6 +1308,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
             designExport: selectedVersion.designExport,
             fromHistorySelection: true,
             skipVersionPersistence: true,
+            resetToken: getResetTokenForSide('front'),
           },
         },
         window.location.origin
@@ -1282,6 +1323,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
       productObject.selections.closureExtras,
       persistSelectedLabelVersion,
       selectedFrontHistoryId,
+      getResetTokenForSide,
     ]);
 
 
@@ -1590,10 +1632,61 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
           return;
         }
 
+        if (e.data?.customMessageType === 'labelResetResult') {
+          const message = e.data?.message || {};
+          const resetSide: 'front' | 'back' =
+            String(message?.designSide || '').toLowerCase() === 'back' ? 'back' : 'front';
+          const incomingResetToken = String(message?.resetToken || '').trim() || null;
+          const currentResetToken = getResetTokenForSide(resetSide);
+          if (incomingResetToken && currentResetToken && incomingResetToken !== currentResetToken) {
+            console.info('[labelResetResult] ignored stale reset acknowledgement', {
+              resetSide,
+              incomingResetToken,
+              currentResetToken,
+            });
+            return;
+          }
+
+          if (incomingResetToken) {
+            setResetTokenForSide(resetSide, incomingResetToken);
+          }
+          clearSideRequest(resetSide);
+
+          if (!message?.ok) {
+            console.warn('[labelResetResult] reset lineage request failed', {
+              resetSide,
+              error: message?.error || null,
+              reason: message?.reason || null,
+            });
+          }
+          return;
+        }
+
         if (e.data?.customMessageType === 'labelVersionPersisted') {
           const message = e.data?.message || {};
           const persistedSide: 'front' | 'back' =
             String(message?.designSide || '').toLowerCase() === 'back' ? 'back' : 'front';
+          const persistedResetToken = String(message?.resetToken || '').trim() || null;
+          const persistedRequestToken = String(message?.requestToken || '').trim() || null;
+          const currentResetToken = getResetTokenForSide(persistedSide);
+          if (persistedResetToken && currentResetToken && persistedResetToken !== currentResetToken) {
+            console.info('[labelVersionPersisted] ignored stale reset token', {
+              persistedSide,
+              persistedResetToken,
+              currentResetToken,
+            });
+            return;
+          }
+          const activeRequestToken = activeRequestTokenBySideRef.current[persistedSide];
+          if (persistedRequestToken && activeRequestToken && persistedRequestToken !== activeRequestToken) {
+            console.info('[labelVersionPersisted] ignored stale request token', {
+              persistedSide,
+              persistedRequestToken,
+              activeRequestToken,
+            });
+            return;
+          }
+
           const persistedRecordId = resolveLabelVersionRecordId(
             message?.labelVersionRecordId,
             message?.label_version_record_id,
@@ -1665,6 +1758,9 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
             outputImageUrl: persistedOutputImageUrl,
             outputPdfUrl: persistedOutputPdfUrl,
           });
+          if (persistedRequestToken && activeRequestTokenBySideRef.current[persistedSide] === persistedRequestToken) {
+            clearSideRequest(persistedSide);
+          }
           return;
         }
 
@@ -1690,6 +1786,8 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                   order: parentOrder,
                   designSide: 'front',
                   designExport: frontDesign,
+                  skipVersionPersistence: true,
+                  resetToken: getResetTokenForSide('front'),
                 },
               },
               window.location.origin
@@ -1704,6 +1802,8 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                   order: parentOrder,
                   designSide: 'back',
                   designExport: backDesign,
+                  skipVersionPersistence: true,
+                  resetToken: getResetTokenForSide('back'),
                 },
               },
               window.location.origin
@@ -1722,13 +1822,42 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
             designSide,
             fromHistorySelection = false,
             skipVersionPersistence = false,
+            requestToken: incomingRequestTokenRaw,
+            resetToken: incomingResetTokenRaw,
             labelVersionRecordId: incomingLabelVersionRecordId,
             label_version_record_id: incomingLabelVersionRecordIdSnake,
             versionNumber: incomingVersionNumber,
             version_number: incomingVersionNumberSnake,
           } = e.data.message || {};
           const resolvedSide: 'front' | 'back' = String(designSide).toLowerCase() === 'back' ? 'back' : 'front';
+          const incomingRequestToken = String(incomingRequestTokenRaw || '').trim() || null;
+          const incomingResetToken = String(incomingResetTokenRaw || '').trim() || null;
+          const currentResetToken = getResetTokenForSide(resolvedSide);
+          if (incomingResetToken && currentResetToken && incomingResetToken !== currentResetToken) {
+            console.info('[uploadDesign] ignored stale reset token', {
+              resolvedSide,
+              incomingResetToken,
+              currentResetToken,
+            });
+            setIsUploadDesignApplying(false);
+            return;
+          }
+          const activeRequestToken = activeRequestTokenBySideRef.current[resolvedSide];
+          if (incomingRequestToken && activeRequestToken && incomingRequestToken !== activeRequestToken) {
+            console.info('[uploadDesign] ignored stale request token', {
+              resolvedSide,
+              incomingRequestToken,
+              activeRequestToken,
+            });
+            setIsUploadDesignApplying(false);
+            return;
+          }
+          if (incomingRequestToken) {
+            activeRequestTokenBySideRef.current[resolvedSide] = incomingRequestToken;
+          }
           const safeDesignExport = compactDesignExport(designExport || {}, resolvedSide);
+          const skipBootstrapPersistence =
+            String(safeDesignExport?.source || '').trim().toLowerCase() === 'studio-bootstrap';
           const storeBeforeUploadApply = useOrderStore.getState();
           const previousAppliedDesign = (storeBeforeUploadApply.labelDesigns as any)?.[resolvedSide] || null;
           const previousAppliedOutputImageUrl =
@@ -1754,6 +1883,9 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
             designSide: resolvedSide,
             fromHistorySelection,
             skipVersionPersistence,
+            skipBootstrapPersistence,
+            incomingRequestToken,
+            incomingResetToken,
             previousAppliedOutputImageUrl,
             incomingOutputImageUrl,
             incomingOutputS3Key: safeDesignExport?.outputS3Key || null,
@@ -1867,7 +1999,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                 setGuidedEditNotes('');
               }
               const labelPersistence = buildLabelPersistence('front', safeDesignExport);
-              if (!skipVersionPersistence && !fromHistorySelection) {
+              if (!skipVersionPersistence && !skipBootstrapPersistence && !fromHistorySelection) {
                 const persistedPreviewUrl =
                   labelPersistence.outputS3Url ||
                   labelPersistence.outputImageUrl ||
@@ -1949,6 +2081,8 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                   'productSku': product?.sku ?? null,
                   historyId: persistedFrontHistoryId || null,
                   dedupeKey: String(persistedFrontHistoryEntry?.dedupeKey || '').trim() || null,
+                  requestToken: incomingRequestToken,
+                  resetToken: incomingResetToken,
                   previewUrl: persistedFrontHistoryEntry?.previewUrl || persistedPreviewUrl || null,
                   ...labelPersistence,
                 };
@@ -2007,7 +2141,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                 setGuidedEditNotes('');
               }
               const labelPersistence = buildLabelPersistence('back', safeDesignExport);
-              if (!skipVersionPersistence && !fromHistorySelection) {
+              if (!skipVersionPersistence && !skipBootstrapPersistence && !fromHistorySelection) {
                 const persistedPreviewUrl =
                   labelPersistence.outputS3Url ||
                   labelPersistence.outputImageUrl ||
@@ -2089,6 +2223,8 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                   'productSku': product?.sku ?? null,
                   historyId: persistedBackHistoryId || null,
                   dedupeKey: String(persistedBackHistoryEntry?.dedupeKey || '').trim() || null,
+                  requestToken: incomingRequestToken,
+                  resetToken: incomingResetToken,
                   previewUrl: persistedBackHistoryEntry?.previewUrl || persistedPreviewUrl || null,
                   ...labelPersistence,
                 };
@@ -2105,6 +2241,14 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
               }
 
             }
+          }
+
+          if (
+            (skipVersionPersistence || skipBootstrapPersistence || fromHistorySelection) &&
+            incomingRequestToken &&
+            activeRequestTokenBySideRef.current[resolvedSide] === incomingRequestToken
+          ) {
+            clearSideRequest(resolvedSide);
           }
         }
         if (e.data?.customMessageType === 'generateLabelPromptResult') {
@@ -2132,7 +2276,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
       };
       window.addEventListener('message', onMsg);
       return () => window.removeEventListener('message', onMsg);
-    }, [createImageFromUrl, getMeshIDbyName, addItemImage, removeItem, items, productObject?.selections?.bottle?.name, product?.areas, setFromUploadDesign, pushLabelHistory, patchLabelHistoryEntry, steps, selectOption, productObject?.selections?.bottle, productObject?.selections?.liquid, productObject?.selections?.closure, productObject?.selections?.label, productObject?.selections?.closureExtras, labelRequestKind, labelMode, labelForm.prompt, labelForm.title, promptOverride, guidedEditNotes, isLiteMode, defaultBottleName, bottleSel?.name, labelStepIdx]);
+    }, [createImageFromUrl, getMeshIDbyName, addItemImage, removeItem, items, productObject?.selections?.bottle?.name, product?.areas, setFromUploadDesign, pushLabelHistory, patchLabelHistoryEntry, steps, selectOption, productObject?.selections?.bottle, productObject?.selections?.liquid, productObject?.selections?.closure, productObject?.selections?.label, productObject?.selections?.closureExtras, labelRequestKind, labelMode, labelForm.prompt, labelForm.title, promptOverride, guidedEditNotes, isLiteMode, defaultBottleName, bottleSel?.name, labelStepIdx, getResetTokenForSide, setResetTokenForSide, clearSideRequest]);
 
 
     // --- Clear items when bottle changes ---
@@ -2584,17 +2728,63 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
       };
     }, []);
 
+    const clearBottleLabelItems = useCallback(async (side: 'front' | 'back') => {
+      if (typeof removeItem !== 'function') {
+        console.warn('[Configurator] removeItem not available from useZakeke; cannot clear label items on reset.');
+        return;
+      }
+
+      const liveItemsForSide = (Array.isArray(items) ? items : []).filter((it: any) => {
+        if (it?.deleted) return false;
+        const itemAreaId = it?.areaId ?? it?.area?.id ?? null;
+        const targetAreaId = side === 'back' ? labelAreaIds.back : labelAreaIds.front;
+        if (targetAreaId != null) {
+          return itemAreaId === targetAreaId;
+        }
+
+        const areaName = String(it?.area?.name || '').toLowerCase();
+        if (!areaName) return false;
+        const normalizedBottle = String(
+          miniBottle?.name || selections.bottle?.name || defaultBottleName || ''
+        ).trim().toLowerCase().replace(/\s+/g, '_');
+        const matchesBottle = normalizedBottle ? areaName.includes(normalizedBottle) : true;
+        return matchesBottle && areaName.includes('label') && areaName.includes(side);
+      });
+
+      for (const item of liveItemsForSide) {
+        try {
+          await removeItem(item.guid);
+        } catch (error) {
+          console.warn('[Configurator] Failed to remove label item during reset', {
+            side,
+            itemGuid: item?.guid || null,
+            error,
+          });
+        }
+      }
+    }, [removeItem, items, labelAreaIds.front, labelAreaIds.back, miniBottle?.name, selections.bottle?.name, defaultBottleName]);
+
     const resetLabelDesignerFlow = () => {
+      const side = activeDesignSide;
+      const resetToken = createCorrelationToken('reset', side);
+      setResetTokenForSide(side, resetToken);
+      clearSideRequest(side);
+
+      void clearBottleLabelItems(side);
       postToParent({
         customMessageType: 'labelReset',
         message: {
-          designSide: activeDesignSide,
+          designSide: side,
+          resetToken,
           sessionId:
             sessionStorage.getItem('ss_session_id') ||
             (window as any).SS?.getSessionId?.() ||
             String(Date.now()),
         },
       });
+
+      setLabelDesign(side, null);
+      clearLabelHistory(side);
       setLabelForm(getEmptyLabelForm());
       setLabelWizard(getEmptyLabelWizard());
       setWizardStepIndex(0);
@@ -2611,6 +2801,12 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
       setIsUploadDesignApplying(false);
       setLabelRequestKind(null);
       setHideLabelTabs(false);
+      if (side === 'front') {
+        setLoadedLabelPreviewUrl('');
+        setShowLoadedLabelPreview(false);
+        setLabelPreviewLoadMode('none');
+        setHideLabelHistory(true);
+      }
       setLockedLabelMode(null);
       resetUploadLabelForm();
     };
@@ -2697,6 +2893,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
         sessionStorage.getItem('ss_session_id') ||
         (window as any).SS?.getSessionId?.() ||
         String(Date.now());
+      const resetToken = getResetTokenForSide('front');
 
       // Upload image files directly in zakeke-full to avoid dependency on upstream upload proxy failures.
       if (isImageUpload && dataUrl) {
@@ -2715,6 +2912,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
               },
               designSide: 'front',
               skipVersionPersistence: true,
+              resetToken,
               designExport: {
                 source: 'custom-upload',
                 versionKind: 'Upload',
@@ -2736,6 +2934,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
         );
         return;
       }
+      const requestToken = beginSideRequest('front');
       
       console.log("postMessage content:", {
         customMessageType: 'customLabelUploaded',
@@ -2745,6 +2944,8 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
           sessionId: localSessionId,
           displayName: uploadDisplayName,
           title: uploadDisplayName,
+          requestToken,
+          resetToken,
           fileName: uploadLabelFile.name || '',
           fileType: uploadLabelFile.type || '',
           fileSize: uploadLabelFile.size || 0,
@@ -2760,6 +2961,8 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
           sessionId: localSessionId,
           displayName: uploadDisplayName,
           title: uploadDisplayName,
+          requestToken,
+          resetToken,
           fileName: uploadLabelFile.name || '',
           fileType: uploadLabelFile.type || '',
           fileSize: uploadLabelFile.size || 0,
@@ -2875,6 +3078,8 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
 
       const includeHexes = !!(labelForm.primaryColor || labelForm.secondaryColor);
       const subtitle = (miniLiquid?.name || '').trim();
+      const requestToken = beginSideRequest('front');
+      const resetToken = getResetTokenForSide('front');
       const payload: any = {
         designSide: 'front',
         alcoholName: subtitle,
@@ -2891,6 +3096,8 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
         sessionId: sessionStorage.getItem('ss_session_id') || (window as any).SS?.getSessionId?.() || String(Date.now()),
         logoDataUrl: '',
         characterDataUrl: '',
+        requestToken,
+        resetToken,
       };
 
       try {
@@ -2972,6 +3179,8 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
         previousImage,
         critique: trimmed,
         sessionId: sessionStorage.getItem('ss_session_id') || (window as any).SS?.getSessionId?.() || String(Date.now()),
+        requestToken: beginSideRequest('front'),
+        resetToken: getResetTokenForSide('front'),
       };
       console.log("postMessage Content:", {
         messageContent: 'generateLabelRevision',
