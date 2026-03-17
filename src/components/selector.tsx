@@ -44,7 +44,6 @@ import {
   WizardNav,
   WizardHeader,
   WizardHeaderSide,
-  RestartButton,
   PromptLoading,
   PromptSpinner,
   PromptFadeText,
@@ -3791,18 +3790,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                           UPLOAD LABEL
                         </LabelTabButton>
                       </LabelTabs>
-                      <WizardHeaderSide $align="right">
-                        {isLabelModeLocked && (
-                          <RestartButton
-                            type="button"
-                            aria-label="Reset label design form"
-                            data-tooltip="Reset"
-                            onClick={resetLabelDesignerFlow}
-                          >
-                            <span className="material-symbols-outlined">replay</span>
-                          </RestartButton>
-                        )}
-                      </WizardHeaderSide>
+                      <WizardHeaderSide $align="right" />
                     </WizardHeader>
                   ) : null}
 
@@ -4031,18 +4019,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                                 <WizardHeader>
                                   <WizardHeaderSide />
                                   <WizardStepTitle>{currentStep.title}</WizardStepTitle>
-                                  <WizardHeaderSide $align="right">
-                                    {wizardStarted && hideLabelTabs && (
-                                      <RestartButton
-                                        type="button"
-                                        aria-label="Reset"
-                                        data-tooltip="Reset"
-                                        onClick={resetLabelDesignerFlow}
-                                      >
-                                        <span className="material-symbols-outlined">replay</span>
-                                      </RestartButton>
-                                    )}
-                                  </WizardHeaderSide>
+                                  <WizardHeaderSide $align="right" />
                                 </WizardHeader>
                               )}
                             {!currentStep.review && currentStep.key !== 'logo' && (
