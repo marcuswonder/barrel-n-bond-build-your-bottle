@@ -25,6 +25,14 @@ export type GeminiImageResult = {
 const GEMINI_TEXT_MODEL = 'gemini-3-pro-preview';
 const GEMINI_IMAGE_MODEL = 'gemini-3-pro-image-preview';
 
+const safeJsonParse = (text: string) => {
+  try {
+    return { ok: true as const, value: JSON.parse(text) };
+  } catch (error) {
+    return { ok: false as const, error };
+  }
+};
+
 const getApiKey = () =>
   (process.env.REACT_APP_GEMINI_API_KEY ||
     process.env.GEMINI_API_KEY ||
@@ -115,6 +123,12 @@ export const generateLabelPrompt = async (input: LabelPromptInputs): Promise<Gem
 };
 
 export const generateLabelImage = async (prompt: string, options?: { aspectRatio?: string }) => {
+  const apiKey = getApiKey();
+  if (!apiKey) {
+    throw new Error('Missing GEMINI_API_KEY. Add REACT_APP_GEMINI_API_KEY to .env for client-side usage.');
+  }
+
+  const aspectRatio = options?.aspectRatio || '4:5';
   const body = {
     contents: [
       {
@@ -125,12 +139,79 @@ export const generateLabelImage = async (prompt: string, options?: { aspectRatio
     generationConfig: {
       responseModalities: ['Text', 'Image'],
       imageConfig: {
-        aspectRatio: options?.aspectRatio || '4:5',
+        aspectRatio,
       },
     },
   };
 
-  const raw = await geminiFetch(GEMINI_IMAGE_MODEL, body);
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_IMAGE_MODEL}:generateContent`;
+  const startedAt = Date.now();
+  let response: Response;
+
+  try {
+    response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-goog-api-key': apiKey,
+      },
+      body: JSON.stringify(body),
+    });
+  } catch (error) {
+    console.error('[generateLabelImage] network_error', {
+      model: GEMINI_IMAGE_MODEL,
+      aspectRatio,
+      promptLength: prompt.length,
+      elapsedMs: Date.now() - startedAt,
+      error: error instanceof Error ? { name: error.name, message: error.message } : String(error),
+    });
+    throw error instanceof Error ? error : new Error('Gemini image request failed.');
+  }
+
+  const responseText = await response.text();
+  const parsed = safeJsonParse(responseText);
+  const elapsedMs = Date.now() - startedAt;
+
+  if (!response.ok) {
+    const errorMessage =
+      parsed.ok && parsed.value && typeof parsed.value === 'object' && 'error' in parsed.value
+        ? (parsed.value as any)?.error?.message
+        : '';
+    const requestId = response.headers.get('x-request-id') || response.headers.get('x-cloud-trace-context') || '';
+
+    console.error('[generateLabelImage] upstream_error', {
+      model: GEMINI_IMAGE_MODEL,
+      aspectRatio,
+      promptLength: prompt.length,
+      elapsedMs,
+      status: response.status,
+      statusText: response.statusText,
+      requestId,
+      parseOk: parsed.ok,
+      parseError: parsed.ok ? '' : (parsed.error instanceof Error ? parsed.error.message : String(parsed.error)),
+      responsePreview: responseText.slice(0, 500),
+      errorMessage: typeof errorMessage === 'string' ? errorMessage : '',
+    });
+
+    const detail = typeof errorMessage === 'string' && errorMessage ? `: ${errorMessage}` : '';
+    throw new Error(`Gemini API error (${response.status})${detail}`);
+  }
+
+  if (!parsed.ok) {
+    console.error('[generateLabelImage] parse_error', {
+      model: GEMINI_IMAGE_MODEL,
+      aspectRatio,
+      promptLength: prompt.length,
+      elapsedMs,
+      status: response.status,
+      statusText: response.statusText,
+      parseError: parsed.error instanceof Error ? parsed.error.message : String(parsed.error),
+      responsePreview: responseText.slice(0, 500),
+    });
+    throw new Error('Gemini API returned invalid JSON for image generation.');
+  }
+
+  const raw = parsed.value as any;
   const text = pickFirstText(raw).trim();
   const image = pickFirstImage(raw);
   return {
