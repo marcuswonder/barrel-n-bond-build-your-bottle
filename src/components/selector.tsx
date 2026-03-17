@@ -1638,7 +1638,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
             String(message?.designSide || '').toLowerCase() === 'back' ? 'back' : 'front';
           const incomingResetToken = String(message?.resetToken || '').trim() || null;
           const currentResetToken = getResetTokenForSide(resetSide);
-          if (incomingResetToken && currentResetToken && incomingResetToken !== currentResetToken) {
+          if (currentResetToken && incomingResetToken !== currentResetToken) {
             console.info('[labelResetResult] ignored stale reset acknowledgement', {
               resetSide,
               incomingResetToken,
@@ -1669,7 +1669,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
           const persistedResetToken = String(message?.resetToken || '').trim() || null;
           const persistedRequestToken = String(message?.requestToken || '').trim() || null;
           const currentResetToken = getResetTokenForSide(persistedSide);
-          if (persistedResetToken && currentResetToken && persistedResetToken !== currentResetToken) {
+          if (currentResetToken && persistedResetToken !== currentResetToken) {
             console.info('[labelVersionPersisted] ignored stale reset token', {
               persistedSide,
               persistedResetToken,
@@ -1833,7 +1833,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
           const incomingRequestToken = String(incomingRequestTokenRaw || '').trim() || null;
           const incomingResetToken = String(incomingResetTokenRaw || '').trim() || null;
           const currentResetToken = getResetTokenForSide(resolvedSide);
-          if (incomingResetToken && currentResetToken && incomingResetToken !== currentResetToken) {
+          if (currentResetToken && incomingResetToken !== currentResetToken) {
             console.info('[uploadDesign] ignored stale reset token', {
               resolvedSide,
               incomingResetToken,

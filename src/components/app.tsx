@@ -2,6 +2,7 @@ import React, { FunctionComponent, useCallback, useEffect, useRef, useState } fr
 import styled from 'styled-components';
 import { ZakekeEnvironment, ZakekeViewer, ZakekeProvider } from 'zakeke-configurator-react';
 import Selector from './selector';
+import { resolveParentMessagingConfig } from '../utils/postMessage';
 
 // Allow reading bootstrap params that we inject via URL or a window shim
 declare global {
@@ -41,6 +42,9 @@ type DragDirection = 'right' | 'left';
 
 const VIEWER_CANVAS_SELECTOR = "canvas[id^='zakeke-canvas-viewer3D-']";
 const VIEWER_GESTURE_START_DELAY_MS = 1400; // 900ms baseline + 500ms requested delay
+const CONFIGURATOR_START_MESSAGE_TYPE = 'configuratorStartClicked';
+
+const { trustedOrigins: trustedMessageOrigins } = resolveParentMessagingConfig();
 
 const resolveInputMode = (): DragInputMode => {
   const hasCoarsePointer =
@@ -306,7 +310,10 @@ const resolveMode = (modelCode?: string): AppMode => {
   return 'full';
 };
 
-const ViewerGestureHint: FunctionComponent<{ stageRef: React.RefObject<HTMLDivElement> }> = ({ stageRef }) => {
+const ViewerGestureHint: FunctionComponent<{ stageRef: React.RefObject<HTMLDivElement>; isEnabled: boolean }> = ({
+  stageRef,
+  isEnabled
+}) => {
   const [isVisible, setIsVisible] = useState(false);
   const [isPressed, setIsPressed] = useState(false);
   const [inputMode, setInputMode] = useState<DragInputMode>(resolveInputMode);
@@ -431,6 +438,11 @@ const ViewerGestureHint: FunctionComponent<{ stageRef: React.RefObject<HTMLDivEl
   }, [playSingleDrag, wait]);
 
   useEffect(() => {
+    if (!isEnabled) {
+      stopHint();
+      return undefined;
+    }
+
     const stage = stageRef.current;
     if (!stage) return undefined;
 
@@ -473,7 +485,7 @@ const ViewerGestureHint: FunctionComponent<{ stageRef: React.RefObject<HTMLDivEl
       stage.removeEventListener('wheel', dismissOnTrustedInteraction);
       stopHint();
     };
-  }, [playHint, stageRef, stopHint]);
+  }, [isEnabled, playHint, stageRef, stopHint]);
 
   return (
     <ViewerGestureOverlay $visible={isVisible}>
@@ -491,6 +503,26 @@ const ViewerGestureHint: FunctionComponent<{ stageRef: React.RefObject<HTMLDivEl
 
 const App: FunctionComponent<{}> = () => {
     const viewerStageRef = useRef<HTMLDivElement>(null);
+    const [isGestureHintEnabled, setIsGestureHintEnabled] = useState<boolean>(() => window.parent === window);
+
+    useEffect(() => {
+      if (window.parent === window) {
+        setIsGestureHintEnabled(true);
+        return undefined;
+      }
+
+      const onMessage = (event: MessageEvent) => {
+        if (!trustedMessageOrigins.has(event.origin)) return;
+        if (event?.data?.customMessageType !== CONFIGURATOR_START_MESSAGE_TYPE) return;
+        setIsGestureHintEnabled(true);
+      };
+
+      window.addEventListener('message', onMessage);
+      return () => {
+        window.removeEventListener('message', onMessage);
+      };
+    }, []);
+
     const bootstrapParameters = getBootstrapParameters();
     const modelCode = String(bootstrapParameters.modelCode ?? bootstrapParameters.modelcode ?? '');
     const mode = resolveMode(modelCode);
@@ -507,7 +539,7 @@ const App: FunctionComponent<{}> = () => {
             <ViewerPanel>
                 <ViewerStage ref={viewerStageRef}>
                     <ZakekeViewer />
-                    <ViewerGestureHint stageRef={viewerStageRef} />
+                    <ViewerGestureHint stageRef={viewerStageRef} isEnabled={isGestureHintEnabled} />
                 </ViewerStage>
             </ViewerPanel>
         </Layout>
