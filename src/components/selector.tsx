@@ -417,6 +417,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
     const [labelForm, setLabelForm] = useState<LabelFormState>(getEmptyLabelForm);
     const [uploadLabelFile, setUploadLabelFile] = useState<File | null>(null);
     const uploadLabelInputRef = useRef<HTMLInputElement | null>(null);
+    const localUploadPreviewUrlRef = useRef<string | null>(null);
 
     type LabelWizardState = {
       outputGoal: string;
@@ -1007,6 +1008,8 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
     const showLabelErrorState = (isAiLabelMode || labelMode === 'upload') && labelError && !guidedGenerating;
     const showPromptFormBuilder =
       labelMode === 'form' && !guidedGenerating && !hasLabelOnBottle && !guidedEditMode && !labelError;
+    const isPromptAiMissingRequiredFields =
+      showPromptFormBuilder && (!labelForm.title.trim() || !labelForm.prompt.trim());
     const frontLabelHistory = labelHistory.front;
     const selectedFrontHistoryId = selectedHistoryId.front;
     const selectedFrontHistory = useMemo(
@@ -2559,12 +2562,27 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
       setUploadLabelFile(file);
     };
 
+    const clearLocalUploadPreviewUrl = () => {
+      const current = localUploadPreviewUrlRef.current;
+      if (current) {
+        URL.revokeObjectURL(current);
+      }
+      localUploadPreviewUrlRef.current = null;
+    };
+
     const resetUploadLabelForm = () => {
+      clearLocalUploadPreviewUrl();
       setUploadLabelFile(null);
       if (uploadLabelInputRef.current) {
         uploadLabelInputRef.current.value = '';
       }
     };
+
+    useEffect(() => {
+      return () => {
+        clearLocalUploadPreviewUrl();
+      };
+    }, []);
 
     const resetLabelDesignerFlow = () => {
       postToParent({
@@ -2663,6 +2681,60 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
         dataUrl = await fileToDataUrl(uploadLabelFile);
       } catch (error) {
         console.warn('Failed to read upload label file', error);
+        setGuidedGenerating(false);
+        setIsUploadDesignApplying(false);
+        setLabelError(true);
+        setWarning('We could not read this file. Please try another file.');
+        return;
+      }
+
+      const fileType = String(uploadLabelFile.type || '').toLowerCase();
+      const isImageUpload = fileType.startsWith('image/') || /^data:image\//i.test(dataUrl);
+      const uploadDisplayName = String(
+        labelForm.title || uploadLabelFile.name.replace(/\.[^/.]+$/, '')
+      ).trim();
+      const localSessionId =
+        sessionStorage.getItem('ss_session_id') ||
+        (window as any).SS?.getSessionId?.() ||
+        String(Date.now());
+
+      // Upload image files directly in zakeke-full to avoid dependency on upstream upload proxy failures.
+      if (isImageUpload && dataUrl) {
+        clearLocalUploadPreviewUrl();
+        localUploadPreviewUrlRef.current = URL.createObjectURL(uploadLabelFile);
+        window.postMessage(
+          {
+            customMessageType: 'uploadDesign',
+            message: {
+              order: {
+                bottle: productObject.selections.bottle,
+                liquid: productObject.selections.liquid,
+                closure: productObject.selections.closure,
+                label: productObject.selections.label,
+                closureExtras: productObject.selections.closureExtras,
+              },
+              designSide: 'front',
+              skipVersionPersistence: true,
+              designExport: {
+                source: 'custom-upload',
+                versionKind: 'Upload',
+                title: uploadDisplayName,
+                displayName: uploadDisplayName,
+                frontImage: dataUrl,
+                images: [dataUrl],
+                s3url: localUploadPreviewUrlRef.current,
+                url: localUploadPreviewUrlRef.current,
+                uploadedAt: new Date().toISOString(),
+                sessionId: localSessionId,
+                fileName: uploadLabelFile.name || '',
+                fileType: uploadLabelFile.type || '',
+                fileSize: uploadLabelFile.size || 0,
+              },
+            },
+          },
+          window.location.origin
+        );
+        return;
       }
       
       console.log("postMessage content:", {
@@ -2670,7 +2742,9 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
         message: { 
           designSide: 'front', 
           bottleName: (miniBottle?.name || '').trim(),
-          sessionId: sessionStorage.getItem('ss_session_id') || (window as any).SS?.getSessionId?.() || String(Date.now()),
+          sessionId: localSessionId,
+          displayName: uploadDisplayName,
+          title: uploadDisplayName,
           fileName: uploadLabelFile.name || '',
           fileType: uploadLabelFile.type || '',
           fileSize: uploadLabelFile.size || 0,
@@ -2683,7 +2757,9 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
         message: { 
           designSide: 'front', 
           bottleName: (miniBottle?.name || '').trim(),
-          sessionId: sessionStorage.getItem('ss_session_id') || (window as any).SS?.getSessionId?.() || String(Date.now()),
+          sessionId: localSessionId,
+          displayName: uploadDisplayName,
+          title: uploadDisplayName,
           fileName: uploadLabelFile.name || '',
           fileType: uploadLabelFile.type || '',
           fileSize: uploadLabelFile.size || 0,
@@ -2781,7 +2857,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
           ? labelForm.prompt.trim()
           : (promptOverride.trim() || assembledPrompt);
       if (!labelForm.title.trim() || !finalPrompt) {
-        setWarning('Please provide both a Title and a label description.');
+        setWarning('Please provide a bottle name and a label description.');
         return;
       }
       if ((labelForm.characterFile || labelForm.logoFile) && !labelForm.hasCharacterPermission) {
@@ -3198,6 +3274,16 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
         frontDesignVersionKindRaw === 'Edit' || frontDesignVersionKindRaw === 'Upload'
           ? frontDesignVersionKindRaw
           : 'Initial';
+      const safeOutputImageUrl = (() => {
+        const raw = String(
+          frontDesign?.outputImageUrl ||
+          resolveDesignPreviewUrl(frontDesign) ||
+          ''
+        ).trim();
+        if (!raw) return null;
+        if (/^(data|blob):/i.test(raw)) return null;
+        return raw;
+      })();
 
       return {
         recordId: frontDesignRecordId,
@@ -3207,12 +3293,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
           frontDesign?.version_number
         ),
         versionKind: frontDesignVersionKind,
-        outputImageUrl:
-          String(
-            frontDesign?.outputImageUrl ||
-            resolveDesignPreviewUrl(frontDesign) ||
-            ''
-          ).trim() || null,
+        outputImageUrl: safeOutputImageUrl,
         outputPdfUrl:
           String(
             frontDesign?.outputPdfUrl ||
@@ -3519,11 +3600,13 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                 <LabelForm onSubmit={(event) => event.preventDefault()}>
                   {showPromptFormBuilder ? (
                     <LabelField>
-                      Title
+                      Give your bottle a name *
                       <LabelInput
                         type="text"
                         value={labelForm.title}
                         onChange={handleLabelFieldChange('title')}
+                        required
+                        aria-required="true"
                         placeholder="e.g. Spirits Studio"
                       />
                     </LabelField>
@@ -3531,10 +3614,12 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
 
                   {showPromptFormBuilder && (
                     <LabelField>
-                      Describe your label
+                      Describe Your Label *
                       <LabelTextarea
                         value={labelForm.prompt}
                         onChange={handleLabelFieldChange('prompt')}
+                        required
+                        aria-required="true"
                         placeholder="Describe the mood, style, and motifs you want."
                       />
                     </LabelField>
@@ -3574,7 +3659,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                       {!wizardStarted ? (
                         <>
                           <LabelField>
-                            Title
+                            Give your bottle a name
                             <LabelInput
                               type="text"
                               value={labelForm.title}
@@ -3738,7 +3823,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                                   <WizardHeaderSide />
                                   <WizardStepTitle>{currentStep.title}</WizardStepTitle>
                                   <WizardHeaderSide $align="right">
-                                    {wizardStarted && (
+                                    {wizardStarted && hideLabelTabs && (
                                       <RestartButton
                                         type="button"
                                         aria-label="Reset"
@@ -3826,7 +3911,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                               ) : (
                                 <>
                                   <LabelField>
-                                    Title
+                                    Give your bottle a name
                                     <LabelInput
                                       type="text"
                                       value={labelForm.title}
@@ -4161,6 +4246,15 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                         </a>
                       </LabelHelperText>
                       <LabelField>
+                        Give your bottle a name
+                        <LabelInput
+                          type="text"
+                          value={labelForm.title}
+                          onChange={handleLabelFieldChange('title')}
+                          placeholder="e.g. Spirits Studio"
+                        />
+                      </LabelField>
+                      <LabelField>
                         Upload your label file
                         <LabelInput
                           ref={uploadLabelInputRef}
@@ -4304,10 +4398,16 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                     <ActionsCenter>
                       <button
                         className="configurator-button"
-                        disabled={!canDesign || (!!(labelForm.logoFile || labelForm.characterFile) && !labelForm.hasCharacterPermission)}
+                        disabled={
+                          !canDesign ||
+                          isPromptAiMissingRequiredFields ||
+                          (!!(labelForm.logoFile || labelForm.characterFile) && !labelForm.hasCharacterPermission)
+                        }
                         data-tooltip={
                           !canDesign
                             ? (requireBottle ? 'Select bottle, liquid, and closure first' : 'Select liquid and closure first')
+                            : isPromptAiMissingRequiredFields
+                              ? 'Give your bottle a name and describe your label'
                             : ((labelForm.logoFile || labelForm.characterFile) && !labelForm.hasCharacterPermission)
                               ? 'Confirm you have permission to use the uploaded files'
                               : undefined
