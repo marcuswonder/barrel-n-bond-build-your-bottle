@@ -40,6 +40,7 @@ type DragStep = 'down' | 'move' | 'up';
 type DragDirection = 'right' | 'left';
 
 const VIEWER_CANVAS_SELECTOR = "canvas[id^='zakeke-canvas-viewer3D-']";
+const VIEWER_GESTURE_START_DELAY_MS = 1400; // 900ms baseline + 500ms requested delay
 
 const resolveInputMode = (): DragInputMode => {
   const hasCoarsePointer =
@@ -447,7 +448,7 @@ const ViewerGestureHint: FunctionComponent<{ stageRef: React.RefObject<HTMLDivEl
         startDelayRef.current = null;
         if (isStoppedRef.current) return;
         void playHint(canvas);
-      }, 900);
+      }, VIEWER_GESTURE_START_DELAY_MS);
     };
 
     startWhenCanvasReady();
