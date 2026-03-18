@@ -136,6 +136,49 @@ const resolveDesignPreviewUrl = (design: any): string =>
     ''
   ).trim();
 
+const firstDataImageRef = (...values: Array<unknown>): string | null => {
+  for (const value of values) {
+    if (typeof value !== 'string') continue;
+    const text = value.trim();
+    if (/^data:image\//i.test(text)) return text;
+  }
+  return null;
+};
+
+const extractErrorMessage = (value: unknown, depth = 0): string | null => {
+  if (depth > 3 || value == null) return null;
+
+  if (typeof value === 'string') {
+    const text = value.trim();
+    return text || null;
+  }
+
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const match = extractErrorMessage(item, depth + 1);
+      if (match) return match;
+    }
+    return null;
+  }
+
+  if (typeof value !== 'object') return null;
+
+  const record = value as Record<string, unknown>;
+  for (const key of ['error', 'message', 'reason', 'detail', 'details']) {
+    if (!(key in record)) continue;
+    const match = extractErrorMessage(record[key], depth + 1);
+    if (match) return match;
+  }
+
+  const status = record.status;
+  if (typeof status === 'number' && Number.isFinite(status)) {
+    const statusText = typeof record.statusText === 'string' ? record.statusText.trim() : '';
+    return `Request failed with status ${status}${statusText ? ` (${statusText})` : ''}.`;
+  }
+
+  return null;
+};
+
 const AIRTABLE_RECORD_ID_RE = /^rec[a-zA-Z0-9]{6,}$/;
 
 const tryExtractLabelVersionRecordId = (value: unknown, depth = 0): string | null => {
@@ -496,6 +539,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
     const [isPromptGenerating, setIsPromptGenerating] = useState(false);
     const [promptError, setPromptError] = useState(false);
     const [labelError, setLabelError] = useState(false);
+    const [labelErrorMessage, setLabelErrorMessage] = useState<string | null>(null);
     const [promptLoadingIndex, setPromptLoadingIndex] = useState(0);
     const [labelLoadingIndex, setLabelLoadingIndex] = useState(0);
     const [isUploadDesignApplying, setIsUploadDesignApplying] = useState(false);
@@ -940,11 +984,17 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
     useEffect(() => {
       if (!guidedGenerating) return;
       if (labelRequestKind !== 'edit' && hasLabelOnBottle) return;
+      const timeoutMs = labelRequestKind === 'edit' ? 180000 : 120000;
       const timeout = window.setTimeout(() => {
         setGuidedGenerating(false);
         setLabelError(true);
+        setLabelErrorMessage(
+          labelRequestKind === 'edit'
+            ? 'Label edits are taking longer than expected. Please try again.'
+            : 'Label generation is taking longer than expected. Please try again.'
+        );
         setIsUploadDesignApplying(false);
-      }, 90000);
+      }, timeoutMs);
       return () => window.clearTimeout(timeout);
     }, [guidedGenerating, hasLabelOnBottle, labelRequestKind]);
 
@@ -1400,7 +1450,14 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
           designExport?.url,
           Array.isArray(designExport?.s3Uploads) ? designExport.s3Uploads[0]?.url : null
         );
+        const dataImageRef = firstDataImageRef(
+          side === 'front' ? designExport?.frontImage : designExport?.backImage,
+          designExport?.imageDataUrl,
+          Array.isArray(designExport?.images) ? designExport.images[0] : null,
+          Array.isArray(designExport?.imageDataUrls) ? designExport.imageDataUrls[0] : null
+        );
         const imageRef = firstImageRef(
+          dataImageRef,
           s3Url,
           side === 'front' ? designExport?.frontImage : designExport?.backImage,
           designExport?.imageDataUrl,
@@ -1415,14 +1472,14 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
           frontS3Url: side === 'front' ? (s3Url || designExport?.frontS3Url || '') : (designExport?.frontS3Url || ''),
           backS3Url: side === 'back' ? (s3Url || designExport?.backS3Url || '') : (designExport?.backS3Url || ''),
           frontImage: side === 'front'
-            ? (imageRef || designExport?.frontImage || '')
+            ? (dataImageRef || imageRef || designExport?.frontImage || '')
             : (designExport?.frontImage || ''),
           backImage: side === 'back'
-            ? (imageRef || designExport?.backImage || '')
+            ? (dataImageRef || imageRef || designExport?.backImage || '')
             : (designExport?.backImage || ''),
           images: imageRef ? [imageRef] : [],
           imageUrls: s3Url ? [s3Url] : (Array.isArray(designExport?.imageUrls) ? designExport.imageUrls : []),
-          imageDataUrl: imageRef && /^data:image\//i.test(imageRef) ? imageRef : ''
+          imageDataUrl: dataImageRef || ''
         };
       };
 
@@ -1765,6 +1822,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
           if (incomingRequestToken) {
             activeRequestTokenBySideRef.current[resolvedSide] = incomingRequestToken;
           }
+          setLabelErrorMessage(null);
           const safeDesignExport = compactDesignExport(designExport || {}, resolvedSide);
           const skipBootstrapPersistence =
             String(safeDesignExport?.source || '').trim().toLowerCase() === 'studio-bootstrap';
@@ -2178,7 +2236,34 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
           e.data?.customMessageType === 'generateLabelRevisionError' ||
           e.data?.customMessageType === 'generateLabelError'
         ) {
+          const message = e.data?.message || {};
+          const failedSide: 'front' | 'back' =
+            String(message?.designSide || '').toLowerCase() === 'back' ? 'back' : 'front';
+          const incomingResetToken = String(message?.resetToken || '').trim() || null;
+          const incomingRequestToken = String(message?.requestToken || '').trim() || null;
+          const currentResetToken = getResetTokenForSide(failedSide);
+          if (currentResetToken && incomingResetToken && incomingResetToken !== currentResetToken) {
+            console.info('[labelError] ignored stale reset token', {
+              failedSide,
+              incomingResetToken,
+              currentResetToken,
+            });
+            return;
+          }
+          const activeRequestToken = activeRequestTokenBySideRef.current[failedSide];
+          if (incomingRequestToken && activeRequestToken && incomingRequestToken !== activeRequestToken) {
+            console.info('[labelError] ignored stale request token', {
+              failedSide,
+              incomingRequestToken,
+              activeRequestToken,
+            });
+            return;
+          }
+          if (incomingRequestToken && activeRequestTokenBySideRef.current[failedSide] === incomingRequestToken) {
+            clearSideRequest(failedSide);
+          }
           setLabelError(true);
+          setLabelErrorMessage(extractErrorMessage(message));
           setGuidedGenerating(false);
           setIsUploadDesignApplying(false);
           setPendingFinalCameraTarget(null);
@@ -2978,6 +3063,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
         return;
       }
       setLabelError(false);
+      setLabelErrorMessage(null);
       setLabelRequestKind('create');
       setGuidedGenerating(true);
       setGuidedEditMode(false);
@@ -3060,6 +3146,10 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
         setWarning('No previous label image found to revise.');
         return;
       }
+      setLabelError(false);
+      setLabelErrorMessage(null);
+      setLabelRequestKind('edit');
+      setGuidedGenerating(true);
       const fallbackPrompt = (labelMode === 'guided' ? (promptOverride.trim() || assemblePrompt()) : labelForm.prompt.trim());
       const inheritedPrompt = String(prevInput.prompt || prev?.prompt || fallbackPrompt || '').trim();
       const inheritedTitle = String(prevInput.title || prev?.title || labelForm.title || '').trim();
@@ -4313,9 +4403,6 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                           type="button"
                           disabled={!guidedEditNotes.trim()}
                           onClick={() => {
-                            setLabelError(false);
-                            setLabelRequestKind('edit');
-                            setGuidedGenerating(true);
                             handleSendRevision(guidedEditNotes);
                           }}
                         >
@@ -4529,10 +4616,16 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                             ? "We couldn't generate your label edits right now."
                             : "We couldn't generate your label right now."}
                         </div>
+                        {labelErrorMessage && (
+                          <LabelHelperText>{labelErrorMessage}</LabelHelperText>
+                        )}
                         <button
                           className="configurator-button"
                           type="button"
-                          onClick={() => setLabelError(false)}
+                          onClick={() => {
+                            setLabelError(false);
+                            setLabelErrorMessage(null);
+                          }}
                         >
                           Try Again
                         </button>
