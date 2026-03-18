@@ -1098,7 +1098,6 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
 
       baseOrigins.forEach((origin) => {
         pushCandidate(`${origin}/apps/ss/studio/select-label-version`);
-        pushCandidate(`${origin}/.netlify/functions/select-label-version`);
       });
 
       console.info('[trace:s3:zakeke-full:version-select:persist:start]', {
