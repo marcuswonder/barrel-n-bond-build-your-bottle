@@ -1068,82 +1068,6 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
       prevFrontHistoryLengthRef.current = currentLength;
     }, [frontLabelHistory.length]);
 
-    const persistSelectedLabelVersion = useCallback(async (payload: {
-      sessionId: string;
-      designSide: 'front' | 'back';
-      labelVersionRecordId: string;
-      versionNumber: number | null;
-      versionKind: string;
-      outputImageUrl: string | null;
-      outputPdfUrl: string | null;
-      source: string;
-      selectedAt: string;
-    }) => {
-      const endpointCandidates: string[] = [];
-      const pushCandidate = (value: string) => {
-        const endpoint = String(value || '').trim();
-        if (!endpoint) return;
-        if (!endpointCandidates.includes(endpoint)) {
-          endpointCandidates.push(endpoint);
-        }
-      };
-
-      const baseOrigins = Array.from(
-        new Set(
-          [window.location.origin, parentTargetOrigin]
-            .map((origin) => String(origin || '').trim().replace(/\/$/, ''))
-            .filter(Boolean)
-        )
-      );
-
-      baseOrigins.forEach((origin) => {
-        pushCandidate(`${origin}/apps/ss/studio/select-label-version`);
-      });
-
-      console.info('[trace:s3:zakeke-full:version-select:persist:start]', {
-        sessionId: payload.sessionId,
-        designSide: payload.designSide,
-        labelVersionRecordId: payload.labelVersionRecordId,
-        outputImageUrl: payload.outputImageUrl,
-        outputPdfUrl: payload.outputPdfUrl,
-        source: payload.source,
-        endpointCandidates,
-      });
-
-      for (const endpoint of endpointCandidates) {
-        try {
-          const response = await fetch(endpoint, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-            body: JSON.stringify(payload),
-          });
-
-          if (response.ok) {
-            console.info('[trace:s3:zakeke-full:version-select:persist:success]', {
-              endpoint,
-              sessionId: payload.sessionId,
-              designSide: payload.designSide,
-              labelVersionRecordId: payload.labelVersionRecordId,
-              outputImageUrl: payload.outputImageUrl,
-            });
-            return true;
-          }
-
-          const errorText = await response.text().catch(() => '');
-          console.warn('[labelVersionSelected] persistence endpoint returned non-OK response', {
-            endpoint,
-            status: response.status,
-            body: errorText.slice(0, 160),
-          });
-        } catch (error) {
-          console.warn('[labelVersionSelected] persistence endpoint request failed', { endpoint, error });
-        }
-      }
-
-      return false;
-    }, []);
-
     const handleSelectHistoryVersion = useCallback((historyId: string) => {
       const selectedVersion = frontLabelHistory.find((entry: any) => entry.id === historyId);
       if (!selectedVersion) return;
@@ -1273,17 +1197,6 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
           customMessageType: 'labelVersionSelected',
           message: selectionPayload
         });
-
-        let shouldAttemptDirectPersistence = false;
-        try {
-          shouldAttemptDirectPersistence = window.self === window.top;
-        } catch {
-          shouldAttemptDirectPersistence = false;
-        }
-
-        if (shouldAttemptDirectPersistence) {
-          void persistSelectedLabelVersion(selectionPayload);
-        }
       } else {
         console.warn('[labelVersionSelected] skipped: missing labelVersionRecordId for selected history item', {
           historyId: selectedVersion.id,
@@ -1319,7 +1232,6 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
       productObject.selections.closure,
       productObject.selections.label,
       productObject.selections.closureExtras,
-      persistSelectedLabelVersion,
       selectedFrontHistoryId,
       getResetTokenForSide,
     ]);
