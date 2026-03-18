@@ -235,6 +235,33 @@ const resolveVersionNumber = (...values: Array<unknown>): number | null => {
   return null;
 };
 
+type LabelPersistenceState = {
+  status: 'idle' | 'persisting' | 'persisted' | 'failed';
+  requestToken: string | null;
+  resetToken: string | null;
+  labelVersionRecordId: string | null;
+  error: string | null;
+};
+
+const EMPTY_LABEL_PERSISTENCE_STATE: LabelPersistenceState = {
+  status: 'idle',
+  requestToken: null,
+  resetToken: null,
+  labelVersionRecordId: null,
+  error: null,
+};
+
+const DEFAULT_LABEL_PERSISTENCE_ERROR = "We generated your label, but couldn't save it yet.";
+
+const resolveLabelPersistenceErrorMessage = (value: unknown): string => {
+  const message = extractErrorMessage(value);
+  if (!message) return DEFAULT_LABEL_PERSISTENCE_ERROR;
+  if (/^(save_label_version_failed|retry_payload_not_found|studio_client_missing)$/i.test(message)) {
+    return DEFAULT_LABEL_PERSISTENCE_ERROR;
+  }
+  return message;
+};
+
 const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }> = ({
   mode = 'full',
   defaultBottleName = 'antica',
@@ -539,6 +566,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
     const [isPromptGenerating, setIsPromptGenerating] = useState(false);
     const [promptError, setPromptError] = useState(false);
     const [labelError, setLabelError] = useState(false);
+    const [frontLabelPersistence, setFrontLabelPersistence] = useState<LabelPersistenceState>(EMPTY_LABEL_PERSISTENCE_STATE);
     const [labelErrorMessage, setLabelErrorMessage] = useState<string | null>(null);
     const [promptLoadingIndex, setPromptLoadingIndex] = useState(0);
     const [labelLoadingIndex, setLabelLoadingIndex] = useState(0);
@@ -1618,6 +1646,9 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
             setResetTokenForSide(resetSide, incomingResetToken);
           }
           clearSideRequest(resetSide);
+          if (resetSide === 'front') {
+            setFrontLabelPersistence(EMPTY_LABEL_PERSISTENCE_STATE);
+          }
 
           if (!message?.ok) {
             console.warn('[labelResetResult] reset lineage request failed', {
@@ -1629,30 +1660,64 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
           return;
         }
 
+        const validatePersistenceMessage = (
+          eventName: string,
+          persistenceSide: 'front' | 'back',
+          message: any
+        ) => {
+          const incomingResetToken = String(message?.resetToken || '').trim() || null;
+          const incomingRequestToken = String(message?.requestToken || '').trim() || null;
+          const currentResetToken = getResetTokenForSide(persistenceSide);
+          if (currentResetToken && incomingResetToken !== currentResetToken) {
+            console.info(`[${eventName}] ignored stale reset token`, {
+              persistenceSide,
+              incomingResetToken,
+              currentResetToken,
+            });
+            return null;
+          }
+          const activeRequestToken = activeRequestTokenBySideRef.current[persistenceSide];
+          if (incomingRequestToken && activeRequestToken && incomingRequestToken !== activeRequestToken) {
+            console.info(`[${eventName}] ignored stale request token`, {
+              persistenceSide,
+              incomingRequestToken,
+              activeRequestToken,
+            });
+            return null;
+          }
+          return { incomingRequestToken, incomingResetToken };
+        };
+
+        if (e.data?.customMessageType === 'labelVersionPersisting') {
+          const message = e.data?.message || {};
+          const persistenceSide: 'front' | 'back' =
+            String(message?.designSide || '').toLowerCase() === 'back' ? 'back' : 'front';
+          const validated = validatePersistenceMessage('labelVersionPersisting', persistenceSide, message);
+          if (!validated) {
+            return;
+          }
+          if (persistenceSide === 'front') {
+            setFrontLabelPersistence((prev) => ({
+              ...prev,
+              status: 'persisting',
+              requestToken: validated.incomingRequestToken || prev.requestToken,
+              resetToken: validated.incomingResetToken || prev.resetToken,
+              labelVersionRecordId: null,
+              error: null,
+            }));
+          }
+          return;
+        }
+
         if (e.data?.customMessageType === 'labelVersionPersisted') {
           const message = e.data?.message || {};
           const persistedSide: 'front' | 'back' =
             String(message?.designSide || '').toLowerCase() === 'back' ? 'back' : 'front';
-          const persistedResetToken = String(message?.resetToken || '').trim() || null;
-          const persistedRequestToken = String(message?.requestToken || '').trim() || null;
-          const currentResetToken = getResetTokenForSide(persistedSide);
-          if (currentResetToken && persistedResetToken !== currentResetToken) {
-            console.info('[labelVersionPersisted] ignored stale reset token', {
-              persistedSide,
-              persistedResetToken,
-              currentResetToken,
-            });
+          const validated = validatePersistenceMessage('labelVersionPersisted', persistedSide, message);
+          if (!validated) {
             return;
           }
-          const activeRequestToken = activeRequestTokenBySideRef.current[persistedSide];
-          if (persistedRequestToken && activeRequestToken && persistedRequestToken !== activeRequestToken) {
-            console.info('[labelVersionPersisted] ignored stale request token', {
-              persistedSide,
-              persistedRequestToken,
-              activeRequestToken,
-            });
-            return;
-          }
+          const persistedRequestToken = validated.incomingRequestToken;
 
           const persistedRecordId = resolveLabelVersionRecordId(
             message?.labelVersionRecordId,
@@ -1661,6 +1726,16 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
             message?.record_id
           );
           if (!persistedRecordId) return;
+          if (persistedSide === 'front') {
+            setFrontLabelPersistence((prev) => ({
+              ...prev,
+              status: 'persisted',
+              requestToken: validated.incomingRequestToken || prev.requestToken,
+              resetToken: validated.incomingResetToken || prev.resetToken,
+              labelVersionRecordId: persistedRecordId,
+              error: null,
+            }));
+          }
 
           const persistedHistoryId = String(message?.historyId || '').trim();
           const persistedDedupeKey = String(message?.dedupeKey || '').trim();
@@ -1727,6 +1802,28 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
           });
           if (persistedRequestToken && activeRequestTokenBySideRef.current[persistedSide] === persistedRequestToken) {
             clearSideRequest(persistedSide);
+          }
+          return;
+        }
+
+        if (e.data?.customMessageType === 'labelVersionPersistenceError') {
+          const message = e.data?.message || {};
+          const persistenceSide: 'front' | 'back' =
+            String(message?.designSide || '').toLowerCase() === 'back' ? 'back' : 'front';
+          const validated = validatePersistenceMessage('labelVersionPersistenceError', persistenceSide, message);
+          if (!validated) {
+            return;
+          }
+          if (persistenceSide === 'front') {
+            setFrontLabelPersistence((prev) => ({
+              ...prev,
+              status: 'failed',
+              requestToken: validated.incomingRequestToken || prev.requestToken,
+              resetToken: validated.incomingResetToken || prev.resetToken,
+              labelVersionRecordId: null,
+              error:
+                resolveLabelPersistenceErrorMessage(message),
+            }));
           }
           return;
         }
@@ -2988,6 +3085,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
 
       setLabelDesign('front', null);
       setLabelError(false);
+      setFrontLabelPersistence(EMPTY_LABEL_PERSISTENCE_STATE);
       setGuidedGenerating(false);
       setIsUploadDesignApplying(false);
       setLabelRequestKind(null);
@@ -3076,6 +3174,13 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
       const subtitle = (miniLiquid?.name || '').trim();
       const requestToken = beginSideRequest('front');
       const resetToken = getResetTokenForSide('front');
+      setFrontLabelPersistence({
+        status: 'idle',
+        requestToken,
+        resetToken,
+        labelVersionRecordId: null,
+        error: null,
+      });
       const payload: any = {
         designSide: 'front',
         alcoholName: subtitle,
@@ -3150,6 +3255,15 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
       setLabelErrorMessage(null);
       setLabelRequestKind('edit');
       setGuidedGenerating(true);
+      const requestToken = beginSideRequest('front');
+      const resetToken = getResetTokenForSide('front');
+      setFrontLabelPersistence({
+        status: 'idle',
+        requestToken,
+        resetToken,
+        labelVersionRecordId: null,
+        error: null,
+      });
       const fallbackPrompt = (labelMode === 'guided' ? (promptOverride.trim() || assemblePrompt()) : labelForm.prompt.trim());
       const inheritedPrompt = String(prevInput.prompt || prev?.prompt || fallbackPrompt || '').trim();
       const inheritedTitle = String(prevInput.title || prev?.title || labelForm.title || '').trim();
@@ -3179,8 +3293,8 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
         previousImage,
         critique: trimmed,
         sessionId: sessionStorage.getItem('ss_session_id') || (window as any).SS?.getSessionId?.() || String(Date.now()),
-        requestToken: beginSideRequest('front'),
-        resetToken: getResetTokenForSide('front'),
+        requestToken,
+        resetToken,
       };
       console.log("postMessage Content:", {
         messageContent: 'generateLabelRevision',
@@ -3515,6 +3629,72 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
         dedupeKey: null,
       };
     }, [selectedLabelVersions.front, selectedFrontHistory, labelDesigns, frontLabelHistory]);
+    const currentFrontLabelVersionRecordId = resolveLabelVersionRecordId(
+      selectedLabelVersion?.recordId,
+      frontLabelPersistence.labelVersionRecordId
+    );
+    const isCurrentFrontLabelPersisted =
+      Boolean(currentFrontLabelVersionRecordId) &&
+      frontLabelPersistence.status !== 'persisting' &&
+      frontLabelPersistence.status !== 'failed';
+    const isAwaitingFrontLabelPersistence =
+      isAiLabelMode &&
+      hasLabelOnBottle &&
+      isLabelPreviewReady &&
+      !guidedGenerating &&
+      Boolean(frontLabelPersistence.requestToken) &&
+      !currentFrontLabelVersionRecordId &&
+      frontLabelPersistence.status !== 'failed';
+    const frontLabelPersistenceMessage =
+      frontLabelPersistence.status === 'failed'
+        ? (
+            frontLabelPersistence.error ||
+            DEFAULT_LABEL_PERSISTENCE_ERROR
+          )
+        : (isAwaitingFrontLabelPersistence || frontLabelPersistence.status === 'persisting'
+          ? 'Saving label...'
+          : '');
+    const canRetryFrontLabelPersistence =
+      isAiLabelMode &&
+      frontLabelPersistence.status === 'failed' &&
+      Boolean(frontLabelPersistence.requestToken);
+    const showAiSaveAndOrderButton = showAddToCartButton && isCurrentFrontLabelPersisted;
+
+    useEffect(() => {
+      if (!currentFrontLabelVersionRecordId) return;
+      setFrontLabelPersistence((prev) => {
+        if (
+          prev.status === 'persisted' &&
+          prev.labelVersionRecordId === currentFrontLabelVersionRecordId &&
+          !prev.error
+        ) {
+          return prev;
+        }
+        return {
+          ...prev,
+          status: 'persisted',
+          labelVersionRecordId: currentFrontLabelVersionRecordId,
+          error: null,
+        };
+      });
+    }, [currentFrontLabelVersionRecordId]);
+
+    const handleRetryFrontLabelPersistence = useCallback(() => {
+      if (!frontLabelPersistence.requestToken) return;
+      setFrontLabelPersistence((prev) => ({
+        ...prev,
+        status: 'persisting',
+        error: null,
+      }));
+      postToParent({
+        customMessageType: 'retryLabelPersistence',
+        message: {
+          designSide: 'front',
+          requestToken: frontLabelPersistence.requestToken,
+          resetToken: frontLabelPersistence.resetToken,
+        }
+      });
+    }, [frontLabelPersistence.requestToken, frontLabelPersistence.resetToken]);
 
     useEffect(() => {
       if (!pendingFinalCameraTarget) return;
@@ -3538,6 +3718,14 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
         return <LoadingSpinner />;
     
     const handleAddToCart = async () => {
+    if (isAiLabelMode && !isCurrentFrontLabelPersisted) {
+      setWarning(
+        frontLabelPersistence.status === 'failed'
+          ? 'Please retry saving your label before ordering.'
+          : 'Please wait while your label is saved before ordering.'
+      );
+      return;
+    }
     setIgnoreAddToCartLoading(false);
     try {
         const bottleCameraKey = toBottleCameraKey(
@@ -4371,7 +4559,19 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                           >
                             Make Edits
                           </button>
-                          {showAddToCartButton && (
+                          {frontLabelPersistenceMessage && (
+                            <LabelHelperText>{frontLabelPersistenceMessage}</LabelHelperText>
+                          )}
+                          {canRetryFrontLabelPersistence && (
+                            <button
+                              className="configurator-button guided-action"
+                              type="button"
+                              onClick={handleRetryFrontLabelPersistence}
+                            >
+                              RETRY SAVE
+                            </button>
+                          )}
+                          {showAiSaveAndOrderButton && (
                             <button
                               className="configurator-button guided-action save-order-button"
                               type="button"
@@ -4397,18 +4597,30 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                           placeholder="Describe what you want to change about the label."
                         />
                       </LabelField>
+                      {frontLabelPersistenceMessage && (
+                        <LabelHelperText>{frontLabelPersistenceMessage}</LabelHelperText>
+                      )}
                       <GuidedActionRow>
                         <button
                           className="configurator-button guided-action"
                           type="button"
-                          disabled={!guidedEditNotes.trim()}
+                          disabled={!guidedEditNotes.trim() || !isCurrentFrontLabelPersisted}
                           onClick={() => {
                             handleSendRevision(guidedEditNotes);
                           }}
                         >
                           GENERATE EDITS
                         </button>
-                        {showAddToCartButton && (
+                        {canRetryFrontLabelPersistence && (
+                          <button
+                            className="configurator-button guided-action"
+                            type="button"
+                            onClick={handleRetryFrontLabelPersistence}
+                          >
+                            RETRY SAVE
+                          </button>
+                        )}
+                        {showAiSaveAndOrderButton && (
                           <button
                             className="configurator-button guided-action save-order-button edit-label-save-order-button"
                             type="button"
