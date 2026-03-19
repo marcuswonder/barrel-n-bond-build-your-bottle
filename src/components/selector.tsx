@@ -3091,6 +3091,32 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
         reader.readAsDataURL(file);
       });
 
+    const blobToDataUrl = (blob: Blob) =>
+      new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ''));
+        reader.onerror = () => reject(new Error('Failed to read blob'));
+        reader.readAsDataURL(blob);
+      });
+
+    const fetchImageAsDataUrl = async (url: string) => {
+      const href = String(url || '').trim();
+      if (!/^https?:\/\//i.test(href)) return '';
+      const response = await fetch(href, {
+        method: 'GET',
+        credentials: 'omit',
+        cache: 'force-cache',
+      });
+      if (!response.ok) {
+        throw new Error(`Failed to load existing label image (HTTP ${response.status})`);
+      }
+      const blob = await response.blob();
+      if (!blob || !blob.size) {
+        throw new Error('Existing label image is empty.');
+      }
+      return blobToDataUrl(blob);
+    };
+
     const resolveOther = (value: string, other: string, otherToken = 'Other') => {
       if (value !== otherToken) return value;
       return other.trim();
@@ -3214,7 +3240,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
       });
     };
 
-    const handleSendRevision = (critique: string) => {
+    const handleSendRevision = async (critique: string) => {
       lockLabelMode('guided');
       const trimmed = (critique || '').trim();
       if (!trimmed) {
@@ -3228,9 +3254,17 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
         (typeof prev?.frontImage === 'string' && prev.frontImage.startsWith('data:') ? prev.frontImage : '') ||
         (Array.isArray(prev?.images) && typeof prev.images[0] === 'string' && prev.images[0].startsWith('data:') ? prev.images[0] : '') ||
         (typeof prev?.imageDataUrl === 'string' && prev.imageDataUrl.startsWith('data:') ? prev.imageDataUrl : '');
-      const previousImage = previousDataUrlCandidate;
+      const previousImageUrlCandidate = resolveDesignPreviewUrl(prev);
+      let previousImage = previousDataUrlCandidate;
+      if (!previousImage && /^https?:\/\//i.test(previousImageUrlCandidate)) {
+        try {
+          previousImage = await fetchImageAsDataUrl(previousImageUrlCandidate);
+        } catch (error) {
+          console.warn('Failed to hydrate local label image for revision', error);
+        }
+      }
       if (!previousImage) {
-        setWarning('No local label image found to revise. Please regenerate the label before editing.');
+        setWarning('We could not load the current label image for editing. Please try again.');
         return;
       }
       setLabelError(false);
