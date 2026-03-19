@@ -7,6 +7,19 @@ import App from './components/app';
 import * as serviceWorker from './serviceWorker';
 import { resolveParentMessagingConfig } from './utils/postMessage';
 
+const isDebugEnabled = (): boolean => {
+  try {
+    const syncDebug = (window as any).__SS_SYNC_DEBUG__;
+    if (typeof syncDebug === 'function') return syncDebug() === true;
+
+    const qp = new URLSearchParams(window.location.search);
+    const value = String(qp.get('debug') || '').toLowerCase();
+    return value === 'true' || value === '1';
+  } catch {
+    return false;
+  }
+};
+
 const { parentTargetOrigin } = resolveParentMessagingConfig();
 
 const postToParent = (type: string, payload: unknown): void => {
@@ -18,11 +31,7 @@ const postToParent = (type: string, payload: unknown): void => {
 // ---- Zakeke network tap (fetch/XMLHttpRequest) ----
 (function installZkNetTap(){
   try {
-    const qp = new URLSearchParams(window.location.search);
-    const tapEnabled =
-      qp.has('debugnet') ||
-      qp.has('debug-net') ||
-      (window as any).__ZK_NET_TAP__ === true;
+    const tapEnabled = isDebugEnabled() || (window as any).__ZK_NET_TAP__ === true;
 
     const w = window as unknown as {
       fetch: typeof window.fetch;
@@ -120,8 +129,7 @@ const postToParent = (type: string, payload: unknown): void => {
 // ---- Runtime module inspector ----
 (function attachModuleInspector() {
   try {
-    const qp = new URLSearchParams(window.location.search);
-    const debugEnabled = qp.has('debugmods') || qp.has('debug-mods') || (window as any).__DEBUG_MODS__ === true;
+    const debugEnabled = isDebugEnabled() || (window as any).__DEBUG_MODS__ === true;
 
     const extractModuleIdsFromStack = (stack?: string): number[] => {
       if (!stack) return [];

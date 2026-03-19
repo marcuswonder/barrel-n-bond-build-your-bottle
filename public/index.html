@@ -20,6 +20,76 @@
     />
     <title>Spirit Studio's Create Your Own Bottle</title>
 
+    <script>
+      (function () {
+        var nativeConsole = window.console || {};
+        var noop = function () {};
+        var gatedMethods = [
+          'log',
+          'debug',
+          'info',
+          'warn',
+          'error',
+          'trace',
+          'group',
+          'groupCollapsed',
+          'groupEnd',
+          'dir',
+          'dirxml',
+          'table',
+          'assert'
+        ];
+
+        var readDebugFlag = function () {
+          try {
+            var params = new URLSearchParams(window.location.search || '');
+            var value = String(params.get('debug') || '').toLowerCase();
+            return value === 'true' || value === '1';
+          } catch (e) {
+            return false;
+          }
+        };
+
+        var bindConsoleMethod = function (name) {
+          var method = nativeConsole[name];
+          return typeof method === 'function' ? method.bind(nativeConsole) : noop;
+        };
+
+        window.__SS_NATIVE_CONSOLE__ = window.__SS_NATIVE_CONSOLE__ || {};
+
+        gatedMethods.forEach(function (name) {
+          if (!window.__SS_NATIVE_CONSOLE__[name]) {
+            window.__SS_NATIVE_CONSOLE__[name] = bindConsoleMethod(name);
+          }
+        });
+
+        window.__SS_SYNC_DEBUG__ = function () {
+          var enabled = readDebugFlag();
+          window.__SS_DEBUG__ = enabled;
+          return enabled;
+        };
+
+        window.__SS_SYNC_DEBUG__();
+
+        gatedMethods.forEach(function (name) {
+          var nativeMethod = window.__SS_NATIVE_CONSOLE__[name] || noop;
+
+          if (name === 'assert') {
+            console[name] = function (condition) {
+              if (!window.__SS_SYNC_DEBUG__() || condition) return;
+              return nativeMethod.apply(nativeConsole, arguments);
+            };
+            return;
+          }
+
+          console[name] = function () {
+            if (!window.__SS_SYNC_DEBUG__()) return;
+            return nativeMethod.apply(nativeConsole, arguments);
+          };
+        });
+      })();
+    </script>
+
     <!-- Zakeke globals must load BEFORE the React bundle so window.BABYLON exists -->
     <script src="%PUBLIC_URL%/globals0.js"></script>
     <script src="%PUBLIC_URL%/globals1.js"></script>
