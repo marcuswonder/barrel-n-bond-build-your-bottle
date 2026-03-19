@@ -1908,7 +1908,19 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
             activeRequestTokenBySideRef.current[resolvedSide] = incomingRequestToken;
           }
           setLabelErrorMessage(null);
+          const incomingInlineImageRef = firstDataImageRef(
+            resolvedSide === 'front' ? designExport?.frontImage : designExport?.backImage,
+            designExport?.imageDataUrl,
+            Array.isArray(designExport?.images) ? designExport.images[0] : null,
+            Array.isArray(designExport?.imageDataUrls) ? designExport.imageDataUrls[0] : null
+          );
           const safeDesignExport = compactDesignExport(designExport || {}, resolvedSide);
+          const compactInlineImageRef = firstDataImageRef(
+            resolvedSide === 'front' ? safeDesignExport?.frontImage : safeDesignExport?.backImage,
+            safeDesignExport?.imageDataUrl,
+            Array.isArray(safeDesignExport?.images) ? safeDesignExport.images[0] : null,
+            Array.isArray(safeDesignExport?.imageDataUrls) ? safeDesignExport.imageDataUrls[0] : null
+          );
           const skipBootstrapPersistence =
             String(safeDesignExport?.source || '').trim().toLowerCase() === 'studio-bootstrap';
           const storeBeforeUploadApply = useOrderStore.getState();
@@ -1939,6 +1951,13 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
             skipBootstrapPersistence,
             incomingRequestToken,
             incomingResetToken,
+            incomingHasInlineImage: Boolean(incomingInlineImageRef),
+            incomingFrontImageKind:
+              typeof (resolvedSide === 'front' ? designExport?.frontImage : designExport?.backImage) === 'string' &&
+              /^data:image\//i.test(String(resolvedSide === 'front' ? designExport?.frontImage : designExport?.backImage).trim())
+                ? 'data'
+                : 'url-or-empty',
+            compactHasInlineImage: Boolean(compactInlineImageRef),
             previousAppliedOutputImageUrl,
             incomingOutputImageUrl,
             incomingOutputS3Key: safeDesignExport?.outputS3Key || null,
