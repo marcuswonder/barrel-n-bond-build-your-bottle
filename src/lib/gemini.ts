@@ -56,7 +56,24 @@ const geminiFetch = async (model: string, body: Record<string, unknown>) => {
   );
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`Gemini API error (${res.status}): ${text}`);
+    const parsed = safeJsonParse(text);
+    const errorMessage =
+      parsed.ok && parsed.value && typeof parsed.value === 'object' && 'error' in parsed.value
+        ? (parsed.value as any)?.error?.message
+        : '';
+
+    console.error('[geminiFetch] upstream_error', {
+      model,
+      status: res.status,
+      statusText: res.statusText,
+      parseOk: parsed.ok,
+      parseError: parsed.ok ? '' : (parsed.error instanceof Error ? parsed.error.message : String(parsed.error)),
+      responsePreview: text.slice(0, 500),
+      errorMessage: typeof errorMessage === 'string' ? errorMessage : '',
+    });
+
+    const detail = typeof errorMessage === 'string' && errorMessage.trim() ? `: ${errorMessage.trim()}` : '';
+    throw new Error(`Gemini API error (${res.status})${detail}`);
   }
   return res.json();
 };

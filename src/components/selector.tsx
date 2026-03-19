@@ -145,12 +145,60 @@ const firstDataImageRef = (...values: Array<unknown>): string | null => {
   return null;
 };
 
+const USER_FACING_ERROR_MAX_LENGTH = 220;
+
+const collapseWhitespace = (value: string): string => value.replace(/\s+/g, ' ').trim();
+
+const stripErrorPrefix = (value: string): string =>
+  value
+    .replace(/^error:\s*/i, '')
+    .replace(/^gemini api error \(\d{3}\):\s*/i, '')
+    .replace(/^request failed with status \d{3}(?:\s*\([^)]+\))?:\s*/i, '')
+    .trim();
+
+const containsHtmlPayload = (value: string): boolean => {
+  const normalized = value.toLowerCase();
+  if (
+    normalized.includes('<!doctype') ||
+    normalized.includes('<html') ||
+    normalized.includes('<head') ||
+    normalized.includes('<body') ||
+    normalized.includes('<meta') ||
+    normalized.includes('<link') ||
+    normalized.includes('<script') ||
+    normalized.includes('<style')
+  ) {
+    return true;
+  }
+
+  const htmlTagMatches = value.match(/<\/?[a-z][^>]*>/gi) || [];
+  return htmlTagMatches.length >= 3;
+};
+
+const truncateUserFacingError = (value: string): string => {
+  if (value.length <= USER_FACING_ERROR_MAX_LENGTH) return value;
+
+  const clipped = value.slice(0, USER_FACING_ERROR_MAX_LENGTH).replace(/\s+\S*$/, '').trim();
+  const trimmed = clipped.replace(/[,:;\-\s]+$/g, '').trim();
+  if (!trimmed) return `${value.slice(0, USER_FACING_ERROR_MAX_LENGTH).trim()}...`;
+  return /[.!?]$/.test(trimmed) ? trimmed : `${trimmed}...`;
+};
+
+const normalizeUserFacingError = (value: string): string | null => {
+  const compact = collapseWhitespace(value);
+  if (!compact) return null;
+
+  const stripped = stripErrorPrefix(compact) || compact;
+  if (containsHtmlPayload(stripped)) return null;
+
+  return truncateUserFacingError(stripped);
+};
+
 const extractErrorMessage = (value: unknown, depth = 0): string | null => {
   if (depth > 3 || value == null) return null;
 
   if (typeof value === 'string') {
-    const text = value.trim();
-    return text || null;
+    return normalizeUserFacingError(value);
   }
 
   if (Array.isArray(value)) {
@@ -164,19 +212,19 @@ const extractErrorMessage = (value: unknown, depth = 0): string | null => {
   if (typeof value !== 'object') return null;
 
   const record = value as Record<string, unknown>;
+  const status = record.status;
+  const statusMessage =
+    typeof status === 'number' && Number.isFinite(status)
+      ? `Request failed with status ${status}${typeof record.statusText === 'string' && record.statusText.trim() ? ` (${record.statusText.trim()})` : ''}.`
+      : null;
+
   for (const key of ['error', 'message', 'reason', 'detail', 'details']) {
     if (!(key in record)) continue;
     const match = extractErrorMessage(record[key], depth + 1);
     if (match) return match;
   }
 
-  const status = record.status;
-  if (typeof status === 'number' && Number.isFinite(status)) {
-    const statusText = typeof record.statusText === 'string' ? record.statusText.trim() : '';
-    return `Request failed with status ${status}${statusText ? ` (${statusText})` : ''}.`;
-  }
-
-  return null;
+  return statusMessage;
 };
 
 const AIRTABLE_RECORD_ID_RE = /^rec[a-zA-Z0-9]{6,}$/;
