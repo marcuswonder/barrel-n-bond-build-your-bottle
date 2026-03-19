@@ -1534,16 +1534,6 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
         );
         const outputPdfUrl = firstHttp(designExport?.outputPdfUrl, designExport?.pdfUrl);
         const outputZakekeUrl = firstHttp(designExport?.outputZakekeUrl, designExport?.zakekeUrl);
-        const inputLogoUrl = firstHttp(
-          designExport?.inputLogoUrl,
-          aiInput?.inputLogoUrl,
-          aiInput?.logoUrl
-        );
-        const inputCharacterUrl = firstHttp(
-          designExport?.inputCharacterUrl,
-          aiInput?.inputCharacterUrl,
-          aiInput?.characterUrl
-        );
         const inputReferenceUrl = firstHttp(
           designExport?.inputReferenceUrl,
           designExport?.previousImage,
@@ -1590,11 +1580,9 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
               designExport?.title ||
               labelForm.title ||
               ''
-            ).trim() || null,
+          ).trim() || null,
           promptText,
           editPromptText,
-          inputLogoUrl,
-          inputCharacterUrl,
           inputReferenceUrl,
           outputImageUrl,
           outputS3Url,
@@ -3240,15 +3228,9 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
         (typeof prev?.frontImage === 'string' && prev.frontImage.startsWith('data:') ? prev.frontImage : '') ||
         (Array.isArray(prev?.images) && typeof prev.images[0] === 'string' && prev.images[0].startsWith('data:') ? prev.images[0] : '') ||
         (typeof prev?.imageDataUrl === 'string' && prev.imageDataUrl.startsWith('data:') ? prev.imageDataUrl : '');
-      const previousImage =
-        previousDataUrlCandidate ||
-        prev?.frontS3Url ||
-        prev?.s3url ||
-        prev?.url ||
-        (Array.isArray(prev?.images) ? prev.images[0] : '') ||
-        '';
+      const previousImage = previousDataUrlCandidate;
       if (!previousImage) {
-        setWarning('No previous label image found to revise.');
+        setWarning('No local label image found to revise. Please regenerate the label before editing.');
         return;
       }
       setLabelError(false);
