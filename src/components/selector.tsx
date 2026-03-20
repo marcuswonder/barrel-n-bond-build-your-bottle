@@ -930,9 +930,12 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
       const front = (labelDesigns as any)?.front || null;
       if (!front) return '';
       return (
+        front.outputImageUrl ||
+        front.previewUrl ||
         front.frontS3Url ||
         front.s3url ||
         front.url ||
+        front.frontImage ||
         (Array.isArray(front.images) ? front.images[0] : '') ||
         ''
       );
@@ -940,15 +943,16 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
 
     useEffect(() => {
       if (!labelPreviewUrl) {
-        setLoadedLabelPreviewUrl('');
-        setShowLoadedLabelPreview(false);
         if (!hasLabelOnBottle) {
+          setLoadedLabelPreviewUrl('');
+          setShowLoadedLabelPreview(false);
           setLabelPreviewLoadMode('none');
           return;
         }
 
-        // If label is on the bottle but preview URL is still missing, unblock after 2s.
-        setLabelPreviewLoadMode('none');
+        // If label is on the bottle but preview URL is still missing, keep the current
+        // flat preview mounted and unblock after 2s if we still have no direct href.
+        setLabelPreviewLoadMode((prev) => (loadedLabelPreviewUrl ? prev : 'none'));
         let cancelled = false;
         const fallbackTimer = window.setTimeout(() => {
           if (!cancelled) {
@@ -961,13 +965,28 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
         };
       }
 
+      if (loadedLabelPreviewUrl === labelPreviewUrl) {
+        setLabelPreviewLoadMode('loaded');
+        if (!showLoadedLabelPreview) {
+          requestAnimationFrame(() => {
+            setShowLoadedLabelPreview(true);
+          });
+        }
+        return;
+      }
+
       let cancelled = false;
       let resolved = false;
+      const keepPreviewMounted = Boolean(loadedLabelPreviewUrl);
       const revealPreview = (mode: 'loaded' | 'fallback') => {
         if (cancelled || resolved) return;
         resolved = true;
         setLoadedLabelPreviewUrl(labelPreviewUrl);
         setLabelPreviewLoadMode(mode);
+        if (keepPreviewMounted) {
+          setShowLoadedLabelPreview(true);
+          return;
+        }
         setShowLoadedLabelPreview(false);
         requestAnimationFrame(() => {
           if (!cancelled) setShowLoadedLabelPreview(true);
@@ -995,11 +1014,11 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
         cancelled = true;
         window.clearTimeout(fallbackTimer);
       };
-    }, [labelPreviewUrl, hasLabelOnBottle]);
+    }, [labelPreviewUrl, hasLabelOnBottle, loadedLabelPreviewUrl, showLoadedLabelPreview]);
 
-    const isCurrentLabelPreviewLoaded = Boolean(labelPreviewUrl) && loadedLabelPreviewUrl === labelPreviewUrl;
+    const hasLoadedLabelPreview = Boolean(loadedLabelPreviewUrl);
     const isLabelPreviewReady =
-      isCurrentLabelPreviewLoaded ||
+      hasLoadedLabelPreview ||
       (labelPreviewLoadMode === 'fallback' && hasLabelOnBottle);
     const activeLabelLoadingMessages = isUploadDesignApplying
       ? uploadDesignProgressMessages
@@ -3006,6 +3025,85 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
       }
     };
 
+    const buildCustomUploadParentPayload = ({
+      file,
+      dataUrl,
+      displayName,
+      sessionId,
+      requestToken,
+      resetToken,
+      previewUrl,
+    }: {
+      file: File;
+      dataUrl: string;
+      displayName: string;
+      sessionId: string;
+      requestToken: string;
+      resetToken: string | null;
+      previewUrl?: string | null;
+    }) => {
+      const trimmedDisplayName = String(displayName || '').trim();
+      const trimmedDataUrl = String(dataUrl || '').trim();
+      const isImageDataUrl = /^data:image\//i.test(trimmedDataUrl);
+      const normalizedPreviewUrl = String(previewUrl || '').trim() || (isImageDataUrl ? trimmedDataUrl : null);
+      const portablePreviewUrl = isImageDataUrl ? trimmedDataUrl : normalizedPreviewUrl;
+      const uploadedAt = new Date().toISOString();
+      const dedupeKey = `upload:${sessionId}:${file.name || 'label'}:${file.size || 0}`;
+      const designExport = {
+        source: 'custom-upload',
+        versionKind: 'Upload',
+        title: trimmedDisplayName,
+        displayName: trimmedDisplayName,
+        frontImage: isImageDataUrl ? trimmedDataUrl : '',
+        images: isImageDataUrl ? [trimmedDataUrl] : [],
+        imageDataUrl: isImageDataUrl ? trimmedDataUrl : '',
+        s3url: normalizedPreviewUrl || '',
+        url: normalizedPreviewUrl || '',
+        previewUrl: portablePreviewUrl,
+        outputImageUrl: portablePreviewUrl,
+        uploadedAt,
+        sessionId,
+        fileName: file.name || '',
+        fileType: file.type || '',
+        fileSize: file.size || 0,
+        dataUrl: trimmedDataUrl,
+      };
+
+      return {
+        order: {
+          bottle: productObject.selections.bottle,
+          liquid: productObject.selections.liquid,
+          closure: productObject.selections.closure,
+          label: productObject.selections.label,
+          closureExtras: productObject.selections.closureExtras,
+        },
+        designSide: 'front' as const,
+        designExport,
+        productSku: product?.sku ?? null,
+        historyId: null,
+        dedupeKey,
+        requestToken,
+        resetToken,
+        previewUrl: portablePreviewUrl,
+        sessionId,
+        versionKind: 'Upload' as const,
+        versionNumber: null,
+        labelVersionRecordId: null,
+        accepted: true,
+        displayName: trimmedDisplayName || null,
+        promptText: null,
+        editPromptText: null,
+        inputReferenceUrl: null,
+        outputImageUrl: portablePreviewUrl,
+        outputS3Url: null,
+        outputPdfUrl: null,
+        outputZakekeUrl: null,
+        outputS3Key: null,
+        modelName: null,
+        source: 'custom-upload',
+      };
+    };
+
     const handleUploadLabelSubmit = async () => {
       lockLabelMode('upload');
       if (!uploadLabelFile) return;
@@ -3040,81 +3138,66 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
         sessionStorage.getItem('ss_session_id') ||
         (window as any).SS?.getSessionId?.() ||
         String(Date.now());
+      const requestToken = beginSideRequest('front');
       const resetToken = getResetTokenForSide('front');
 
       // Upload image files directly in zakeke-full to avoid dependency on upstream upload proxy failures.
       if (isImageUpload && dataUrl) {
         clearLocalUploadPreviewUrl();
         localUploadPreviewUrlRef.current = URL.createObjectURL(uploadLabelFile);
+        const customUploadPayload = buildCustomUploadParentPayload({
+          file: uploadLabelFile,
+          dataUrl,
+          displayName: uploadDisplayName,
+          sessionId: localSessionId,
+          requestToken,
+          resetToken,
+          previewUrl: localUploadPreviewUrlRef.current,
+        });
+
+        console.log("postMessage content:", {
+          customMessageType: 'customLabelUploaded',
+          message: customUploadPayload,
+        });
+
+        postToParent({
+          customMessageType: 'customLabelUploaded',
+          message: customUploadPayload,
+        });
+
         window.postMessage(
           {
             customMessageType: 'uploadDesign',
             message: {
-              order: {
-                bottle: productObject.selections.bottle,
-                liquid: productObject.selections.liquid,
-                closure: productObject.selections.closure,
-                label: productObject.selections.label,
-                closureExtras: productObject.selections.closureExtras,
-              },
-              designSide: 'front',
-              skipVersionPersistence: true,
+              order: customUploadPayload.order,
+              designSide: customUploadPayload.designSide,
+              requestToken,
               resetToken,
-              designExport: {
-                source: 'custom-upload',
-                versionKind: 'Upload',
-                title: uploadDisplayName,
-                displayName: uploadDisplayName,
-                frontImage: dataUrl,
-                images: [dataUrl],
-                s3url: localUploadPreviewUrlRef.current,
-                url: localUploadPreviewUrlRef.current,
-                uploadedAt: new Date().toISOString(),
-                sessionId: localSessionId,
-                fileName: uploadLabelFile.name || '',
-                fileType: uploadLabelFile.type || '',
-                fileSize: uploadLabelFile.size || 0,
-              },
+              skipVersionPersistence: true,
+              designExport: customUploadPayload.designExport,
             },
           },
           window.location.origin
         );
         return;
       }
-      const requestToken = beginSideRequest('front');
+      const customUploadPayload = buildCustomUploadParentPayload({
+        file: uploadLabelFile,
+        dataUrl,
+        displayName: uploadDisplayName,
+        sessionId: localSessionId,
+        requestToken,
+        resetToken,
+      });
       
       console.log("postMessage content:", {
         customMessageType: 'customLabelUploaded',
-        message: { 
-          designSide: 'front', 
-          bottleName: (miniBottle?.name || '').trim(),
-          sessionId: localSessionId,
-          displayName: uploadDisplayName,
-          title: uploadDisplayName,
-          requestToken,
-          resetToken,
-          fileName: uploadLabelFile.name || '',
-          fileType: uploadLabelFile.type || '',
-          fileSize: uploadLabelFile.size || 0,
-          dataUrl,
-        },
+        message: customUploadPayload,
       });
 
       postToParent({
         customMessageType: 'customLabelUploaded',
-        message: { 
-          designSide: 'front', 
-          bottleName: (miniBottle?.name || '').trim(),
-          sessionId: localSessionId,
-          displayName: uploadDisplayName,
-          title: uploadDisplayName,
-          requestToken,
-          resetToken,
-          fileName: uploadLabelFile.name || '',
-          fileType: uploadLabelFile.type || '',
-          fileSize: uploadLabelFile.size || 0,
-          dataUrl,
-        },
+        message: customUploadPayload,
       });
     };
 
@@ -4552,8 +4635,8 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
 
                   {isAiLabelMode && hasLabelOnBottle && !guidedEditMode && (
                     <WizardWrap>
-                      {isCurrentLabelPreviewLoaded && (
-                        <LabelPreviewReveal $visible={showLoadedLabelPreview}>
+                      {hasLoadedLabelPreview && (
+                        <LabelPreviewReveal $visible={showLoadedLabelPreview || hasLoadedLabelPreview}>
                           <LabelPreviewImage
                             src={loadedLabelPreviewUrl}
                             alt="Generated label preview"
@@ -4570,7 +4653,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                           </PromptFadeText>
                         </PromptLoading>
                       )}
-                      {labelPreviewLoadMode === 'fallback' && !isCurrentLabelPreviewLoaded && (
+                      {labelPreviewLoadMode === 'fallback' && !hasLoadedLabelPreview && (
                         <LabelHelperText>
                           Preview is taking longer than expected. You can continue and we will keep loading it.
                         </LabelHelperText>
@@ -4769,6 +4852,29 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
 
                   {labelMode === 'upload' && hasLabelOnBottle && !showLabelLoadingState && (
                     <WizardWrap>
+                      {hasLoadedLabelPreview && (
+                        <LabelPreviewReveal $visible={showLoadedLabelPreview || hasLoadedLabelPreview}>
+                          <LabelPreviewImage
+                            src={loadedLabelPreviewUrl}
+                            alt="Uploaded label preview"
+                            draggable={false}
+                            onContextMenu={(event) => event.preventDefault()}
+                          />
+                        </LabelPreviewReveal>
+                      )}
+                      {!isLabelPreviewReady && (
+                        <PromptLoading>
+                          <PromptSpinner />
+                          <PromptFadeText>
+                            {isUploadDesignApplying ? activeLabelLoadingMessage : 'Finalising label preview...'}
+                          </PromptFadeText>
+                        </PromptLoading>
+                      )}
+                      {labelPreviewLoadMode === 'fallback' && !hasLoadedLabelPreview && (
+                        <LabelHelperText>
+                          Preview is taking longer than expected. You can continue and we will keep loading it.
+                        </LabelHelperText>
+                      )}
                       <GuidedActionRow className="preview-actions">
                         <button
                           className="wizard-ghost guided-action"
