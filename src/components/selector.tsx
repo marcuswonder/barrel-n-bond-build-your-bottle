@@ -629,6 +629,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
     const [promptOverride, setPromptOverride] = useState('');
     const [hideLabelHistory, setHideLabelHistory] = useState(true);
     const correlationCounterRef = useRef(0);
+    const uploadRequestModeRef = useRef<'local-image' | 'remote-file' | null>(null);
     const resetTokenBySideRef = useRef<{ front: string | null; back: string | null }>({
       front: null,
       back: null,
@@ -2408,6 +2409,19 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
           e.data?.customMessageType === 'generateLabelError'
         ) {
           const message = e.data?.message || {};
+          const extractedErrorMessage = extractErrorMessage(message);
+          if (
+            labelMode === 'upload' &&
+            uploadRequestModeRef.current === 'local-image' &&
+            /^uploaded label data is missing\.?$/i.test(String(extractedErrorMessage || '').trim())
+          ) {
+            console.info('[labelError] ignored stale local-upload validation error', {
+              message,
+            });
+            setLabelError(false);
+            setLabelErrorMessage(null);
+            return;
+          }
           const failedSide: 'front' | 'back' =
             String(message?.designSide || '').toLowerCase() === 'back' ? 'back' : 'front';
           const incomingResetToken = String(message?.resetToken || '').trim() || null;
@@ -2434,7 +2448,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
             clearSideRequest(failedSide);
           }
           setLabelError(true);
-          setLabelErrorMessage(extractErrorMessage(message));
+          setLabelErrorMessage(extractedErrorMessage);
           setGuidedGenerating(false);
           setIsUploadDesignApplying(false);
           setPendingFinalCameraTarget(null);
@@ -2869,6 +2883,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
     const handleUploadLabelFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
       const file = event.target.files?.[0] ?? null;
       lockLabelMode('upload');
+      uploadRequestModeRef.current = null;
       setUploadLabelFile(file);
     };
 
@@ -2881,6 +2896,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
     };
 
     const resetUploadLabelForm = () => {
+      uploadRequestModeRef.current = null;
       clearLocalUploadPreviewUrl();
       setUploadLabelFile(null);
       if (uploadLabelInputRef.current) {
@@ -2935,6 +2951,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
       const resetToken = createCorrelationToken('reset', side);
       setResetTokenForSide(side, resetToken);
       clearSideRequest(side);
+      uploadRequestModeRef.current = null;
 
       void clearBottleLabelItems(side);
       postToParent({
@@ -3049,11 +3066,22 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
       const portablePreviewUrl = isImageDataUrl ? trimmedDataUrl : normalizedPreviewUrl;
       const uploadedAt = new Date().toISOString();
       const dedupeKey = `upload:${sessionId}:${file.name || 'label'}:${file.size || 0}`;
+      const resolvedBottleName = String(
+        productObject?.selections?.bottle?.name ||
+        (typeof productObject?.selections?.bottle === 'string'
+          ? productObject.selections.bottle
+          : '') ||
+        miniBottle?.name ||
+        defaultBottleName ||
+        ''
+      ).trim();
       const designExport = {
         source: 'custom-upload',
+        designSide: 'front',
         versionKind: 'Upload',
         title: trimmedDisplayName,
         displayName: trimmedDisplayName,
+        bottleName: resolvedBottleName || '',
         frontImage: isImageDataUrl ? trimmedDataUrl : '',
         images: isImageDataUrl ? [trimmedDataUrl] : [],
         imageDataUrl: isImageDataUrl ? trimmedDataUrl : '',
@@ -3078,6 +3106,11 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
           closureExtras: productObject.selections.closureExtras,
         },
         designSide: 'front' as const,
+        dataUrl: trimmedDataUrl,
+        bottleName: resolvedBottleName || null,
+        fileName: file.name || '',
+        fileType: file.type || '',
+        fileSize: file.size || 0,
         designExport,
         productSku: product?.sku ?? null,
         historyId: null,
@@ -3143,6 +3176,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
 
       // Upload image files directly in zakeke-full to avoid dependency on upstream upload proxy failures.
       if (isImageUpload && dataUrl) {
+        uploadRequestModeRef.current = 'local-image';
         clearLocalUploadPreviewUrl();
         localUploadPreviewUrlRef.current = URL.createObjectURL(uploadLabelFile);
         const customUploadPayload = buildCustomUploadParentPayload({
@@ -3181,6 +3215,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
         );
         return;
       }
+      uploadRequestModeRef.current = 'remote-file';
       const customUploadPayload = buildCustomUploadParentPayload({
         file: uploadLabelFile,
         dataUrl,
@@ -3222,6 +3257,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
       }
 
       setLabelDesign('front', null);
+      uploadRequestModeRef.current = null;
       setLabelError(false);
       setFrontLabelPersistence(EMPTY_LABEL_PERSISTENCE_STATE);
       setGuidedGenerating(false);
