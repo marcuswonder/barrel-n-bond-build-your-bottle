@@ -75,6 +75,10 @@ import { resolveParentMessagingConfig } from '../utils/postMessage';
 
 type AppMode = 'full' | 'lite';
 type LabelMode = 'form' | 'guided' | 'upload';
+type LabelUploadFieldKey = 'logoFile' | 'characterFile' | 'uploadLabelFile';
+
+const MAX_LABEL_IMAGE_UPLOAD_BYTES = 5 * 1024 * 1024;
+const LABEL_IMAGE_UPLOAD_LIMIT_MESSAGE = 'Image files must be 5 MB or smaller.';
 
 const normalizebottleName = (value: string) =>
   value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '');
@@ -271,6 +275,21 @@ const resolveLabelVersionRecordId = (...values: Array<unknown>): string | null =
   for (const value of values) {
     const resolved = tryExtractLabelVersionRecordId(value);
     if (resolved) return resolved;
+  }
+  return null;
+};
+
+const isImageFileUpload = (file: File | null): boolean => {
+  if (!file) return false;
+  const type = String(file.type || '').toLowerCase();
+  if (type.startsWith('image/')) return true;
+  return /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(String(file.name || ''));
+};
+
+const getLabelImageUploadError = (file: File | null): string | null => {
+  if (!file || !isImageFileUpload(file)) return null;
+  if (file.size > MAX_LABEL_IMAGE_UPLOAD_BYTES) {
+    return LABEL_IMAGE_UPLOAD_LIMIT_MESSAGE;
   }
   return null;
 };
@@ -617,6 +636,11 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
     const [labelError, setLabelError] = useState(false);
     const [frontLabelPersistence, setFrontLabelPersistence] = useState<LabelPersistenceState>(EMPTY_LABEL_PERSISTENCE_STATE);
     const [labelErrorMessage, setLabelErrorMessage] = useState<string | null>(null);
+    const [labelUploadErrors, setLabelUploadErrors] = useState<Record<LabelUploadFieldKey, string | null>>({
+      logoFile: null,
+      characterFile: null,
+      uploadLabelFile: null,
+    });
     const [promptLoadingIndex, setPromptLoadingIndex] = useState(0);
     const [labelLoadingIndex, setLabelLoadingIndex] = useState(0);
     const [isUploadDesignApplying, setIsUploadDesignApplying] = useState(false);
@@ -2837,6 +2861,14 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
       setLockedLabelMode((prev) => prev ?? mode);
     };
 
+    const setLabelUploadError = (key: LabelUploadFieldKey, message: string | null) => {
+      setLabelUploadErrors((prev) => (
+        prev[key] === message
+          ? prev
+          : { ...prev, [key]: message }
+      ));
+    };
+
     const handleLabelModeSelect = (mode: LabelMode) => {
       if (lockedLabelMode && lockedLabelMode !== mode) return;
       setLabelMode(mode);
@@ -2874,11 +2906,20 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
       key: 'characterFile' | 'logoFile'
     ) => (event: React.ChangeEvent<HTMLInputElement>) => {
       const file = event.target.files?.[0] ?? null;
+      const validationError = getLabelImageUploadError(file);
+      if (validationError) {
+        event.target.value = '';
+        setLabelUploadError(key, validationError);
+        setWarning(validationError);
+        return;
+      }
       lockLabelMode(labelMode);
+      setLabelUploadError(key, null);
       setLabelForm((prev) => ({ ...prev, [key]: file }));
     };
 
     const clearLabelFile = (key: 'characterFile' | 'logoFile') => {
+      setLabelUploadError(key, null);
       setLabelForm((prev) => ({
         ...prev,
         [key]: null,
@@ -2889,8 +2930,17 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
 
     const handleUploadLabelFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
       const file = event.target.files?.[0] ?? null;
+      const validationError = getLabelImageUploadError(file);
+      if (validationError) {
+        event.target.value = '';
+        setUploadLabelFile(null);
+        setLabelUploadError('uploadLabelFile', validationError);
+        setWarning(validationError);
+        return;
+      }
       lockLabelMode('upload');
       uploadRequestModeRef.current = null;
+      setLabelUploadError('uploadLabelFile', null);
       setUploadLabelFile(file);
     };
 
@@ -2905,6 +2955,7 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
     const resetUploadLabelForm = () => {
       uploadRequestModeRef.current = null;
       clearLocalUploadPreviewUrl();
+      setLabelUploadError('uploadLabelFile', null);
       setUploadLabelFile(null);
       if (uploadLabelInputRef.current) {
         uploadLabelInputRef.current.value = '';
@@ -2977,6 +3028,11 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
       clearLabelHistory(side);
       setLabelForm(getEmptyLabelForm());
       setLabelWizard(getEmptyLabelWizard());
+      setLabelUploadErrors({
+        logoFile: null,
+        characterFile: null,
+        uploadLabelFile: null,
+      });
       setWizardStepIndex(0);
       setWizardStarted(false);
       setGuidedPromptConfirmed(false);
@@ -4504,6 +4560,11 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                                 <LabelHelperText>
                                   {labelForm.logoFile?.name || 'No logo selected.'}
                                 </LabelHelperText>
+                                {labelUploadErrors.logoFile && (
+                                  <LabelHelperText style={{ color: '#ff73c6' }}>
+                                    {labelUploadErrors.logoFile}
+                                  </LabelHelperText>
+                                )}
                               </LabelField>
                             )}
                             {currentStep.review && !guidedPromptConfirmed && (
@@ -4576,6 +4637,11 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                                               onChange={handleLabelFileChange('logoFile')}
                                             />
                                           )}
+                                          {labelUploadErrors.logoFile && (
+                                            <LabelHelperText style={{ color: '#ff73c6' }}>
+                                              {labelUploadErrors.logoFile}
+                                            </LabelHelperText>
+                                          )}
                                         </LabelField>
                                       )}
                                       {(labelForm.characterFile || reviewImagesVisible) && (
@@ -4595,6 +4661,11 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                                                 setReviewImagesVisible(true);
                                               }}
                                             />
+                                          )}
+                                          {labelUploadErrors.characterFile && (
+                                            <LabelHelperText style={{ color: '#ff73c6' }}>
+                                              {labelUploadErrors.characterFile}
+                                            </LabelHelperText>
                                           )}
                                         </LabelField>
                                       )}
@@ -4650,6 +4721,11 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                                 <LabelHelperText>
                                   {labelForm.characterFile?.name || 'No character uploaded.'}
                                 </LabelHelperText>
+                                {labelUploadErrors.characterFile && (
+                                  <LabelHelperText style={{ color: '#ff73c6' }}>
+                                    {labelUploadErrors.characterFile}
+                                  </LabelHelperText>
+                                )}
                               </LabelField>
                             )}
                             {showHeader && !guidedPromptConfirmed && (
@@ -4892,6 +4968,11 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                         <LabelHelperText>
                           Upload a PNG, JPG, or PDF label file.
                         </LabelHelperText>
+                        {labelUploadErrors.uploadLabelFile && (
+                          <LabelHelperText style={{ color: '#ff73c6' }}>
+                            {labelUploadErrors.uploadLabelFile}
+                          </LabelHelperText>
+                        )}
                       </LabelField>
                       <WizardNav style={{ justifyContent: 'flex-end' }}>
                         {!uploadLabelFile ? (
@@ -5014,6 +5095,11 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                           <LabelHelperText>
                             {labelForm.logoFile?.name || 'No logo uploaded.'}
                           </LabelHelperText>
+                          {labelUploadErrors.logoFile && (
+                            <LabelHelperText style={{ color: '#ff73c6' }}>
+                              {labelUploadErrors.logoFile}
+                            </LabelHelperText>
+                          )}
                         </LabelField>
                         <LabelField>
                           Include a character
@@ -5028,6 +5114,11 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                           <LabelHelperText>
                             {labelForm.characterFile?.name || 'No character uploaded.'}
                           </LabelHelperText>
+                          {labelUploadErrors.characterFile && (
+                            <LabelHelperText style={{ color: '#ff73c6' }}>
+                              {labelUploadErrors.characterFile}
+                            </LabelHelperText>
+                          )}
                         </LabelField>
                       </LabelRow>
                     </LabelDetails>
