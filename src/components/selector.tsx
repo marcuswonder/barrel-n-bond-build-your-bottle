@@ -44,6 +44,7 @@ import {
   WizardNav,
   WizardHeader,
   WizardHeaderSide,
+  RestartButton,
   PromptLoading,
   PromptSpinner,
   PromptFadeText,
@@ -2763,6 +2764,12 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
     const onLabelStep =
       (selectedStep?.name || '').toLowerCase().includes('design') ||
       (selectedStep?.name || '').toLowerCase().includes('label');
+    const showLabelResetButton =
+      onLabelStep &&
+      !hasLabelOnBottle &&
+      !guidedGenerating &&
+      !isUploadDesignApplying &&
+      !isPromptGenerating;
 
 
     // Step validation helpers
@@ -4181,7 +4188,18 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                           UPLOAD LABEL
                         </LabelTabButton>
                       </LabelTabs>
-                      <WizardHeaderSide $align="right" />
+                      <WizardHeaderSide $align="right">
+                        {showLabelResetButton && (
+                          <RestartButton
+                            type="button"
+                            aria-label="Reset label form"
+                            title="Reset label form"
+                            onClick={resetLabelDesignerFlow}
+                          >
+                            <span>↺</span>
+                          </RestartButton>
+                        )}
+                      </WizardHeaderSide>
                     </WizardHeader>
                   ) : null}
 
@@ -4410,7 +4428,18 @@ const Selector: FunctionComponent<{ mode?: AppMode; defaultBottleName?: string }
                                 <WizardHeader>
                                   <WizardHeaderSide />
                                   <WizardStepTitle>{currentStep.title}</WizardStepTitle>
-                                  <WizardHeaderSide $align="right" />
+                                  <WizardHeaderSide $align="right">
+                                    {showLabelResetButton && (
+                                      <RestartButton
+                                        type="button"
+                                        aria-label="Reset label form"
+                                        title="Reset label form"
+                                        onClick={resetLabelDesignerFlow}
+                                      >
+                                        <span>↺</span>
+                                      </RestartButton>
+                                    )}
+                                  </WizardHeaderSide>
                                 </WizardHeader>
                               )}
                             {!currentStep.review && currentStep.key !== 'logo' && (
